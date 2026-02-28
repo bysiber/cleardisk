@@ -585,15 +585,17 @@ class DiskMonitor: ObservableObject {
         
         guard let enumerator = fm.enumerator(
             at: URL(fileURLWithPath: path),
-            includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+            includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey],
             options: [.skipsHiddenFiles],
             errorHandler: nil
         ) else { return 0 }
         
         for case let fileURL as URL in enumerator {
-            guard let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
-                  values.isRegularFile == true,
-                  let size = values.fileSize else { continue }
+            guard let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey]),
+                  values.isRegularFile == true else { continue }
+            // Use totalFileAllocatedSize (accounts for sparse files like Docker.raw)
+            // Falls back to fileAllocatedSize if total isn't available
+            let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0
             totalSize += Int64(size)
         }
         
