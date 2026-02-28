@@ -30,7 +30,7 @@ struct MainView: View {
                 }
                 
                 // Cleanable summary card (only when there's stuff to clean)
-                if diskMonitor.totalCleanable > 10_485_760 { // > 10MB
+                if diskMonitor.safeCleanable > 10_485_760 || diskMonitor.riskyCleanable > 10_485_760 { // > 10MB
                     cleanableSummary
                     Divider()
                 }
@@ -95,10 +95,10 @@ struct MainView: View {
         VStack(spacing: 6) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(formatBytes(diskMonitor.totalCleanable))
+                    Text(formatBytes(diskMonitor.safeCleanable))
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundColor(.green)
-                    Text("can be cleaned")
+                    Text("can be safely cleaned")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.green.opacity(0.8))
                 }
@@ -106,13 +106,13 @@ struct MainView: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 4) {
-                    let devTotal = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
+                    let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
                     let trashTotal = diskMonitor.trashSize()
                     
-                    if devTotal > 0 {
+                    if safeDevTotal > 0 {
                         HStack(spacing: 4) {
                             Circle().fill(.purple).frame(width: 6, height: 6)
-                            Text("\(formatBytes(devTotal)) dev")
+                            Text("\(formatBytes(safeDevTotal)) dev")
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                         }
@@ -125,6 +125,20 @@ struct MainView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                }
+            }
+            
+            // Risky warning line (e.g. Docker data)
+            if diskMonitor.riskyCleanable > 1_048_576 {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.orange)
+                    let riskyNames = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.map { $0.name }.joined(separator: ", ")
+                    Text("\(formatBytes(diskMonitor.riskyCleanable)) in risky caches (\(riskyNames)) — not included above")
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                    Spacer()
                 }
             }
             
