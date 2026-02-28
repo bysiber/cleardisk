@@ -6,6 +6,7 @@ struct MainView: View {
     @State private var selectedTab: Tab = .overview
     @State private var showCleanConfirm = false
     @State private var showCleanAllConfirm = false
+    @State private var showCleanSafeConfirm = false
     @State private var cacheToClean: DevCache?
     
     enum Tab: String, CaseIterable {
@@ -67,7 +68,7 @@ struct MainView: View {
         .frame(width: 380, height: 540)
         .alert("Clean Cache", isPresented: $showCleanConfirm) {
             Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+            Button("Move to Trash", role: .destructive) {
                 if let cache = cacheToClean {
                     diskMonitor.cleanDevCache(cache)
                 }
@@ -77,15 +78,25 @@ struct MainView: View {
                 Text("Delete all contents of \(cache.name)?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)")
             }
         }
-        .alert("Clean All Developer Caches", isPresented: $showCleanAllConfirm) {
+        .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
             Button("Cancel", role: .cancel) { }
-            Button("Delete All", role: .destructive) {
+            Button("Move to Trash", role: .destructive) {
+                diskMonitor.cleanSafeCaches()
+            }
+        } message: {
+            let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+            let safeTotal = safeCaches.reduce(Int64(0)) { $0 + $1.size }
+            Text("Clean \(safeCaches.count) safe/caution caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nRisky caches (like Docker) are NOT included.\nFiles go to Trash — you can recover them.")
+        }
+        .alert("Clean ALL Developer Caches", isPresented: $showCleanAllConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete All (Including Risky)", role: .destructive) {
                 diskMonitor.cleanAllDevCaches()
             }
         } message: {
             let total = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
             let riskyCount = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.count
-            let riskyNote = riskyCount > 0 ? "\n\n🔴 \(riskyCount) risky cache(s) included — may contain data that cannot be rebuilt." : ""
+            let riskyNote = riskyCount > 0 ? "\n\n🔴 WARNING: \(riskyCount) risky cache(s) included — may contain data that cannot be rebuilt (e.g. Docker volumes, unsaved projects)." : ""
             Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)")
         }
     }
@@ -149,7 +160,7 @@ struct MainView: View {
                     let safeSize = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
                     if safeSize > 0 {
                         Button(action: {
-                            showCleanAllConfirm = true
+                            showCleanSafeConfirm = true
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "sparkles")
@@ -741,7 +752,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.3")
+                Text("ClearDisk v1.3.1")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
