@@ -344,23 +344,46 @@ class DiskMonitor: ObservableObject {
     func devCachePaths() -> [(String, String)] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
+            // Xcode & Apple
             ("Xcode DerivedData", "\(home)/Library/Developer/Xcode/DerivedData"),
             ("Xcode Archives", "\(home)/Library/Developer/Xcode/Archives"),
             ("Xcode Simulators", "\(home)/Library/Developer/CoreSimulator/Devices"),
             ("Xcode Caches", "\(home)/Library/Developer/Xcode/Products"),
             ("Xcode Device Support", "\(home)/Library/Developer/Xcode/iOS DeviceSupport"),
             ("Xcode Logs", "\(home)/Library/Logs/CoreSimulator"),
+            ("Xcode Previews", "\(home)/Library/Developer/Xcode/UserData/Previews"),
+            ("Simulator Caches", "\(home)/Library/Developer/CoreSimulator/Caches"),
+            ("Swift PM Cache", "\(home)/Library/Caches/org.swift.swiftpm"),
+            // iOS/macOS Ecosystem
             ("CocoaPods Cache", "\(home)/Library/Caches/CocoaPods"),
             ("Carthage", "\(home)/Library/Caches/org.carthage.CarthageKit"),
+            // System Tools
             ("Homebrew Cache", "\(home)/Library/Caches/Homebrew"),
+            // JavaScript/Node
             ("npm Cache", "\(home)/.npm/_cacache"),
             ("Yarn Cache", "\(home)/Library/Caches/Yarn"),
+            ("pnpm Store", "\(home)/Library/pnpm/store"),
+            ("Bun Cache", "\(home)/.bun/install/cache"),
+            // Python
             ("pip Cache", "\(home)/Library/Caches/pip"),
+            ("Conda Packages", "\(home)/.conda/pkgs"),
+            // Java/Android
             ("Gradle Cache", "\(home)/.gradle/caches"),
+            ("Maven Cache", "\(home)/.m2/repository"),
+            ("Android Emulators", "\(home)/.android/avd"),
+            // Containers
             ("Docker (Data)", "\(home)/Library/Containers/com.docker.docker/Data"),
+            // PHP
             ("Composer Cache", "\(home)/.composer/cache"),
+            // Go/Rust
             ("Go Modules", "\(home)/go/pkg/mod/cache"),
             ("Rust Cargo", "\(home)/.cargo/registry"),
+            // Mobile
+            ("Flutter/Pub Cache", "\(home)/.pub-cache"),
+            // IDEs
+            ("JetBrains Cache", "\(home)/.cache/JetBrains"),
+            // Ruby
+            ("Ruby Gems", "\(home)/.gem"),
         ]
     }
     
@@ -370,23 +393,46 @@ class DiskMonitor: ObservableObject {
         // Risk levels: safe = rebuild with command, caution = may need re-download, risky = data loss possible
         // (name, icon, path, riskLevel)
         let devPaths: [(String, String, String, String)] = [
+            // Xcode & Apple
             ("Xcode DerivedData", "xmark.bin.fill", "\(home)/Library/Developer/Xcode/DerivedData", "safe"),
             ("Xcode Archives", "archivebox.fill", "\(home)/Library/Developer/Xcode/Archives", "caution"),
             ("Xcode Simulators", "iphone", "\(home)/Library/Developer/CoreSimulator/Devices", "caution"),
             ("Xcode Caches", "internaldrive", "\(home)/Library/Developer/Xcode/Products", "safe"),
             ("Xcode Device Support", "cpu", "\(home)/Library/Developer/Xcode/iOS DeviceSupport", "safe"),
             ("Xcode Logs", "doc.text.fill", "\(home)/Library/Logs/CoreSimulator", "safe"),
+            ("Xcode Previews", "eye.fill", "\(home)/Library/Developer/Xcode/UserData/Previews", "safe"),
+            ("Simulator Caches", "internaldrive.fill", "\(home)/Library/Developer/CoreSimulator/Caches", "safe"),
+            ("Swift PM Cache", "swift", "\(home)/Library/Caches/org.swift.swiftpm", "safe"),
+            // iOS/macOS Ecosystem
             ("CocoaPods Cache", "shippingbox.fill", "\(home)/Library/Caches/CocoaPods", "safe"),
             ("Carthage", "cart.fill", "\(home)/Library/Caches/org.carthage.CarthageKit", "safe"),
+            // System Tools
             ("Homebrew Cache", "mug.fill", "\(home)/Library/Caches/Homebrew", "safe"),
+            // JavaScript/Node
             ("npm Cache", "shippingbox", "\(home)/.npm/_cacache", "safe"),
             ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe"),
+            ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe"),
+            ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe"),
+            // Python
             ("pip Cache", "cube.fill", "\(home)/Library/Caches/pip", "safe"),
+            ("Conda Packages", "flask.fill", "\(home)/.conda/pkgs", "safe"),
+            // Java/Android
             ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe"),
+            ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe"),
+            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution"),
+            // Containers
             ("Docker (Data)", "cube.transparent", "\(home)/Library/Containers/com.docker.docker/Data", "risky"),
+            // PHP
             ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe"),
+            // Go/Rust
             ("Go Modules", "leaf.fill", "\(home)/go/pkg/mod/cache", "safe"),
             ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe"),
+            // Mobile
+            ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe"),
+            // IDEs
+            ("JetBrains Cache", "laptopcomputer", "\(home)/.cache/JetBrains", "safe"),
+            // Ruby
+            ("Ruby Gems", "diamond.fill", "\(home)/.gem", "safe"),
         ]
         
         var caches: [DevCache] = []

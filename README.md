@@ -30,11 +30,11 @@ Your Mac's SSD is full of developer caches you forgot about. Xcode DerivedData a
 - **CleanMyMac** ($40/yr) — bloated, expensive, trust issues
 - **SquirrelDisk** — dead (3 years, no updates)
 
-ClearDisk scans **17 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
+ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
 
 ## Features
 
-- **17 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs), CocoaPods, Carthage, Homebrew, npm, Yarn, pip, Gradle, Docker, Composer, Go modules, Rust Cargo
+- **28 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm, Bun, pip, Conda, Gradle, Maven, Docker, Composer, Go, Rust Cargo, Flutter/Pub, JetBrains, Ruby Gems, Android Emulators
 - **Hero Dashboard** — Big, clear display of total cleanable space with breakdown by dev caches and trash
 - **Menu Bar Monitor** — Always-on disk usage display. Changes color at 80%/90% thresholds. Shows cleanable amount when disk is stressed
 - **Risk Levels** — 🟢 Safe (rebuilds with a command), 🟡 Caution (large re-download needed), 🔴 Risky (may contain irreplaceable data)
@@ -52,7 +52,7 @@ ClearDisk scans **17 developer cache paths** in one tool. Lives in your menu bar
 | Feature | ClearDisk | DevCleaner | DaisyDisk | CleanMyMac |
 |---------|-----------|------------|-----------|------------|
 | Xcode cleanup | ✅ | ✅ | ❌ | ✅ |
-| npm/pip/brew/docker/go/cargo | ✅ | ❌ | ❌ | Partial |
+| npm/pip/brew/docker/go/cargo/pnpm/conda/maven | ✅ | ❌ | ❌ | Partial |
 | Xcode Device Support | ✅ | ✅ | ❌ | ❌ |
 | Menu bar monitor | ✅ | ❌ | ❌ | ❌ |
 | Risk levels | ✅ | ❌ | ❌ | ❌ |
@@ -101,14 +101,24 @@ ClearDisk scans **known developer cache directories** on a 5-minute interval:
 ~/Library/Developer/Xcode/Products              → 🟢 Safe
 ~/Library/Developer/Xcode/iOS DeviceSupport     → 🟢 Safe
 ~/Library/Logs/CoreSimulator                    → 🟢 Safe
+~/Library/Developer/Xcode/UserData/Previews     → 🟢 Safe
+~/Library/Developer/CoreSimulator/Caches        → 🟢 Safe
+~/Library/Caches/org.swift.swiftpm              → 🟢 Safe
 ~/Library/Caches/CocoaPods                      → 🟢 Safe
 ~/Library/Caches/Homebrew                       → 🟢 Safe
 ~/.npm/_cacache                                 → 🟢 Safe
+~/Library/pnpm/store                            → 🟢 Safe
+~/.bun/install/cache                            → 🟢 Safe
 ~/Library/Caches/pip                            → 🟢 Safe
+~/.conda/pkgs                                   → 🟢 Safe
+~/.gradle/caches                                → 🟢 Safe
+~/.m2/repository                                → 🟢 Safe
+~/.android/avd                                  → 🟡 Caution
 ~/Library/Containers/com.docker.docker          → 🔴 Risky
-~/.cargo/registry                               → 🟢 Safe
-~/go/pkg/mod/cache                              → 🟢 Safe
-...and 4 more
+~/.pub-cache                                    → 🟢 Safe
+~/.cache/JetBrains                              → 🟢 Safe
+~/.gem                                          → 🟢 Safe
+...and 5 more
 ```
 
 It only looks at these specific paths — no full disk scan, no file indexing, no background processes.
