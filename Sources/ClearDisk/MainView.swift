@@ -90,37 +90,77 @@ struct MainView: View {
         }
     }
     
-    // MARK: - Cleanable Summary
+    // MARK: - Cleanable Summary (Hero Card)
     var cleanableSummary: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 16))
-                .foregroundColor(.green)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(formatBytes(diskMonitor.totalCleanable)) cleanable")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
+        VStack(spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(formatBytes(diskMonitor.totalCleanable))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(.green)
+                    Text("can be cleaned")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.green.opacity(0.8))
+                }
                 
-                let devTotal = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
-                let trashTotal = diskMonitor.trashSize()
-                var parts: [String] = []
-                let _ = {
-                    if devTotal > 0 { parts.append("\(formatBytes(devTotal)) dev caches") }
-                    if trashTotal > 0 { parts.append("\(formatBytes(trashTotal)) trash") }
-                }()
-                if !parts.isEmpty {
-                    Text(parts.joined(separator: " + "))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    let devTotal = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
+                    let trashTotal = diskMonitor.trashSize()
+                    
+                    if devTotal > 0 {
+                        HStack(spacing: 4) {
+                            Circle().fill(.purple).frame(width: 6, height: 6)
+                            Text("\(formatBytes(devTotal)) dev")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    if trashTotal > 0 {
+                        HStack(spacing: 4) {
+                            Circle().fill(.orange).frame(width: 6, height: 6)
+                            Text("\(formatBytes(trashTotal)) trash")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
             }
             
-            Spacer()
+            // Quick action bar
+            HStack(spacing: 8) {
+                if !diskMonitor.devCaches.isEmpty {
+                    let safeCount = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.count
+                    let safeSize = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+                    if safeSize > 0 {
+                        Button(action: {
+                            showCleanAllConfirm = true
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 10))
+                                Text("Clean \(safeCount) safe caches (\(formatBytes(safeSize)))")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.green.opacity(0.15))
+                            .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.green)
+                    }
+                }
+                Spacer()
+            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.green.opacity(0.06))
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 0)
+                .fill(Color.green.opacity(0.04))
+        )
     }
     
     // MARK: - Header
@@ -244,53 +284,111 @@ struct MainView: View {
     
     // MARK: - Overview Tab
     var overviewContent: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 0) {
+            // Recovered banner
+            if diskMonitor.showRecoveredBanner && diskMonitor.lastCleanedAmount > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.green)
+                    Text("Recovered \(formatBytes(diskMonitor.lastCleanedAmount))!")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.green)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.green.opacity(0.08))
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            
+            // Categories with proportional bars
+            let maxSize = diskMonitor.categories.first?.size ?? 1
             ForEach(diskMonitor.categories) { cat in
-                categoryRow(cat)
+                categoryRow(cat, maxSize: maxSize)
             }
             
             // Trash
             let trash = diskMonitor.trashSize()
             if trash > 0 {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "trash.fill")
                         .font(.system(size: 14))
                         .frame(width: 24)
                         .foregroundColor(.orange)
-                    Text("Trash")
-                        .font(.system(size: 13))
-                    Spacer()
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Trash")
+                            .font(.system(size: 12))
+                        
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.orange.opacity(0.3))
+                                .frame(width: max(4, geo.size.width * CGFloat(trash) / CGFloat(maxSize)))
+                        }
+                        .frame(height: 4)
+                    }
+                    
                     Text(formatBytes(trash))
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
+                        .frame(width: 65, alignment: .trailing)
+                    
                     Button("Empty") {
                         diskMonitor.emptyTrash()
                     }
-                    .font(.system(size: 11))
-                    .controlSize(.small)
+                    .font(.system(size: 10))
+                    .controlSize(.mini)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.vertical, 5)
             }
         }
         .padding(.vertical, 4)
     }
     
-    func categoryRow(_ cat: DiskCategory) -> some View {
-        HStack {
+    func categoryRow(_ cat: DiskCategory, maxSize: Int64) -> some View {
+        HStack(spacing: 8) {
             Image(systemName: cat.icon)
                 .font(.system(size: 14))
                 .frame(width: 24)
-                .foregroundColor(.accentColor)
-            Text(cat.name)
-                .font(.system(size: 13))
-            Spacer()
+                .foregroundColor(categoryColor(cat.name))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(cat.name)
+                    .font(.system(size: 12))
+                
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(categoryColor(cat.name).opacity(0.3))
+                        .frame(width: max(4, geo.size.width * CGFloat(cat.size) / CGFloat(maxSize)))
+                }
+                .frame(height: 4)
+            }
+            
             Text(formatBytes(cat.size))
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundColor(.secondary)
+                .frame(width: 65, alignment: .trailing)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
+    }
+    
+    func categoryColor(_ name: String) -> Color {
+        switch name {
+        case "Developer": return .purple
+        case "Caches": return .red
+        case "Applications": return .blue
+        case "Documents": return .cyan
+        case "Downloads": return .green
+        case "Desktop": return .indigo
+        case "Mail": return .orange
+        case "Music": return .pink
+        case "Movies": return .yellow
+        case "Photos": return .mint
+        default: return .gray
+        }
     }
     
     // MARK: - Developer Tab
@@ -619,9 +717,20 @@ struct MainView: View {
     // MARK: - Footer
     var footerView: some View {
         HStack {
-            Text("ClearDisk v1.0")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
+            if diskMonitor.totalSavedAllTime > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.green)
+                    Text("Total saved: \(formatBytes(diskMonitor.totalSavedAllTime))")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.green)
+                }
+            } else {
+                Text("ClearDisk v1.3")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
             Spacer()
             Button("Quit") {
                 NSApplication.shared.terminate(nil)

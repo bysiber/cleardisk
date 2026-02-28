@@ -1,12 +1,22 @@
 # ClearDisk
 
-**Find 70–570 GB of hidden developer caches on your Mac.**
+**Your Mac is hiding 50–500 GB of developer caches. ClearDisk finds them in seconds.**
 
-A free, open-source macOS menu bar app that monitors and cleans developer cache — Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. No data collection. No analytics. No network access. Ever.
+A free, open-source macOS menu bar app that monitors and cleans developer caches — Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. 590 KB. Zero dependencies. No data collection. No analytics. No network access. Ever.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
+![Size](https://img.shields.io/badge/Size-590%20KB-brightgreen)
+
+<!-- 
+## Screenshots
+
+TODO: Add screenshots
+Screenshot 1: Hero card showing cleanable space
+Screenshot 2: Developer tab with cache list
+Screenshot 3: Overview with category bars
+-->
 
 ---
 
@@ -25,12 +35,16 @@ ClearDisk scans **15 developer cache paths** in one tool. Lives in your menu bar
 ## Features
 
 - **15 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches), CocoaPods, Carthage, Homebrew, npm, Yarn, pip, Gradle, Docker, Composer, Go modules, Rust Cargo
+- **Hero Dashboard** — Big, clear display of total cleanable space with breakdown by dev caches and trash
 - **Menu Bar Monitor** — Always-on disk usage display. Changes color at 80%/90% thresholds. Shows cleanable amount when disk is stressed
 - **Risk Levels** — 🟢 Safe (rebuilds with a command), 🟡 Caution (large re-download needed), 🔴 Risky (may contain irreplaceable data)
 - **Safe Delete** — Files go to Trash, not permanent delete. You can always recover
+- **Visual Category Bars** — Color-coded proportional bars showing what's eating your disk
+- **Recovery Tracking** — "Recovered 12.4 GB!" banner after cleanup + cumulative "Total saved: 123 GB" counter
 - **Storage Forecast** — Predicts when your disk will be full based on usage trends (linear regression, 90-day history)
 - **Smart Suggestions** — Age-based recommendations ("Not used for 90 days — safe to clean")
 - **Smart Notifications** — Alerts at 80% and 90% disk usage, no spam
+- **Onboarding** — First-launch welcome screen with permission status checking
 - **100% Private** — No data collection. No analytics. No network access. Source code is open — verify yourself
 
 ## Comparison
