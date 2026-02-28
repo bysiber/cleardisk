@@ -30,11 +30,11 @@ Your Mac's SSD is full of developer caches you forgot about. Xcode DerivedData a
 - **CleanMyMac** ($40/yr) — bloated, expensive, trust issues
 - **SquirrelDisk** — dead (3 years, no updates)
 
-ClearDisk scans **15 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
+ClearDisk scans **17 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
 
 ## Features
 
-- **15 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches), CocoaPods, Carthage, Homebrew, npm, Yarn, pip, Gradle, Docker, Composer, Go modules, Rust Cargo
+- **17 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs), CocoaPods, Carthage, Homebrew, npm, Yarn, pip, Gradle, Docker, Composer, Go modules, Rust Cargo
 - **Hero Dashboard** — Big, clear display of total cleanable space with breakdown by dev caches and trash
 - **Menu Bar Monitor** — Always-on disk usage display. Changes color at 80%/90% thresholds. Shows cleanable amount when disk is stressed
 - **Risk Levels** — 🟢 Safe (rebuilds with a command), 🟡 Caution (large re-download needed), 🔴 Risky (may contain irreplaceable data)
@@ -53,6 +53,7 @@ ClearDisk scans **15 developer cache paths** in one tool. Lives in your menu bar
 |---------|-----------|------------|-----------|------------|
 | Xcode cleanup | ✅ | ✅ | ❌ | ✅ |
 | npm/pip/brew/docker/go/cargo | ✅ | ❌ | ❌ | Partial |
+| Xcode Device Support | ✅ | ✅ | ❌ | ❌ |
 | Menu bar monitor | ✅ | ❌ | ❌ | ❌ |
 | Risk levels | ✅ | ❌ | ❌ | ❌ |
 | Storage forecast | ✅ | ❌ | ❌ | ❌ |
@@ -63,48 +64,44 @@ ClearDisk scans **15 developer cache paths** in one tool. Lives in your menu bar
 
 ## Installation
 
-### Download
-
-1. Download the latest release from [Releases](../../releases)
-2. Unzip and drag `ClearDisk.app` to Applications
-3. First launch — remove quarantine flag:
-   ```bash
-   xattr -cr /Applications/ClearDisk.app
-   ```
-4. Double-click to open (or Right-click → Open)
-
-> **Why?** ClearDisk is not code-signed yet ($99/yr Apple Developer fee). The `xattr` command removes macOS Gatekeeper quarantine. You can verify the source code yourself — it's fully open.
-> 
-> Homebrew Cask install coming soon: `brew install --cask cleardisk`
-
-### Build from Source
+### Build from Source (Recommended)
 
 ```bash
 git clone https://github.com/bysiber/cleardisk.git
 cd cleardisk
-swift build -c release
 bash build_app.sh
-open ClearDisk.app
+cp -R ClearDisk.app /Applications/
+xattr -cr /Applications/ClearDisk.app
+open /Applications/ClearDisk.app
 ```
 
-Requires macOS 14+ and Xcode Command Line Tools.
+That's it. Click the disk icon in your menu bar.
+
+> **Why `xattr -cr`?** ClearDisk is not code-signed ($99/yr Apple Developer fee). This removes the macOS Gatekeeper quarantine flag. You can verify every line of source code yourself — it's fully open.
+> 
+> Homebrew Cask install coming soon: `brew install --cask cleardisk`
+
+Requires macOS 14+ and Xcode Command Line Tools (`xcode-select --install`).
 
 ## How It Works
 
 ClearDisk scans **known developer cache directories** on a 5-minute interval:
 
 ```
-~/Library/Developer/Xcode/DerivedData     → 🟢 Safe
-~/Library/Developer/Xcode/Archives        → 🟡 Caution
-~/Library/Developer/CoreSimulator/Devices  → 🟡 Caution
-~/Library/Caches/CocoaPods                → 🟢 Safe
-~/Library/Caches/Homebrew                 → 🟢 Safe
-~/.npm/_cacache                           → 🟢 Safe
-~/Library/Caches/pip                      → 🟢 Safe
-~/Library/Containers/com.docker.docker    → 🔴 Risky
-~/.cargo/registry                         → 🟢 Safe
-~/go/pkg/mod/cache                        → 🟢 Safe
-...and 5 more
+~/Library/Developer/Xcode/DerivedData           → 🟢 Safe
+~/Library/Developer/Xcode/Archives              → 🟡 Caution
+~/Library/Developer/CoreSimulator/Devices        → 🟡 Caution
+~/Library/Developer/Xcode/Products              → 🟢 Safe
+~/Library/Developer/Xcode/iOS DeviceSupport     → 🟢 Safe
+~/Library/Logs/CoreSimulator                    → 🟢 Safe
+~/Library/Caches/CocoaPods                      → 🟢 Safe
+~/Library/Caches/Homebrew                       → 🟢 Safe
+~/.npm/_cacache                                 → 🟢 Safe
+~/Library/Caches/pip                            → 🟢 Safe
+~/Library/Containers/com.docker.docker          → 🔴 Risky
+~/.cargo/registry                               → 🟢 Safe
+~/go/pkg/mod/cache                              → 🟢 Safe
+...and 4 more
 ```
 
 It only looks at these specific paths — no full disk scan, no file indexing, no background processes.
