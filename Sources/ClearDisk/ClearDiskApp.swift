@@ -24,6 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
         diskMonitor.setupNotifications()
+        diskMonitor.loadSavedTotal()
         
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

@@ -3,6 +3,24 @@ BU USER NOTUDUR: SUBWATCHI BOŞVER SADECE CLEAR DISKE ODAKLAN !
 
 All notable changes to ClearDisk are documented here.
 
+## [1.3.0] - 2026-03-01
+### Added
+- **Hero Dashboard**: Big, bold cleanable space display (28pt font) with dev cache + trash breakdown
+- **Quick Action Bar**: "Clean X safe caches (Y GB)" one-click button in hero card
+- **Visual Category Bars**: Color-coded proportional bars in Overview tab (each category gets unique color)
+- **Recovery Banner**: Green "Recovered X GB!" banner appears for 5 seconds after any cleanup
+- **Cumulative Savings**: Persistent "Total saved: X GB" counter in footer (survives app restart)
+- **Onboarding Screen**: First-launch welcome overlay with feature list and notification permission status
+- **Permission Checking**: Tracks notification permission state and inaccessible cache paths
+- **Permission Banner**: Warning banner when notifications are denied or paths unreadable
+- **Bundle Guard**: App no longer crashes when run via `swift run` (gracefully disables notifications)
+
+### Changed
+- Overview tab: categories now show proportional color bars instead of plain text rows
+- Hero card replaced the small "X cleanable" row with a prominent dashboard
+- Footer shows "Total saved" when user has cleaned anything, version number otherwise
+- `build_app.sh` now uses relative path (works from any directory)
+
 ## [1.2.0] - 2026-02-28
 ### Added
 - **Safe Delete (Trash)**: All cache cleaning now moves files to Trash instead of permanent delete
