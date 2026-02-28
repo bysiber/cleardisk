@@ -3,7 +3,7 @@
 set -e
 
 APP_NAME="ClearDisk"
-BUILD_DIR="/Users/ozden/Documents/opusnonstop2/ClearDisk"
+BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 
 echo "Building $APP_NAME..."
