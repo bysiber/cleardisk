@@ -16,6 +16,12 @@ class DiskMonitor: ObservableObject {
     @Published var forecastDaysUntilFull: Int? = nil // nil = not enough data
     @Published var dailyGrowthRate: Int64 = 0 // bytes per day
     
+    // Savings tracking
+    @Published var totalSavedAllTime: Int64 = 0 // cumulative bytes cleaned
+    @Published var lastCleanedAmount: Int64 = 0 // last cleanup size (for "Recovered X!" banner)
+    @Published var showRecoveredBanner: Bool = false // transient banner after cleanup
+    private let savedKey = "ClearDisk.totalSaved"
+    
     // Permission & access status
     @Published var notificationPermission: PermissionState = .unknown
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
@@ -35,6 +41,22 @@ class DiskMonitor: ObservableObject {
     }
     func markOnboardingComplete() {
         UserDefaults.standard.set(true, forKey: onboardingKey)
+    }
+    
+    func loadSavedTotal() {
+        totalSavedAllTime = Int64(UserDefaults.standard.integer(forKey: savedKey))
+    }
+    
+    private func addToSavings(_ bytes: Int64) {
+        totalSavedAllTime += bytes
+        lastCleanedAmount = bytes
+        showRecoveredBanner = true
+        UserDefaults.standard.set(Int(totalSavedAllTime), forKey: savedKey)
+        
+        // Auto-hide banner after 5 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            self?.showRecoveredBanner = false
+        }
     }
     
     // Whether we're running inside a proper .app bundle (needed for UNUserNotificationCenter)
@@ -482,6 +504,7 @@ class DiskMonitor: ObservableObject {
     }
     
     func cleanDevCache(_ cache: DevCache) {
+        let savedSize = cache.size
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
             if let contents = try? fm.contentsOfDirectory(atPath: cache.path) {
@@ -491,12 +514,14 @@ class DiskMonitor: ObservableObject {
                 }
             }
             DispatchQueue.main.async {
+                self?.addToSavings(savedSize)
                 self?.scan()
             }
         }
     }
     
     func cleanAllDevCaches() {
+        let totalSize = devCaches.reduce(Int64(0)) { $0 + $1.size }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let caches = self?.devCaches else { return }
             for cache in caches {
@@ -509,6 +534,7 @@ class DiskMonitor: ObservableObject {
                 }
             }
             DispatchQueue.main.async {
+                self?.addToSavings(totalSize)
                 self?.scan()
             }
         }
@@ -517,6 +543,7 @@ class DiskMonitor: ObservableObject {
     func emptyTrash() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let trashPath = "\(home)/.Trash"
+        let savedSize = trashSize()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
             if let contents = try? fm.contentsOfDirectory(atPath: trashPath) {
@@ -526,6 +553,7 @@ class DiskMonitor: ObservableObject {
                 }
             }
             DispatchQueue.main.async {
+                self?.addToSavings(savedSize)
                 self?.scan()
             }
         }
