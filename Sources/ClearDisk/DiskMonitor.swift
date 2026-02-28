@@ -108,7 +108,11 @@ class DiskMonitor: ObservableObject {
         FileManager.default.isReadableFile(atPath: path)
     }
     
+    private var isScanInProgress = false
+    
     func scan() {
+        guard !isScanInProgress else { return } // Prevent concurrent scans
+        isScanInProgress = true
         isScanning = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             // Reset scan status
@@ -131,6 +135,7 @@ class DiskMonitor: ObservableObject {
             
             DispatchQueue.main.async {
                 self?.isScanning = false
+                self?.isScanInProgress = false
                 self?.inaccessiblePaths = inaccessible
                 self?.scanErrors = errors
                 self?.hasCompletedFirstScan = true
@@ -244,13 +249,13 @@ class DiskMonitor: ObservableObject {
         if pct >= 90 && lastNotifiedThreshold < 90 {
             sendNotification(
                 title: "⚠️ Disk Almost Full!",
-                body: "Disk \(pct)% full. \(formatBytes(totalCleanable)) can be cleaned with ClearDisk."
+                body: "Disk \(pct)% full. \(formatBytes(safeCleanable)) can be safely cleaned with ClearDisk."
             )
             lastNotifiedThreshold = 90
         } else if pct >= 80 && lastNotifiedThreshold < 80 {
             sendNotification(
                 title: "Disk Space Low",
-                body: "Disk \(pct)% full. \(formatBytes(totalCleanable)) of developer caches can be cleaned."
+                body: "Disk \(pct)% full. \(formatBytes(safeCleanable)) of developer caches can be safely cleaned."
             )
             lastNotifiedThreshold = 80
         }
@@ -480,12 +485,14 @@ class DiskMonitor: ObservableObject {
             if isDir.boolValue {
                 findLargeFiles(in: fullPath, threshold: threshold, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             } else {
-                if let attrs = try? fm.attributesOfItem(atPath: fullPath),
-                   let size = attrs[.size] as? Int64, size >= threshold {
+                // Use allocatedSize for accurate reporting (consistent with directorySize)
+                if let values = try? URL(fileURLWithPath: fullPath).resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]),
+                   let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize,
+                   Int64(size) >= threshold {
                     results.append(LargeFile(
                         name: item,
                         path: fullPath,
-                        size: size
+                        size: Int64(size)
                     ))
                 }
             }
@@ -495,21 +502,15 @@ class DiskMonitor: ObservableObject {
     // MARK: - Cleanup Actions
     
     /// Move items to Trash instead of permanent delete — user can recover for 30 days
+    /// NEVER falls back to permanent delete. If trash fails, it fails safely.
     private func moveToTrash(path: String) -> Bool {
         let url = URL(fileURLWithPath: path)
         do {
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
             return true
         } catch {
-            // Fallback: if trashItem fails (e.g. permission), try removeItem
-            print("trashItem failed for \(path): \(error). Attempting removeItem.")
-            do {
-                try FileManager.default.removeItem(atPath: path)
-                return true
-            } catch {
-                print("removeItem also failed for \(path): \(error)")
-                return false
-            }
+            print("trashItem failed for \(path): \(error) — NOT deleting permanently (safe delete policy)")
+            return false
         }
     }
     
@@ -530,6 +531,28 @@ class DiskMonitor: ObservableObject {
         }
     }
     
+    /// Clean only safe caches (excludes risky caches like Docker)
+    func cleanSafeCaches() {
+        let safeCaches = devCaches.filter { $0.riskLevel != "risky" }
+        let totalSize = safeCaches.reduce(Int64(0)) { $0 + $1.size }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            for cache in safeCaches {
+                let fm = FileManager.default
+                if let contents = try? fm.contentsOfDirectory(atPath: cache.path) {
+                    for item in contents {
+                        let fullPath = (cache.path as NSString).appendingPathComponent(item)
+                        _ = self?.moveToTrash(path: fullPath)
+                    }
+                }
+            }
+            DispatchQueue.main.async {
+                self?.addToSavings(totalSize)
+                self?.scan()
+            }
+        }
+    }
+    
+    /// Clean ALL caches including risky ones (requires explicit user confirmation)
     func cleanAllDevCaches() {
         let totalSize = devCaches.reduce(Int64(0)) { $0 + $1.size }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -586,7 +609,7 @@ class DiskMonitor: ObservableObject {
         guard let enumerator = fm.enumerator(
             at: URL(fileURLWithPath: path),
             includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles],
+            options: [],  // Don't skip hidden files — caches often contain them
             errorHandler: nil
         ) else { return 0 }
         
