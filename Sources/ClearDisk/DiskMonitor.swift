@@ -13,6 +13,8 @@ class DiskMonitor: ObservableObject {
     @Published var largeFiles: [LargeFile] = []
     @Published var isScanning: Bool = false
     @Published var totalCleanable: Int64 = 0
+    @Published var safeCleanable: Int64 = 0 // only safe + caution caches + trash
+    @Published var riskyCleanable: Int64 = 0 // risky caches (e.g. Docker data)
     @Published var forecastDaysUntilFull: Int? = nil // nil = not enough data
     @Published var dailyGrowthRate: Int64 = 0 // bytes per day
     
@@ -143,8 +145,12 @@ class DiskMonitor: ObservableObject {
     
     private func calculateCleanable() {
         let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
+        let safeDevTotal = devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = trashSize()
         totalCleanable = devTotal + trashTotal
+        safeCleanable = safeDevTotal + trashTotal
+        riskyCleanable = riskyDevTotal
     }
     
     // MARK: - Storage Forecast
