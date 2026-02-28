@@ -3,15 +3,15 @@ import SwiftUI
 // MARK: - Main View
 struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
-    @State private var selectedTab: Tab = .overview
+    @State private var selectedTab: Tab = .developer
     @State private var showCleanConfirm = false
     @State private var showCleanAllConfirm = false
     @State private var showCleanSafeConfirm = false
     @State private var cacheToClean: DevCache?
     
     enum Tab: String, CaseIterable {
-        case overview = "Overview"
         case developer = "Developer"
+        case overview = "Overview"
         case largeFiles = "Large Files"
     }
     
