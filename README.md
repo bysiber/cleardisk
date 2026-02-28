@@ -64,7 +64,14 @@ ClearDisk scans **17 developer cache paths** in one tool. Lives in your menu bar
 
 ## Installation
 
-### Build from Source (Recommended)
+### Download DMG (Easiest)
+
+1. Download the latest DMG from [**Releases**](https://github.com/bysiber/cleardisk/releases/latest)
+2. Open the DMG and drag ClearDisk to Applications
+3. Run `xattr -cr /Applications/ClearDisk.app` in Terminal
+4. Open ClearDisk from Applications
+
+### Build from Source
 
 ```bash
 git clone https://github.com/bysiber/cleardisk.git
@@ -81,7 +88,7 @@ That's it. Click the disk icon in your menu bar.
 > 
 > Homebrew Cask install coming soon: `brew install --cask cleardisk`
 
-Requires macOS 14+ and Xcode Command Line Tools (`xcode-select --install`).
+Requires macOS 14+ (Apple Silicon). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
 
 ## How It Works
 
