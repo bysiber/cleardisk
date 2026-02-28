@@ -1,0 +1,17 @@
+# Swift / SPM
+.build/
+.swiftpm/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+Package.resolved
+
+# App bundle (built artifact)
+ClearDisk.app/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+*~
