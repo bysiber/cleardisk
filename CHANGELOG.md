@@ -3,6 +3,18 @@ BU USER NOTUDUR: SUBWATCHI BOŞVER SADECE CLEAR DISKE ODAKLAN !
 
 All notable changes to ClearDisk are documented here.
 
+## [1.4.0] - 2026-03-02
+### Added
+- **Cache Descriptions**: Every cache item now shows a human-readable description explaining what it is and whether it's safe to delete (inspired by npkill's 301-line description file)
+- **DerivedData Project Breakdown**: Xcode DerivedData entry now shows which projects are inside (e.g. "MyApp: 2.3 GB, OtherApp: 1.1 GB") by reading each subfolder's `info.plist → WorkspacePath` (technique from DevCleaner)
+- **Xcode Running Check**: When cleaning Xcode-related caches, a warning appears if Xcode is currently running ("Close Xcode first for best results")
+- **Competitor Analysis**: 5 open-source competitors analyzed (DevCleaner, XcodeCleaner-SwiftUI, kondo, npkill, mac-cleanup-py) — insights applied to ClearDisk
+
+### Changed
+- Each cache row now has a subtle description line below the path
+- Confirmation dialogs now include Xcode running warning when applicable
+- Tooltips on path line show full cache description on hover
+
 ## [1.3.0] - 2026-03-01
 ### Added
 - **Hero Dashboard**: Big, bold cleanable space display (28pt font) with dev cache + trash breakdown
