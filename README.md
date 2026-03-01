@@ -143,7 +143,7 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 ## Tech Stack
 
 - Swift + SwiftUI
-- macOS 14+ (Sonoma)
+- macOS
 - SPM (Swift Package Manager)
 - No external dependencies
 - ~1,500 lines of code total
