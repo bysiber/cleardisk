@@ -7,10 +7,13 @@ struct MainView: View {
     @State private var showCleanConfirm = false
     @State private var showCleanAllConfirm = false
     @State private var showCleanSafeConfirm = false
+    @State private var showCleanArtifactConfirm = false
     @State private var cacheToClean: DevCache?
+    @State private var artifactToClean: ProjectArtifact?
     
     enum Tab: String, CaseIterable {
         case developer = "Developer"
+        case projects = "Projects"
         case overview = "Overview"
         case largeFiles = "Large Files"
     }
@@ -48,6 +51,8 @@ struct MainView: View {
                         overviewContent
                     case .developer:
                         developerContent
+                    case .projects:
+                        projectsContent
                     case .largeFiles:
                         largeFilesContent
                     }
@@ -108,6 +113,18 @@ struct MainView: View {
                 : ""
             Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
         }
+        .alert("Clean Project Artifact", isPresented: $showCleanArtifactConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Move to Trash", role: .destructive) {
+                if let artifact = artifactToClean {
+                    diskMonitor.cleanProjectArtifact(artifact)
+                }
+            }
+        } message: {
+            if let artifact = artifactToClean {
+                Text("Delete \(artifact.artifactName) from \(artifact.projectName)?\n\nThis will move \(formatBytes(artifact.size)) to Trash.\n\nType: \(artifact.projectType)\nPath: \(artifact.artifactPath)\n\nRe-run your build/install command to restore.")
+            }
+        }
     }
     
     // MARK: - Cleanable Summary (Hero Card)
@@ -128,11 +145,20 @@ struct MainView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
                     let trashTotal = diskMonitor.trashSize()
+                    let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
                     
                     if safeDevTotal > 0 {
                         HStack(spacing: 4) {
                             Circle().fill(.purple).frame(width: 6, height: 6)
                             Text("\(formatBytes(safeDevTotal)) dev")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    if artifactTotal > 0 {
+                        HStack(spacing: 4) {
+                            Circle().fill(.cyan).frame(width: 6, height: 6)
+                            Text("\(formatBytes(artifactTotal)) projects")
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                         }
@@ -576,6 +602,130 @@ struct MainView: View {
         .padding(.vertical, 5)
     }
     
+    // MARK: - Projects Tab (kondo-style artifact scanner)
+    var projectsContent: some View {
+        VStack(spacing: 2) {
+            if diskMonitor.projectArtifacts.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "folder.badge.questionmark")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary)
+                    Text("No stale project artifacts found")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                    Text("Scans ~/Documents, ~/Developer, ~/Projects, ~/Code, ~/Desktop")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 40)
+            } else {
+                let totalArtifacts = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+                let staleCount = diskMonitor.projectArtifacts.filter { $0.isStale }.count
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Project Build Artifacts")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text(formatBytes(totalArtifacts))
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundColor(.orange)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.04))
+                
+                ForEach(diskMonitor.projectArtifacts) { artifact in
+                    projectArtifactRow(artifact)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    func projectArtifactRow(_ artifact: ProjectArtifact) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: artifact.typeIcon)
+                    .font(.system(size: 14))
+                    .frame(width: 24)
+                    .foregroundColor(artifact.isStale ? .orange : .purple)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(artifact.projectName)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(artifact.artifactName)
+                            .font(.system(size: 9))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.purple.opacity(0.6))
+                            )
+                        Text(artifact.projectType)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        if let days = artifact.daysSinceModified {
+                            Text("\(days)d")
+                                .font(.system(size: 9))
+                                .foregroundColor(days > 30 ? .orange : .secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(days > 30 ? Color.orange.opacity(0.1) : Color.gray.opacity(0.1))
+                                )
+                        }
+                    }
+                    Text(artifact.projectPath.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer()
+                Text(formatBytes(artifact.size))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Button(action: {
+                    artifactToClean = artifact
+                    showCleanArtifactConfirm = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.red)
+                .help("Clean \(artifact.artifactName)")
+                
+                Button(action: {
+                    diskMonitor.revealInFinder(artifact.projectPath)
+                }) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.blue)
+                .help("Show in Finder")
+            }
+            
+            if artifact.isStale {
+                Text("⚠️ Stale — not modified for \(artifact.daysSinceModified ?? 0) days")
+                    .font(.system(size: 9))
+                    .foregroundColor(.orange)
+                    .padding(.leading, 36)
+                    .padding(.top, 1)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+    }
+    
     // MARK: - Large Files Tab
     var largeFilesContent: some View {
         VStack(spacing: 2) {
@@ -789,7 +939,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.4.0")
+                Text("ClearDisk v1.5.0")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }

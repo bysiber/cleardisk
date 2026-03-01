@@ -9,14 +9,7 @@ A free, open-source macOS menu bar app that monitors and cleans developer caches
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Size](https://img.shields.io/badge/Size-590%20KB-brightgreen)
 
-<!-- 
-## Screenshots
-
-TODO: Add screenshots
-Screenshot 1: Hero card showing cleanable space
-Screenshot 2: Developer tab with cache list
-Screenshot 3: Overview with category bars
--->
+![ClearDisk Demo](demo.gif)
 
 ---
 
@@ -35,6 +28,7 @@ ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar
 ## Features
 
 - **28 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm, Bun, pip, Conda, Gradle, Maven, Docker, Composer, Go, Rust Cargo, Flutter/Pub, JetBrains, Ruby Gems, Android Emulators
+- **Project Artifact Scanner** — Finds stale `node_modules`, `target/`, `.build/`, `build/`, `vendor/` in your project folders. Detects 11 project types (Node.js, Rust, Swift, Go, Gradle, Maven, PHP, Ruby, Flutter, CMake)
 - **Cache Descriptions** — Every cache shows a human-readable explanation ("Downloaded Swift packages. Re-downloads on next build.") so you know exactly what you're deleting
 - **DerivedData Project Breakdown** — Shows which projects live inside DerivedData (e.g. "MyApp: 2.3 GB, OtherApp: 1.1 GB") by reading `info.plist`
 - **Hero Dashboard** — Big, clear display of total cleanable space with breakdown by dev caches and trash

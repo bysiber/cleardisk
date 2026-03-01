@@ -11,6 +11,7 @@ class DiskMonitor: ObservableObject {
     @Published var categories: [DiskCategory] = []
     @Published var devCaches: [DevCache] = []
     @Published var largeFiles: [LargeFile] = []
+    @Published var projectArtifacts: [ProjectArtifact] = [] // stale node_modules, target/, build/ etc.
     @Published var isScanning: Bool = false
     @Published var totalCleanable: Int64 = 0
     @Published var safeCleanable: Int64 = 0 // only safe + caution caches + trash
@@ -122,6 +123,7 @@ class DiskMonitor: ObservableObject {
             self?.scanDiskSpace()
             self?.scanDevCaches()
             self?.scanLargeFiles()
+            self?.scanProjectArtifacts()
             
             // Check which dev cache paths are inaccessible
             let devPaths = self?.devCachePaths() ?? []
@@ -737,6 +739,115 @@ class DiskMonitor: ObservableObject {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
     
+    // MARK: - Project Artifact Scanner (inspired by kondo/npkill)
+    
+    /// Known project types: (marker file, artifact directory name, project type label)
+    static let projectTypes: [(marker: String, artifact: String, label: String)] = [
+        ("package.json", "node_modules", "Node.js"),
+        ("Cargo.toml", "target", "Rust"),
+        ("Package.swift", ".build", "Swift PM"),
+        ("go.mod", "vendor", "Go"),
+        ("build.gradle", "build", "Gradle"),
+        ("build.gradle.kts", "build", "Gradle (Kotlin)"),
+        ("pom.xml", "target", "Maven"),
+        ("composer.json", "vendor", "PHP/Composer"),
+        ("Gemfile", "vendor/bundle", "Ruby"),
+        ("pubspec.yaml", ".dart_tool", "Flutter/Dart"),
+        ("CMakeLists.txt", "build", "CMake"),
+    ]
+    
+    /// Directories to scan for projects
+    private func projectScanRoots() -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return [
+            "\(home)/Documents",
+            "\(home)/Developer",
+            "\(home)/Projects",
+            "\(home)/Code",
+            "\(home)/repos",
+            "\(home)/src",
+            "\(home)/workspace",
+            "\(home)/Desktop",
+        ]
+    }
+    
+    private func scanProjectArtifacts() {
+        var artifacts: [ProjectArtifact] = []
+        let fm = FileManager.default
+        
+        for root in projectScanRoots() {
+            guard fm.fileExists(atPath: root) else { continue }
+            findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0)
+        }
+        
+        artifacts.sort { $0.size > $1.size }
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.projectArtifacts = Array(artifacts.prefix(50)) // top 50 biggest
+        }
+    }
+    
+    private func findProjectArtifacts(in path: String, results: inout [ProjectArtifact], maxDepth: Int, currentDepth: Int) {
+        guard currentDepth < maxDepth else { return }
+        let fm = FileManager.default
+        
+        guard let contents = try? fm.contentsOfDirectory(atPath: path) else { return }
+        
+        // Check if this directory IS a project root (has a marker file)
+        for pt in DiskMonitor.projectTypes {
+            let markerPath = (path as NSString).appendingPathComponent(pt.marker)
+            let artifactPath = (path as NSString).appendingPathComponent(pt.artifact)
+            
+            if fm.fileExists(atPath: markerPath) && fm.fileExists(atPath: artifactPath) {
+                let size = directorySize(path: artifactPath)
+                if size > 10_485_760 { // > 10 MB
+                    let projectName = (path as NSString).lastPathComponent
+                    let lastModified = lastAccessDate(path: artifactPath)
+                    let days = daysSince(lastModified)
+                    
+                    results.append(ProjectArtifact(
+                        projectName: projectName,
+                        projectPath: path,
+                        artifactPath: artifactPath,
+                        artifactName: pt.artifact,
+                        projectType: pt.label,
+                        size: size,
+                        lastModified: lastModified,
+                        daysSinceModified: days
+                    ))
+                }
+                // Don't recurse into artifact directories
+                return
+            }
+        }
+        
+        // Skip node_modules, .git, etc. when recursing
+        let skipDirs: Set<String> = ["node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__", ".venv", "venv"]
+        
+        for item in contents {
+            if item.hasPrefix(".") && item != ".build" { continue }
+            if skipDirs.contains(item) { continue }
+            
+            let fullPath = (path as NSString).appendingPathComponent(item)
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
+                findProjectArtifacts(in: fullPath, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
+            }
+        }
+    }
+    
+    /// Clean a single project artifact (move to trash)
+    func cleanProjectArtifact(_ artifact: ProjectArtifact) {
+        let savedSize = artifact.size
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            _ = self?.moveToTrash(path: artifact.artifactPath)
+            DispatchQueue.main.async {
+                self?.addToSavings(savedSize)
+                self?.scan()
+            }
+        }
+    }
+    
     // MARK: - Helpers
     func directorySize(path: String) -> Int64 {
         let fm = FileManager.default
@@ -814,6 +925,39 @@ struct LargeFile: Identifiable {
     let name: String
     let path: String
     let size: Int64
+}
+
+struct ProjectArtifact: Identifiable {
+    let id = UUID()
+    let projectName: String // e.g. "my-react-app"
+    let projectPath: String // full path to project root
+    let artifactPath: String // full path to artifact dir (node_modules, target, etc.)
+    let artifactName: String // "node_modules", "target", ".build", etc.
+    let projectType: String // "Node.js", "Rust", "Swift PM", etc.
+    let size: Int64
+    let lastModified: Date?
+    let daysSinceModified: Int?
+    
+    var typeIcon: String {
+        switch projectType {
+        case "Node.js": return "cube.box.fill"
+        case "Rust": return "wrench.fill"
+        case "Swift PM": return "swift"
+        case "Go": return "leaf.fill"
+        case "Gradle", "Gradle (Kotlin)": return "gearshape.fill"
+        case "Maven": return "building.columns.fill"
+        case "PHP/Composer": return "music.note.list"
+        case "Ruby": return "diamond.fill"
+        case "Flutter/Dart": return "bird.fill"
+        case "CMake": return "hammer.fill"
+        default: return "folder.fill"
+        }
+    }
+    
+    var isStale: Bool {
+        guard let days = daysSinceModified else { return false }
+        return days > 30
+    }
 }
 
 struct UsageSnapshot: Codable {
