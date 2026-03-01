@@ -780,13 +780,8 @@ class DiskMonitor: ObservableObject {
             findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0)
         }
         
-        // Sort by staleness: oldest (most stale) first, then by size for tie-breaking
-        artifacts.sort { a, b in
-            let daysA = a.daysSinceModified ?? 0
-            let daysB = b.daysSinceModified ?? 0
-            if daysA != daysB { return daysA > daysB } // older first
-            return a.size > b.size // bigger first for same age
-        }
+        // Sort by size: biggest first (user can change sort in UI)
+        artifacts.sort { $0.size > $1.size }
         
         DispatchQueue.main.async { [weak self] in
             self?.projectArtifacts = Array(artifacts.prefix(50)) // top 50 biggest
