@@ -3,6 +3,17 @@ BU USER NOTUDUR: SUBWATCHI BOŞVER SADECE CLEAR DISKE ODAKLAN !
 
 All notable changes to ClearDisk are documented here.
 
+## [1.6.0] - 2026-03-02
+### Added
+- **Clean Caches Screen** — Dedicated sub-screen with Safe Only / All (Including Risky) mode toggle. Shows full cache list, risky warning details, and one-tap clean button
+- **Clean Projects Screen** — Dedicated sub-screen with checkbox selection, Select All / Deselect All, filter by staleness (>30 days), and "Remove Selected" with total size
+- **Project Sort Options** — Sort project artifacts by Size (default), Date, or Name in the Projects tab
+
+### Changed
+- **Hero Card Redesign** — Now shows total reclaimable space (caches + projects + risky + trash) with a color-coded segmented breakdown bar. Two action buttons: "Clean Caches" and "Clean Projects"
+- Developer tab simplified — buttons removed from header (moved to hero card sub-screens)
+- DMG now includes Applications shortcut for drag-to-install
+
 ## [1.5.0] - 2026-03-02
 ### Added
 - **Project Artifacts Scanner** — New "Projects" tab finds stale `node_modules`, `target/`, `.build/`, `build/`, `vendor/` directories inside your project folders. Inspired by kondo (2,200⭐) and npkill (9,100⭐)
