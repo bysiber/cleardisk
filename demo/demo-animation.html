@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClearDisk — Demo Animation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@200;300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #1a1a1e;
+    --surface2: #2a2a2e;
+    --text: #f5f5f7;
+    --text2: #86868b;
+    --accent: #0a84ff;
+    --green: #30d158;
+    --red: #ff453a;
+    --orange: #ff9f0a;
+    --purple: #bf5af2;
+    --cyan: #64d2ff;
+    --pink: #ff375f;
+    --yellow: #ffd60a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ==================== SCENE SYSTEM ==================== */
+  .scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    pointer-events: none;
+  }
+  .scene.active { opacity: 1; pointer-events: auto; }
+
+  /* ==================== SCENE 1: HERO INTRO ==================== */
+  .hero-title {
+    text-align: center;
+    transform: translateY(20px);
+    transition: transform 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .scene.active .hero-title { transform: translateY(0); }
+
+  .hero-icon {
+    width: 120px; height: 120px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #0a84ff 50%, #5ac8fa 100%);
+    border-radius: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 40px;
+    box-shadow: 0 20px 60px rgba(10, 132, 255, 0.3);
+    animation: iconFloat 3s ease-in-out infinite;
+  }
+  @keyframes iconFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .hero-icon svg { width: 60px; height: 60px; }
+
+  .hero-name {
+    font-size: 64px;
+    font-weight: 700;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #f5f5f7 0%, #86868b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 16px;
+  }
+
+  .hero-tagline {
+    font-size: 24px;
+    font-weight: 300;
+    color: var(--text2);
+    letter-spacing: 0.5px;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 48px;
+    margin-top: 48px;
+    justify-content: center;
+  }
+  .hero-stat {
+    text-align: center;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .hero-stat.show {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .hero-stat-value {
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .hero-stat-label {
+    font-size: 14px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+
+  /* ==================== SCENE 2: FEATURE CINEMATIC ==================== */
+  .feature-text {
+    text-align: center;
+  }
+  .feature-headline {
+    font-size: 52px;
+    font-weight: 600;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .feature-headline.show {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .feature-sub {
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--text2);
+    opacity: 0;
+  }
+  .feature-sub.show {
+    opacity: 1;
+    transition: opacity 0.8s ease 0.3s;
+  }
+  .gradient-green {
+    background: linear-gradient(135deg, #30d158, #64d2ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .gradient-purple {
+    background: linear-gradient(135deg, #bf5af2, #ff375f);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .gradient-orange {
+    background: linear-gradient(135deg, #ff9f0a, #ff453a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ==================== SCENE 3: APP DEMO ==================== */
+  .demo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* macOS Menu Bar */
+  .menubar {
+    width: 900px;
+    height: 28px;
+    background: rgba(30, 30, 35, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 16px;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  .menubar.show {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .menubar-icon {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .menubar-icon.cleardisk {
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+  .menubar-icon.cleardisk:hover { background: rgba(255,255,255,0.1); }
+  .menubar-icon.cleardisk.highlight {
+    background: rgba(10, 132, 255, 0.3);
+    animation: menuPulse 1s ease;
+  }
+  @keyframes menuPulse {
+    0% { background: rgba(10, 132, 255, 0); }
+    50% { background: rgba(10, 132, 255, 0.4); }
+    100% { background: rgba(10, 132, 255, 0.3); }
+  }
+
+  /* Popover */
+  .popover {
+    width: 400px;
+    background: rgba(30, 30, 35, 0.98);
+    backdrop-filter: blur(40px);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.05);
+    overflow: hidden;
+    transform-origin: top center;
+    transform: scaleY(0) translateY(-10px);
+    opacity: 0;
+    max-height: 520px;
+  }
+  .popover.show {
+    transform: scaleY(1) translateY(0);
+    opacity: 1;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Popover arrow */
+  .popover-arrow {
+    width: 16px;
+    height: 8px;
+    margin: 0 auto;
+    opacity: 0;
+  }
+  .popover-arrow.show { opacity: 1; transition: opacity 0.3s; }
+  .popover-arrow svg { fill: rgba(30, 30, 35, 0.98); }
+
+  /* Header */
+  .pop-header {
+    padding: 14px 16px 10px;
+  }
+  .pop-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .pop-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .pop-refresh {
+    width: 24px; height: 24px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text2);
+    font-size: 12px;
+  }
+
+  /* Storage bar */
+  .storage-bar-wrap {
+    height: 26px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 6px;
+  }
+  .storage-bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    width: 0%;
+    transition: width 2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+  }
+  .storage-bar-fill.blue {
+    background: linear-gradient(90deg, #0a84ff, #5ac8fa);
+  }
+  .storage-bar-fill.orange {
+    background: linear-gradient(90deg, #ff9f0a, #ff6723);
+  }
+  .storage-bar-fill.green {
+    background: linear-gradient(90deg, #30d158, #64d2ff);
+  }
+  .storage-pct {
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  .storage-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+
+  /* Forecast */
+  .forecast {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--orange);
+    opacity: 0;
+    transform: translateX(-10px);
+    padding-bottom: 4px;
+  }
+  .forecast.show {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.5s ease;
+  }
+
+  /* Divider */
+  .pop-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+
+  /* Hero Card */
+  .hero-card {
+    padding: 12px 16px;
+    background: rgba(48, 209, 88, 0.04);
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  .hero-card.show {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .hero-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .hero-card-amount {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--green);
+    font-feature-settings: 'tnum';
+    letter-spacing: -1px;
+  }
+  .hero-card-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(48, 209, 88, 0.8);
+    margin-top: 2px;
+  }
+  .hero-card-breakdown {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+  }
+  .hero-card-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .hero-card-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .clean-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    background: rgba(48, 209, 88, 0.15);
+    border: none;
+    border-radius: 6px;
+    color: var(--green);
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .clean-btn:hover { background: rgba(48, 209, 88, 0.25); }
+  .clean-btn.clicked {
+    background: var(--green);
+    color: #000;
+    animation: btnClick 0.3s ease;
+  }
+  @keyframes btnClick {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+  }
+
+  /* Tab bar */
+  .pop-tabs {
+    display: flex;
+    padding: 6px 10px;
+    gap: 2px;
+  }
+  .pop-tab {
+    flex: 1;
+    text-align: center;
+    padding: 5px 0;
+    font-size: 12px;
+    color: var(--text2);
+    border-radius: 6px;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .pop-tab.active {
+    color: var(--accent);
+    background: rgba(10, 132, 255, 0.1);
+    font-weight: 600;
+  }
+
+  /* Cache list */
+  .cache-list {
+    padding: 4px 0;
+    max-height: 260px;
+    overflow: hidden;
+  }
+  .cache-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 16px;
+    gap: 10px;
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  .cache-item.show {
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .cache-item.cleaning {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+    transition: all 0.4s cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  }
+
+  .cache-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .cache-info { flex: 1; min-width: 0; }
+  .cache-name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .cache-risk { font-size: 10px; }
+  .cache-path {
+    font-size: 10px;
+    color: var(--text2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+  .cache-size {
+    font-size: 12px;
+    font-weight: 500;
+    font-feature-settings: 'tnum';
+    color: var(--text2);
+    font-family: 'SF Mono', 'Menlo', monospace;
+  }
+  .cache-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .cache-action {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .cache-action.red { color: var(--red); }
+  .cache-action.blue { color: var(--accent); }
+  .cache-action:hover { background: rgba(255,255,255,0.05); }
+  .cache-age {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(255,159,10,0.1);
+    color: var(--orange);
+  }
+
+  /* Total dev header */
+  .dev-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(255, 69, 58, 0.04);
+  }
+  .dev-total-info {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .dev-total-count {
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .dev-total-size {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--red);
+    font-feature-settings: 'tnum';
+    font-family: 'SF Mono', 'Menlo', monospace;
+  }
+  .clean-all-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--red);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Recovered banner */
+  .recovered-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(48, 209, 88, 0.08);
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  .recovered-banner.show {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .recovered-check {
+    width: 20px; height: 20px;
+    background: var(--green);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .recovered-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--green);
+  }
+
+  /* Footer */
+  .pop-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+  }
+  .pop-footer-saved {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--green);
+  }
+  .pop-footer-version {
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .pop-footer-quit {
+    font-size: 11px;
+    color: var(--text2);
+    padding: 2px 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+  }
+
+  /* ==================== SCENE 4: FINAL ==================== */
+  .final-container {
+    text-align: center;
+  }
+  .final-headline {
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  .final-headline.show {
+    opacity: 1; transform: translateY(0);
+    transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .final-sub {
+    font-size: 20px;
+    color: var(--text2);
+    margin-bottom: 40px;
+    opacity: 0;
+  }
+  .final-sub.show {
+    opacity: 1;
+    transition: opacity 0.8s ease 0.4s;
+  }
+  .final-badges {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 48px;
+  }
+  .final-badge {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  .final-badge.show {
+    opacity: 1;
+    transform: scale(1);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .badge-green {
+    background: rgba(48, 209, 88, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(48, 209, 88, 0.3);
+  }
+  .badge-blue {
+    background: rgba(10, 132, 255, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(10, 132, 255, 0.3);
+  }
+  .badge-purple {
+    background: rgba(191, 90, 242, 0.15);
+    color: var(--purple);
+    border: 1px solid rgba(191, 90, 242, 0.3);
+  }
+
+  .final-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 36px;
+    background: linear-gradient(135deg, #0a84ff, #5ac8fa);
+    border: none;
+    border-radius: 14px;
+    color: white;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    box-shadow: 0 8px 32px rgba(10, 132, 255, 0.4);
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  .final-cta.show {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* ==================== SCANNING ANIMATION ==================== */
+  .scanning-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text2);
+    opacity: 0;
+  }
+  .scanning-indicator.show { opacity: 1; transition: opacity 0.3s; }
+  .scanning-spinner {
+    width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Particle effects */
+  .particles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    opacity: 0;
+  }
+
+  /* Progress dots for cinematic transitions */
+  .progress-dots {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+  .progress-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    transition: all 0.3s;
+  }
+  .progress-dot.active {
+    background: var(--accent);
+    width: 24px;
+    border-radius: 4px;
+  }
+
+  /* Ambient glow */
+  .ambient-glow {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.08;
+    pointer-events: none;
+    transition: all 2s ease;
+  }
+</style>
+</head>
+<body>
+
+<!-- Ambient background glow -->
+<div class="ambient-glow" id="ambientGlow" style="background: #0a84ff; top: -200px; right: -200px;"></div>
+
+<!-- Progress dots -->
+<div class="progress-dots" id="progressDots">
+  <div class="progress-dot active" data-scene="0"></div>
+  <div class="progress-dot" data-scene="1"></div>
+  <div class="progress-dot" data-scene="2"></div>
+  <div class="progress-dot" data-scene="3"></div>
+  <div class="progress-dot" data-scene="4"></div>
+</div>
+
+<!-- ==================== SCENE 1: HERO INTRO ==================== -->
+<div class="scene active" id="scene0">
+  <div class="hero-title">
+    <div class="hero-icon">
+      <svg viewBox="0 0 48 48" fill="none">
+        <rect x="8" y="14" width="32" height="20" rx="4" stroke="white" stroke-width="2.5" fill="none"/>
+        <circle cx="24" cy="24" r="5" stroke="white" stroke-width="2" fill="none"/>
+        <line x1="16" y1="38" x2="32" y2="38" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M24 14V10" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="24" cy="24" r="2" fill="white"/>
+      </svg>
+    </div>
+    <div class="hero-name">ClearDisk</div>
+    <div class="hero-tagline">Developer Cache Manager for macOS</div>
+    <div class="hero-stats">
+      <div class="hero-stat" id="stat1">
+        <div class="hero-stat-value">590 KB</div>
+        <div class="hero-stat-label">App Size</div>
+      </div>
+      <div class="hero-stat" id="stat2">
+        <div class="hero-stat-value">28+</div>
+        <div class="hero-stat-label">Cache Types</div>
+      </div>
+      <div class="hero-stat" id="stat3">
+        <div class="hero-stat-value">Zero</div>
+        <div class="hero-stat-label">Network Access</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENE 2: FEATURE CINEMATIC ==================== -->
+<div class="scene" id="scene1">
+  <div class="feature-text">
+    <div class="feature-headline" id="feat1">
+      Your Mac is hiding<br>
+      <span class="gradient-green">50–500 GB</span> of dev caches.
+    </div>
+    <div class="feature-sub" id="feat1sub">
+      Xcode DerivedData. npm. pip. Homebrew. Docker. Gradle. Cargo. Go. And more.
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENE 2B: FEATURE 2 ==================== -->
+<div class="scene" id="scene2">
+  <div class="feature-text">
+    <div class="feature-headline" id="feat2">
+      Find them in <span class="gradient-purple">seconds</span>.<br>
+      Clean them in <span class="gradient-orange">one click</span>.
+    </div>
+    <div class="feature-sub" id="feat2sub">
+      590 KB. Zero dependencies. No data collection. No analytics. No network access. Ever.
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENE 3: APP DEMO ==================== -->
+<div class="scene" id="scene3">
+  <div class="demo-container">
+    <!-- Menu Bar -->
+    <div class="menubar" id="menubar">
+      <div class="menubar-icon">☕</div>
+      <div class="menubar-icon">📶</div>
+      <div class="menubar-icon">🔋 87%</div>
+      <div class="menubar-icon">⏰ 14:32</div>
+      <div class="menubar-icon cleardisk" id="menubarCleardisk">
+        <span style="font-size:13px">💾</span> 42 GB
+      </div>
+    </div>
+
+    <!-- Popover Arrow -->
+    <div class="popover-arrow" id="popArrow">
+      <svg viewBox="0 0 16 8"><polygon points="8,0 16,8 0,8"/></svg>
+    </div>
+
+    <!-- Popover -->
+    <div class="popover" id="popover">
+      <!-- Header -->
+      <div class="pop-header">
+        <div class="pop-header-top">
+          <span class="pop-title">ClearDisk</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="scanning-indicator" id="scanIndicator">
+              <div class="scanning-spinner"></div>
+              <span>Scanning...</span>
+            </div>
+            <div class="pop-refresh">↻</div>
+          </div>
+        </div>
+        <div class="storage-bar-wrap">
+          <div class="storage-bar-fill blue" id="storageBar">
+            <span class="storage-pct" id="storagePct">0%</span>
+          </div>
+        </div>
+        <div class="storage-info">
+          <span id="usedText">0 GB used</span>
+          <span id="freeText">0 GB free</span>
+        </div>
+        <div class="forecast" id="forecast">
+          ⚠️ Disk full in ~23 days at current rate (1.8 GB/day)
+        </div>
+      </div>
+
+      <div class="pop-divider"></div>
+
+      <!-- Hero Card -->
+      <div class="hero-card" id="heroCard">
+        <div class="hero-card-top">
+          <div>
+            <div class="hero-card-amount" id="cleanableAmount">0 GB</div>
+            <div class="hero-card-label">can be safely cleaned</div>
+          </div>
+          <div class="hero-card-breakdown">
+            <div class="hero-card-item">
+              <div class="hero-card-dot" style="background: var(--purple)"></div>
+              <span id="devBreakdown">0 GB dev</span>
+            </div>
+            <div class="hero-card-item">
+              <div class="hero-card-dot" style="background: var(--orange)"></div>
+              <span>2.1 GB trash</span>
+            </div>
+          </div>
+        </div>
+        <button class="clean-btn" id="cleanSafeBtn">
+          ✨ Clean 8 safe caches (14.7 GB)
+        </button>
+      </div>
+
+      <div class="pop-divider"></div>
+
+      <!-- Tabs -->
+      <div class="pop-tabs">
+        <div class="pop-tab active" id="tabDev">Developer</div>
+        <div class="pop-tab" id="tabOver">Overview</div>
+        <div class="pop-tab" id="tabLarge">Large Files</div>
+      </div>
+
+      <div class="pop-divider"></div>
+
+      <!-- Dev Total -->
+      <div class="dev-total">
+        <div>
+          <div class="dev-total-info">Total Developer Cache</div>
+          <div class="dev-total-count"><span id="cacheCount">0</span> locations found</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="dev-total-size" id="totalDevSize">0 GB</span>
+        </div>
+      </div>
+
+      <!-- Cache List -->
+      <div class="cache-list" id="cacheList">
+        <!-- Items added by JS -->
+      </div>
+
+      <!-- Recovered Banner (hidden initially) -->
+      <div class="recovered-banner" id="recoveredBanner">
+        <div class="recovered-check">✓</div>
+        <span class="recovered-text" id="recoveredText">Recovered 14.7 GB!</span>
+      </div>
+
+      <div class="pop-divider"></div>
+
+      <!-- Footer -->
+      <div class="pop-footer">
+        <div class="pop-footer-saved" id="footerSaved">
+          🌿 Total saved: 14.7 GB
+        </div>
+        <span class="pop-footer-quit">Quit</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCENE 4: FINAL ==================== -->
+<div class="scene" id="scene4">
+  <div class="final-container">
+    <div class="final-headline" id="finalHead">
+      <span class="gradient-green">590 KB</span> that saves you <span class="gradient-purple">gigabytes</span>.
+    </div>
+    <div class="final-sub" id="finalSub">
+      Open source. Zero dependencies. No telemetry. Just clean.
+    </div>
+    <div class="final-badges" id="finalBadges">
+      <div class="final-badge badge-green">🟢 Safe — always moves to Trash</div>
+      <div class="final-badge badge-blue">🔮 Smart forecasting</div>
+      <div class="final-badge badge-purple">🏔️ Menu bar native</div>
+    </div>
+    <div class="final-cta" id="finalCta">
+      ⬇ Download ClearDisk
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== ANIMATION ENGINE ====================
+const SCENES = 5;
+let currentScene = 0;
+
+const cacheData = [
+  { name: 'Xcode DerivedData', risk: '🟢', path: '~/Library/Developer/Xcode/DerivedData', size: '4.8 GB', color: '#bf5af2', icon: '🗑️', age: '3d' },
+  { name: 'Docker (Data)', risk: '🔴', path: '~/Library/Containers/com.docker.docker/Data', size: '3.2 GB', color: '#ff453a', icon: '🐳', age: '1d' },
+  { name: 'Xcode Simulators', risk: '🟡', path: '~/Library/Developer/CoreSimulator/Devices', size: '2.9 GB', color: '#ff9f0a', icon: '📱', age: '14d' },
+  { name: 'npm Cache', risk: '🟢', path: '~/.npm/_cacache', size: '1.8 GB', color: '#30d158', icon: '📦', age: '41d' },
+  { name: 'Homebrew Cache', risk: '🟢', path: '~/Library/Caches/Homebrew', size: '1.4 GB', color: '#30d158', icon: '🍺', age: '22d' },
+  { name: 'Gradle Cache', risk: '🟢', path: '~/.gradle/caches', size: '1.1 GB', color: '#64d2ff', icon: '⚙️', age: '65d' },
+  { name: 'pip Cache', risk: '🟢', path: '~/Library/Caches/pip', size: '890 MB', color: '#ffd60a', icon: '🐍', age: '30d' },
+  { name: 'Rust Cargo', risk: '🟢', path: '~/.cargo/registry', size: '720 MB', color: '#ff9f0a', icon: '🦀', age: '55d' },
+];
+
+function setScene(n) {
+  document.querySelectorAll('.scene').forEach((s, i) => {
+    s.classList.toggle('active', i === n);
+  });
+  document.querySelectorAll('.progress-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === n);
+  });
+
+  // Ambient glow color
+  const glow = document.getElementById('ambientGlow');
+  const colors = ['#0a84ff', '#30d158', '#bf5af2', '#0a84ff', '#30d158'];
+  const positions = [
+    { top: '-200px', right: '-200px', left: 'auto' },
+    { top: '50%', right: 'auto', left: '-200px' },
+    { top: '-100px', right: '-100px', left: 'auto' },
+    { top: '200px', right: '-200px', left: 'auto' },
+    { top: '-200px', right: 'auto', left: '-200px' },
+  ];
+  glow.style.background = colors[n];
+  Object.assign(glow.style, positions[n]);
+
+  currentScene = n;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function countUp(el, target, suffix = '', prefix = '', duration = 1000) {
+  const start = performance.now();
+  const startVal = 0;
+
+  function update(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const val = startVal + (target - startVal) * eased;
+    el.textContent = prefix + val.toFixed(1) + suffix;
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+function countUpInt(el, target, suffix = '', prefix = '', duration = 1000) {
+  const start = performance.now();
+  function update(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const val = Math.round(target * eased);
+    el.textContent = prefix + val + suffix;
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+// ==================== MAIN ANIMATION SEQUENCE ====================
+async function runAnimation() {
+  // ---- SCENE 0: Hero Intro ----
+  await sleep(500);
+  document.getElementById('stat1').classList.add('show');
+  await sleep(250);
+  document.getElementById('stat2').classList.add('show');
+  await sleep(250);
+  document.getElementById('stat3').classList.add('show');
+  await sleep(2000);
+
+  // ---- SCENE 1: Feature text 1 ----
+  setScene(1);
+  await sleep(300);
+  document.getElementById('feat1').classList.add('show');
+  await sleep(200);
+  document.getElementById('feat1sub').classList.add('show');
+  await sleep(2200);
+
+  // ---- SCENE 2: Feature text 2 ----
+  setScene(2);
+  await sleep(300);
+  document.getElementById('feat2').classList.add('show');
+  await sleep(200);
+  document.getElementById('feat2sub').classList.add('show');
+  await sleep(2200);
+
+  // ---- SCENE 3: App Demo ----
+  setScene(3);
+  await sleep(200);
+
+  // Show menu bar
+  const menubar = document.getElementById('menubar');
+  menubar.classList.add('show');
+  await sleep(500);
+
+  // Highlight ClearDisk in menu bar
+  const menuCd = document.getElementById('menubarCleardisk');
+  menuCd.classList.add('highlight');
+  await sleep(400);
+
+  // Open popover
+  document.getElementById('popArrow').classList.add('show');
+  document.getElementById('popover').classList.add('show');
+  await sleep(350);
+
+  // Animate storage bar fill
+  const storageBar = document.getElementById('storageBar');
+  storageBar.style.width = '78%';
+  countUpInt(document.getElementById('storagePct'), 78, '%');
+  countUp(document.getElementById('usedText'), 371.2, ' GB used', '', 700);
+  countUp(document.getElementById('freeText'), 104.8, ' GB free', '', 700);
+  await sleep(800);
+
+  // Show scanning indicator
+  document.getElementById('scanIndicator').classList.add('show');
+  await sleep(900);
+  document.getElementById('scanIndicator').classList.remove('show');
+
+  // Show forecast
+  document.getElementById('forecast').classList.add('show');
+  await sleep(400);
+
+  // Show hero card
+  document.getElementById('heroCard').classList.add('show');
+  countUp(document.getElementById('cleanableAmount'), 14.7, ' GB', '', 700);
+  document.getElementById('devBreakdown').textContent = '12.6 GB dev';
+  await sleep(500);
+
+  // Populate cache list
+  const cacheList = document.getElementById('cacheList');
+  cacheList.innerHTML = '';
+
+  for (let i = 0; i < cacheData.length; i++) {
+    const c = cacheData[i];
+    const item = document.createElement('div');
+    item.className = 'cache-item';
+    item.id = `cache-${i}`;
+    const ageColor = parseInt(c.age) > 30 ? 'var(--orange)' : 'var(--text2)';
+    const ageBg = parseInt(c.age) > 30 ? 'rgba(255,159,10,0.1)' : 'rgba(255,255,255,0.05)';
+    item.innerHTML = `
+      <div class="cache-icon" style="background: ${c.color}22">${c.icon}</div>
+      <div class="cache-info">
+        <div class="cache-name">
+          <span class="cache-risk">${c.risk}</span>
+          <span>${c.name}</span>
+          <span class="cache-age" style="color:${ageColor};background:${ageBg}">${c.age} ago</span>
+        </div>
+        <div class="cache-path">${c.path}</div>
+      </div>
+      <span class="cache-size">${c.size}</span>
+      <div class="cache-actions">
+        <div class="cache-action red">🗑</div>
+        <div class="cache-action blue">📂</div>
+      </div>
+    `;
+    cacheList.appendChild(item);
+
+    await sleep(80);
+    item.classList.add('show');
+  }
+
+  // Update total
+  countUpInt(document.getElementById('cacheCount'), 8, ' locations found', '', 500);
+  countUp(document.getElementById('totalDevSize'), 16.8, ' GB', '', 500);
+  await sleep(1800);
+
+  // ---- Clean animation ----
+  const cleanBtn = document.getElementById('cleanSafeBtn');
+  cleanBtn.classList.add('clicked');
+  await sleep(300);
+
+  // Remove items one by one (skip risky ones)
+  for (let i = 0; i < cacheData.length; i++) {
+    if (cacheData[i].risk === '🔴') continue; // Skip risky
+    const item = document.getElementById(`cache-${i}`);
+    if (item) {
+      item.classList.add('cleaning');
+      await sleep(120);
+    }
+  }
+  await sleep(200);
+
+  // Show recovered banner
+  document.getElementById('recoveredBanner').classList.add('show');
+  await sleep(150);
+
+  // Animate storage bar shrink (78% -> 65%)
+  storageBar.classList.remove('blue');
+  storageBar.classList.add('green');
+  storageBar.style.width = '65%';
+  countUpInt(document.getElementById('storagePct'), 65, '%');
+
+  // Update hero card
+  document.getElementById('cleanableAmount').textContent = '0 GB';
+  document.getElementById('heroCard').style.opacity = '0.3';
+
+  // Update footer
+  document.getElementById('footerSaved').innerHTML = '🌿 Total saved: 14.7 GB';
+
+  await sleep(2800);
+
+  // ---- SCENE 4: Final ----
+  setScene(4);
+  await sleep(350);
+  document.getElementById('finalHead').classList.add('show');
+  await sleep(300);
+  document.getElementById('finalSub').classList.add('show');
+  await sleep(400);
+
+  const badges = document.querySelectorAll('.final-badge');
+  for (const badge of badges) {
+    badge.classList.add('show');
+    await sleep(200);
+  }
+  await sleep(300);
+  document.getElementById('finalCta').classList.add('show');
+
+  // Loop after 4 seconds
+  await sleep(4000);
+  resetAndReplay();
+}
+
+function resetAndReplay() {
+  // Reset all classes
+  document.querySelectorAll('.show, .active, .cleaning, .clicked, .highlight').forEach(el => {
+    if (el.classList.contains('scene') || el.classList.contains('progress-dot')) return;
+    el.classList.remove('show', 'cleaning', 'clicked', 'highlight');
+  });
+
+  ['stat1','stat2','stat3','feat1','feat1sub','feat2','feat2sub',
+   'menubar','popArrow','scanIndicator','forecast','heroCard',
+   'recoveredBanner','finalHead','finalSub','finalCta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+
+  document.querySelectorAll('.final-badge').forEach(b => b.classList.remove('show'));
+  document.querySelectorAll('.cache-item').forEach(i => {
+    i.classList.remove('show', 'cleaning');
+  });
+
+  const storageBar = document.getElementById('storageBar');
+  storageBar.style.width = '0%';
+  storageBar.classList.remove('green', 'orange');
+  storageBar.classList.add('blue');
+
+  const popover = document.getElementById('popover');
+  popover.classList.remove('show');
+
+  document.getElementById('heroCard').style.opacity = '1';
+  document.getElementById('cleanSafeBtn').classList.remove('clicked');
+
+  setScene(0);
+  document.getElementById('scene0').classList.add('active');
+  document.querySelectorAll('.progress-dot')[0].classList.add('active');
+
+  setTimeout(runAnimation, 800);
+}
+
+// Start!
+runAnimation();
+</script>
+</body>
+</html>
