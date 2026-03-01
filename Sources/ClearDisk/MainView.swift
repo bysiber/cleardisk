@@ -1024,17 +1024,7 @@ struct MainView: View {
                 }
             }
             
-            if !diskMonitor.inaccessiblePaths.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.orange)
-                    Text("\(diskMonitor.inaccessiblePaths.count) path\(diskMonitor.inaccessiblePaths.count == 1 ? "" : "s") not readable — sizes may be incomplete")
-                        .font(.system(size: 10))
-                        .foregroundColor(.orange)
-                    Spacer()
-                }
-            }
+            // Inaccessible paths info hidden from UI — silently handled
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -1423,7 +1413,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.6.0")
+                Text("ClearDisk v1.6.1")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
