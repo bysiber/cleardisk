@@ -35,32 +35,36 @@ ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar
 ## Features
 
 - **28 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm, Bun, pip, Conda, Gradle, Maven, Docker, Composer, Go, Rust Cargo, Flutter/Pub, JetBrains, Ruby Gems, Android Emulators
+- **Cache Descriptions** — Every cache shows a human-readable explanation ("Downloaded Swift packages. Re-downloads on next build.") so you know exactly what you're deleting
+- **DerivedData Project Breakdown** — Shows which projects live inside DerivedData (e.g. "MyApp: 2.3 GB, OtherApp: 1.1 GB") by reading `info.plist`
 - **Hero Dashboard** — Big, clear display of total cleanable space with breakdown by dev caches and trash
 - **Menu Bar Monitor** — Always-on disk usage display. Changes color at 80%/90% thresholds. Shows cleanable amount when disk is stressed
 - **Risk Levels** — 🟢 Safe (rebuilds with a command), 🟡 Caution (large re-download needed), 🔴 Risky (may contain irreplaceable data)
+- **Xcode Running Check** — Warns you if Xcode is running when you try to clean Xcode-related caches
 - **Safe Delete** — Files go to Trash, not permanent delete. You can always recover
 - **Visual Category Bars** — Color-coded proportional bars showing what's eating your disk
 - **Recovery Tracking** — "Recovered 12.4 GB!" banner after cleanup + cumulative "Total saved: 123 GB" counter
 - **Storage Forecast** — Predicts when your disk will be full based on usage trends (linear regression, 90-day history)
 - **Smart Suggestions** — Age-based recommendations ("Not used for 90 days — safe to clean")
 - **Smart Notifications** — Alerts at 80% and 90% disk usage, no spam
-- **Onboarding** — First-launch welcome screen with permission status checking
 - **100% Private** — No data collection. No analytics. No network access. Source code is open — verify yourself
 
 ## Comparison
 
-| Feature | ClearDisk | DevCleaner | DaisyDisk | CleanMyMac |
-|---------|-----------|------------|-----------|------------|
-| Xcode cleanup | ✅ | ✅ | ❌ | ✅ |
-| npm/pip/brew/docker/go/cargo/pnpm/conda/maven | ✅ | ❌ | ❌ | Partial |
-| Xcode Device Support | ✅ | ✅ | ❌ | ❌ |
-| Menu bar monitor | ✅ | ❌ | ❌ | ❌ |
-| Risk levels | ✅ | ❌ | ❌ | ❌ |
-| Storage forecast | ✅ | ❌ | ❌ | ❌ |
-| Safe delete (Trash) | ✅ | ❌ | N/A | ❌ |
-| Price | Free | Free | $10 | $40/yr |
-| Open source | ✅ | ✅ | ❌ | ❌ |
-| Privacy | No data | No data | Unknown | Telemetry |
+| Feature | ClearDisk | DevCleaner | npkill | kondo | mac-cleanup | DaisyDisk | CleanMyMac |
+|---------|-----------|------------|--------|-------|-------------|-----------|------------|
+| Native macOS GUI | ✅ | ✅ | ❌ CLI | ❌ CLI | ❌ CLI | ✅ | ✅ |
+| Menu bar monitor | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Xcode cleanup | ✅ 9 paths | ✅ 6 paths | ✅ | ✅ | ✅ | ❌ | ✅ |
+| npm/pip/brew/go/cargo | ✅ | ❌ | Partial | ❌ | ✅ | ❌ | Partial |
+| Docker/Gradle/Maven | ✅ | ❌ | ❌ | ❌ | Partial | ❌ | ❌ |
+| Risk levels | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Cache descriptions | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Storage forecast | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Safe delete (Trash) | ✅ | ❌ `removeItem` | ❌ `rm -rf` | ❌ `rm -rf` | ❌ `rm -rf` | N/A | ❌ |
+| Total cache paths | 28 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
+| Price | Free | Free | Free | Free | Free | $10 | $40/yr |
+| Open source | ✅ MIT | ✅ GPL-3 | ✅ MIT | ✅ MIT | ✅ Apache-2 | ❌ | ❌ |
 
 ## Installation
 
@@ -139,7 +143,7 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 - macOS 14+ (Sonoma)
 - SPM (Swift Package Manager)
 - No external dependencies
-- ~500 lines of code total
+- ~1,500 lines of code total
 
 ## Contributing
 
