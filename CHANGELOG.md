@@ -3,6 +3,18 @@ BU USER NOTUDUR: SUBWATCHI BOŞVER SADECE CLEAR DISKE ODAKLAN !
 
 All notable changes to ClearDisk are documented here.
 
+## [1.5.0] - 2026-03-02
+### Added
+- **Project Artifacts Scanner** — New "Projects" tab finds stale `node_modules`, `target/`, `.build/`, `build/`, `vendor/` directories inside your project folders. Inspired by kondo (2,200⭐) and npkill (9,100⭐)
+- **11 Project Types Detected**: Node.js, Rust, Swift PM, Go, Gradle, Gradle (Kotlin), Maven, PHP/Composer, Ruby, Flutter/Dart, CMake
+- **Stale Detection**: Projects not modified for 30+ days are flagged with an orange warning
+- **Individual Cleanup**: Trash any project's build artifacts with one click
+- **Hub Card**: Hero card now shows project artifact total alongside dev caches and trash
+
+### Changed
+- Tab bar now has 4 tabs: Developer, Projects, Overview, Large Files
+- Clean confirmation dialog shows project type and path details
+
 ## [1.4.0] - 2026-03-02
 ### Added
 - **Cache Descriptions**: Every cache item now shows a human-readable description explaining what it is and whether it's safe to delete (inspired by npkill's 301-line description file)
