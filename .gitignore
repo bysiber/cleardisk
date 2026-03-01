@@ -18,3 +18,5 @@ ClearDisk.app/
 cleardisk
 *.dmg
 demo/
+*.gif
+*.mp4
