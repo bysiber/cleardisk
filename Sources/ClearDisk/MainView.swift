@@ -65,8 +65,9 @@ struct MainView: View {
             Button("Move to Trash", role: .destructive) {
                 if let cache = cacheToClean {
                     isCleaning = true
+                    diskMonitor.devCaches.removeAll { $0.id == cache.id }
                     diskMonitor.cleanDevCache(cache)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { isCleaning = false }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
                 }
             }
         } message: {
@@ -81,6 +82,7 @@ struct MainView: View {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
                 isCleaning = true
+                diskMonitor.devCaches.removeAll { $0.riskLevel != "risky" }
                 diskMonitor.cleanSafeCaches()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
             }
@@ -96,6 +98,7 @@ struct MainView: View {
             Button("Cancel", role: .cancel) { }
             Button("Delete All (Including Risky)", role: .destructive) {
                 isCleaning = true
+                diskMonitor.devCaches.removeAll()
                 diskMonitor.cleanAllDevCaches()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
             }
@@ -113,8 +116,9 @@ struct MainView: View {
             Button("Move to Trash", role: .destructive) {
                 if let artifact = artifactToClean {
                     isCleaning = true
+                    diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
                     diskMonitor.cleanProjectArtifact(artifact)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { isCleaning = false }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
                 }
             }
         } message: {
@@ -127,6 +131,7 @@ struct MainView: View {
             Button("Move to Trash", role: .destructive) {
                 isCleaning = true
                 let toClean = diskMonitor.devCaches.filter { selectedCacheIDs.contains($0.id) }
+                diskMonitor.devCaches.removeAll { selectedCacheIDs.contains($0.id) }
                 for cache in toClean {
                     diskMonitor.cleanDevCache(cache)
                 }
@@ -1461,6 +1466,7 @@ struct MainView: View {
             Button(action: {
                 isCleaning = true
                 let toClean = diskMonitor.projectArtifacts.filter { selectedArtifactIDs.contains($0.id) }
+                diskMonitor.projectArtifacts.removeAll { selectedArtifactIDs.contains($0.id) }
                 for artifact in toClean {
                     diskMonitor.cleanProjectArtifact(artifact)
                 }
