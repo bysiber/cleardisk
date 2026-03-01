@@ -9,35 +9,9 @@ A free, open-source macOS menu bar app that monitors and cleans developer caches
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Size](https://img.shields.io/badge/Size-590%20KB-brightgreen)
 
-```
-┌─────────────────────────────────────────────┐
-│ ClearDisk                              ⟳    │
-│ ██████████████████████░░░░░░░░░░  68%       │
-│ 170.2 GB used                  81.5 GB free │
-│─────────────────────────────────────────────│
-│  ╔══════════════════════════════════════╗    │
-│  ║  47.3 GB          ● 44.1 GB dev     ║    │
-│  ║  can be safely     ● 2.8 GB projects║    │
-│  ║  cleaned           ● 412 MB trash   ║    │
-│  ║  ✨ Clean 22 safe caches (44.1 GB)  ║    │
-│  ╚══════════════════════════════════════╝    │
-│ [Developer] [Projects] [Overview] [Large]   │
-│─────────────────────────────────────────────│
-│ 🟢 Xcode DerivedData     12.4 GB   🗑 📂  │
-│   Build products. Rebuilds on next open.    │
-│   MyApp: 3.2 GB, Backend: 2.1 GB +4 more   │
-│ 🟢 npm Cache               8.1 GB   🗑 📂  │
-│   Cached packages. Re-downloads on install. │
-│ 🟢 Homebrew Cache           5.2 GB   🗑 📂  │
-│   Downloaded bottles. Re-downloads on brew. │
-│ 🟡 Xcode Simulators        4.8 GB   🗑 📂  │
-│   iOS simulator devices. Re-download needed.│
-│ 🔴 Docker (Data)           22.1 GB   🗑 📂  │
-│   ⚠️ 22.1 GB risky — not included above    │
-│─────────────────────────────────────────────│
-│ 🍃 Total saved: 127.4 GB              Quit │
-└─────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="assets/showcase.png" alt="ClearDisk Screenshots — Developer, Projects, Clean Projects, Clean Caches, Large Files, Overview" width="100%">
+</p>
 
 ---
 
