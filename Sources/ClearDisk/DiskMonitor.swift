@@ -340,6 +340,86 @@ class DiskMonitor: ObservableObject {
     
     // MARK: - Developer Caches
     
+    /// Human-readable descriptions for each cache type (inspired by npkill's descriptions)
+    static let cacheDescriptions: [String: String] = [
+        "Xcode DerivedData": "Build products, indexes, and logs. Rebuilds automatically when you open a project.",
+        "Xcode Archives": "Archived builds for App Store or distribution. Re-archive from Xcode to recreate.",
+        "Xcode Simulators": "iOS/watchOS/tvOS simulator devices and data. Re-download from Xcode → Settings.",
+        "Xcode Caches": "Internal Xcode product caches. Rebuilds automatically on next build.",
+        "Xcode Device Support": "Debug symbols for connected iPhones/iPads. Re-downloads when device connects.",
+        "Xcode Logs": "Simulator crash reports and diagnostic logs. Safe to remove anytime.",
+        "Xcode Previews": "SwiftUI preview simulator data. Rebuilds automatically on next preview.",
+        "Simulator Caches": "CoreSimulator dyld and framework caches. Rebuilds automatically.",
+        "Swift PM Cache": "Downloaded Swift packages. Re-downloads on next build (swift build).",
+        "CocoaPods Cache": "Downloaded pod specs and sources. Re-downloads on pod install.",
+        "Carthage": "Carthage dependency build cache. Re-downloads on carthage update.",
+        "Homebrew Cache": "Downloaded formula bottles and taps. Re-downloads on brew install.",
+        "npm Cache": "Cached package tarballs from npmjs.org. Re-downloads on npm install.",
+        "Yarn Cache": "Cached Yarn packages. Re-downloads on yarn install.",
+        "pnpm Store": "Content-addressable package store. Re-downloads on pnpm install.",
+        "Bun Cache": "Cached Bun packages. Re-downloads on bun install.",
+        "pip Cache": "Downloaded Python wheels and sdists. Re-downloads on pip install.",
+        "Conda Packages": "Cached Conda environments and packages. Re-downloads on conda install.",
+        "Gradle Cache": "Downloaded JARs, build outputs, and wrapper dists. Re-downloads on gradle build.",
+        "Maven Cache": "Local Maven repository (.m2). Re-downloads on mvn build.",
+        "Android Emulators": "Android Virtual Devices and disk images. Must re-create in AVD Manager.",
+        "Docker (Data)": "Docker images, containers, and volumes. May lose running containers and uncommitted data!",
+        "Composer Cache": "Cached PHP packages. Re-downloads on composer install.",
+        "Go Modules": "Go module download cache. Re-downloads on go mod download.",
+        "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
+        "Flutter/Pub Cache": "Cached Dart/Flutter packages. Re-downloads on flutter pub get.",
+        "JetBrains Cache": "IDE caches (IntelliJ, WebStorm, etc). Rebuilds on IDE restart.",
+        "Ruby Gems": "Installed Ruby gems and documentation. Re-install with bundle install.",
+    ]
+    
+    /// Resolve DerivedData subfolders to project names using info.plist → WorkspacePath
+    func derivedDataProjectSummary() -> String? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let ddPath = "\(home)/Library/Developer/Xcode/DerivedData"
+        let fm = FileManager.default
+        
+        guard let contents = try? fm.contentsOfDirectory(atPath: ddPath) else { return nil }
+        
+        var projects: [(String, Int64)] = []
+        for item in contents {
+            if item == "ModuleCache.noindex" || item.hasPrefix(".") { continue }
+            let fullPath = (ddPath as NSString).appendingPathComponent(item)
+            
+            // Try reading info.plist for workspace path
+            let plistPath = (fullPath as NSString).appendingPathComponent("info.plist")
+            var projectName: String? = nil
+            if let plistData = fm.contents(atPath: plistPath),
+               let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+               let workspacePath = plist["WorkspacePath"] as? String {
+                projectName = ((workspacePath as NSString).lastPathComponent as NSString).deletingPathExtension
+            }
+            
+            let name = projectName ?? item.components(separatedBy: "-").dropLast().joined(separator: "-")
+            if name.isEmpty { continue }
+            
+            let size = directorySize(path: fullPath)
+            if size > 1_048_576 { // > 1 MB
+                projects.append((name, size))
+            }
+        }
+        
+        guard !projects.isEmpty else { return nil }
+        
+        projects.sort { $0.1 > $1.1 }
+        let top = projects.prefix(5)
+        let lines = top.map { "\($0.0): \(formatBytes($0.1))" }
+        var result = lines.joined(separator: ", ")
+        if projects.count > 5 {
+            result += " +\(projects.count - 5) more"
+        }
+        return result
+    }
+    
+    /// Check if Xcode is currently running (to warn before cleaning DerivedData)
+    func isXcodeRunning() -> Bool {
+        NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.dt.Xcode" }
+    }
+    
     /// Returns list of (name, path) tuples for all known dev cache paths
     func devCachePaths() -> [(String, String)] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -442,6 +522,14 @@ class DiskMonitor: ObservableObject {
                 let lastAccessed = lastAccessDate(path: path)
                 let daysSinceAccess = daysSince(lastAccessed)
                 let suggestion = generateSuggestion(name: name, size: size, daysSinceAccess: daysSinceAccess)
+                let desc = DiskMonitor.cacheDescriptions[name] ?? ""
+                
+                // Resolve DerivedData subfolders to project names
+                var detail: String? = nil
+                if name == "Xcode DerivedData" {
+                    detail = derivedDataProjectSummary()
+                }
+                
                 caches.append(DevCache(
                     name: name,
                     icon: icon,
@@ -450,7 +538,9 @@ class DiskMonitor: ObservableObject {
                     lastAccessed: lastAccessed,
                     daysSinceAccess: daysSinceAccess,
                     suggestion: suggestion,
-                    riskLevel: riskLevel
+                    riskLevel: riskLevel,
+                    cacheDescription: desc,
+                    detail: detail
                 ))
             }
         }
@@ -697,6 +787,8 @@ struct DevCache: Identifiable {
     let daysSinceAccess: Int?
     let suggestion: String?
     let riskLevel: String // "safe" = 🟢, "caution" = 🟡, "risky" = 🔴
+    let cacheDescription: String // human-readable "what is this?"
+    var detail: String? = nil // optional extra detail (e.g. DerivedData project list)
     
     var riskEmoji: String {
         switch riskLevel {

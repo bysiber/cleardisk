@@ -75,7 +75,10 @@ struct MainView: View {
             }
         } message: {
             if let cache = cacheToClean {
-                Text("Delete all contents of \(cache.name)?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)")
+                let xcodeWarning = (cache.name.hasPrefix("Xcode") || cache.name == "Swift PM Cache") && diskMonitor.isXcodeRunning()
+                    ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                    : ""
+                Text("Delete all contents of \(cache.name)?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(xcodeWarning)")
             }
         }
         .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
@@ -86,7 +89,10 @@ struct MainView: View {
         } message: {
             let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
             let safeTotal = safeCaches.reduce(Int64(0)) { $0 + $1.size }
-            Text("Clean \(safeCaches.count) safe/caution caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nRisky caches (like Docker) are NOT included.\nFiles go to Trash — you can recover them.")
+            let xcodeWarning = diskMonitor.isXcodeRunning()
+                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                : ""
+            Text("Clean \(safeCaches.count) safe/caution caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nRisky caches (like Docker) are NOT included.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
         }
         .alert("Clean ALL Developer Caches", isPresented: $showCleanAllConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -97,7 +103,10 @@ struct MainView: View {
             let total = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
             let riskyCount = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.count
             let riskyNote = riskyCount > 0 ? "\n\n🔴 WARNING: \(riskyCount) risky cache(s) included — may contain data that cannot be rebuilt (e.g. Docker volumes, unsaved projects)." : ""
-            Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)")
+            let xcodeWarning = diskMonitor.isXcodeRunning()
+                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                : ""
+            Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
         }
     }
     
@@ -494,11 +503,13 @@ struct MainView: View {
                                 )
                         }
                     }
+                    // Cache description tooltip on the path line
                     Text(cache.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .help(cache.cacheDescription)
                 }
                 Spacer()
                 Text(formatBytes(cache.size))
@@ -524,6 +535,32 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.blue)
                 .help("Show in Finder")
+            }
+            
+            // Description line (subtle, always visible)
+            if !cache.cacheDescription.isEmpty {
+                Text(cache.cacheDescription)
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary.opacity(0.7))
+                    .padding(.leading, 36)
+                    .padding(.top, 1)
+                    .lineLimit(1)
+            }
+            
+            // DerivedData project breakdown
+            if let detail = cache.detail {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 8))
+                        .foregroundColor(.purple.opacity(0.6))
+                    Text(detail)
+                        .font(.system(size: 9))
+                        .foregroundColor(.purple.opacity(0.7))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .padding(.leading, 36)
+                .padding(.top, 1)
             }
             
             // Smart suggestion
@@ -752,7 +789,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.3.1")
+                Text("ClearDisk v1.4.0")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
