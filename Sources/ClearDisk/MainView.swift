@@ -15,6 +15,7 @@ struct MainView: View {
     @State private var cacheCleanMode: CacheCleanMode = .safe
     @State private var selectedArtifactIDs: Set<UUID> = []
     @State private var projectFilterMode: ProjectFilterMode = .all
+    @State private var isCleaning = false
     
     enum Tab: String, CaseIterable {
         case developer = "Developer"
@@ -61,7 +62,9 @@ struct MainView: View {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
                 if let cache = cacheToClean {
+                    isCleaning = true
                     diskMonitor.cleanDevCache(cache)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { isCleaning = false }
                 }
             }
         } message: {
@@ -75,7 +78,9 @@ struct MainView: View {
         .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
+                isCleaning = true
                 diskMonitor.cleanSafeCaches()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
             }
         } message: {
             let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
@@ -88,7 +93,9 @@ struct MainView: View {
         .alert("Clean ALL Developer Caches", isPresented: $showCleanAllConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Delete All (Including Risky)", role: .destructive) {
+                isCleaning = true
                 diskMonitor.cleanAllDevCaches()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
             }
         } message: {
             let total = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
@@ -103,7 +110,9 @@ struct MainView: View {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
                 if let artifact = artifactToClean {
+                    isCleaning = true
                     diskMonitor.cleanProjectArtifact(artifact)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { isCleaning = false }
                 }
             }
         } message: {
@@ -1181,20 +1190,28 @@ struct MainView: View {
                 }
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 12))
-                    Text(cacheCleanMode == .safe
+                    if isCleaning {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 12))
+                    }
+                    Text(isCleaning ? "Cleaning..."
+                         : cacheCleanMode == .safe
                          ? "Clean Safe Caches (\(formatBytes(actionTotal)))"
                          : "Clean All Caches (\(formatBytes(actionTotal)))")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(cacheCleanMode == .safe ? Color.green : Color.red)
+                .background(isCleaning ? Color.gray : (cacheCleanMode == .safe ? Color.green : Color.red))
                 .foregroundColor(.white)
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
+            .disabled(isCleaning)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
@@ -1360,27 +1377,37 @@ struct MainView: View {
             .padding(.top, 6)
             
             Button(action: {
+                isCleaning = true
                 let toClean = diskMonitor.projectArtifacts.filter { selectedArtifactIDs.contains($0.id) }
                 for artifact in toClean {
                     diskMonitor.cleanProjectArtifact(artifact)
                 }
                 selectedArtifactIDs = []
-                activeScreen = .main
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    isCleaning = false
+                    activeScreen = .main
+                }
             }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 12))
-                    Text("Remove Selected (\(formatBytes(selectedSize)))")
+                    if isCleaning {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 12))
+                    }
+                    Text(isCleaning ? "Removing..." : "Remove Selected (\(formatBytes(selectedSize)))")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(selectedCount > 0 ? Color.orange : Color.gray.opacity(0.3))
-                .foregroundColor(selectedCount > 0 ? .white : .secondary)
+                .background(selectedCount > 0 && !isCleaning ? Color.orange : Color.gray.opacity(0.3))
+                .foregroundColor(selectedCount > 0 && !isCleaning ? .white : .secondary)
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
-            .disabled(selectedCount == 0)
+            .disabled(selectedCount == 0 || isCleaning)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
             .padding(.top, 4)
