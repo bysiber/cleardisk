@@ -1,7 +1,7 @@
 # ClearDisk
 
 <p align="center">
-  <img src="assets/cleardisk-banner.gif" alt="ClearDisk Banner" width="100%">
+  <img src="assets/cleardisk-banner-hd.gif" alt="ClearDisk Banner" width="100%">
 </p>
 
 **Your Mac is hiding 50–500 GB of developer caches. ClearDisk finds them in seconds.**
