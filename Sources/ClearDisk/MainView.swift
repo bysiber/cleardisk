@@ -14,6 +14,8 @@ struct MainView: View {
     @State private var activeScreen: ActiveScreen = .main
     @State private var cacheCleanMode: CacheCleanMode = .safe
     @State private var selectedArtifactIDs: Set<UUID> = []
+    @State private var selectedCacheIDs: Set<UUID> = []
+    @State private var showCleanSelectedCachesConfirm = false
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
     
@@ -119,6 +121,30 @@ struct MainView: View {
             if let artifact = artifactToClean {
                 Text("Delete \(artifact.artifactName) from \(artifact.projectName)?\n\nThis will move \(formatBytes(artifact.size)) to Trash.\n\nType: \(artifact.projectType)\nPath: \(artifact.artifactPath)\n\nRe-run your build/install command to restore.")
             }
+        }
+        .alert("Clean Selected Caches", isPresented: $showCleanSelectedCachesConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Move to Trash", role: .destructive) {
+                isCleaning = true
+                let toClean = diskMonitor.devCaches.filter { selectedCacheIDs.contains($0.id) }
+                for cache in toClean {
+                    diskMonitor.cleanDevCache(cache)
+                }
+                selectedCacheIDs = []
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    isCleaning = false
+                    activeScreen = .main
+                }
+            }
+        } message: {
+            let toClean = diskMonitor.devCaches.filter { selectedCacheIDs.contains($0.id) }
+            let totalSize = toClean.reduce(Int64(0)) { $0 + $1.size }
+            let riskyCount = toClean.filter { $0.riskLevel == "risky" }.count
+            let riskyNote = riskyCount > 0 ? "\n\n🔴 WARNING: \(riskyCount) risky cache(s) selected — may contain data that cannot be rebuilt." : ""
+            let xcodeWarning = diskMonitor.isXcodeRunning()
+                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                : ""
+            Text("Clean \(toClean.count) selected cache(s)?\nThis will move \(formatBytes(totalSize)) to Trash.\n\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
         }
     }
     
@@ -1040,7 +1066,13 @@ struct MainView: View {
     
     // MARK: - Clean Caches Sub-Screen
     var cleanCachesScreen: some View {
-        VStack(spacing: 0) {
+        let cachesToShow = cacheCleanMode == .safe
+            ? diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+            : diskMonitor.devCaches
+        let selectedSize = cachesToShow.filter { selectedCacheIDs.contains($0.id) }.reduce(Int64(0)) { $0 + $1.size }
+        let selectedCount = cachesToShow.filter { selectedCacheIDs.contains($0.id) }.count
+        
+        return VStack(spacing: 0) {
             // Navigation bar
             HStack {
                 Button(action: { activeScreen = .main }) {
@@ -1067,29 +1099,52 @@ struct MainView: View {
             
             Divider()
             
-            // Mode picker
-            HStack(spacing: 0) {
-                Button(action: { cacheCleanMode = .safe }) {
+            // Filter + Select controls
+            HStack(spacing: 6) {
+                // Mode picker
+                Button(action: {
+                    cacheCleanMode = .safe
+                    selectedCacheIDs = []
+                }) {
                     Text("Safe Only")
-                        .font(.system(size: 11, weight: cacheCleanMode == .safe ? .semibold : .regular))
+                        .font(.system(size: 10, weight: cacheCleanMode == .safe ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .safe ? .green : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .contentShape(Rectangle())
                         .background(cacheCleanMode == .safe ? Color.green.opacity(0.1) : Color.clear)
-                        .cornerRadius(6)
+                        .cornerRadius(4)
                 }
                 .buttonStyle(.plain)
                 
-                Button(action: { cacheCleanMode = .all }) {
-                    Text("All (Including Risky)")
-                        .font(.system(size: 11, weight: cacheCleanMode == .all ? .semibold : .regular))
+                Button(action: {
+                    cacheCleanMode = .all
+                    selectedCacheIDs = []
+                }) {
+                    Text("All")
+                        .font(.system(size: 10, weight: cacheCleanMode == .all ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .all ? .red : .secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .contentShape(Rectangle())
                         .background(cacheCleanMode == .all ? Color.red.opacity(0.1) : Color.clear)
-                        .cornerRadius(6)
+                        .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                // Select All / Deselect All
+                Button(action: {
+                    if selectedCacheIDs.count == cachesToShow.count {
+                        selectedCacheIDs = []
+                    } else {
+                        selectedCacheIDs = Set(cachesToShow.map { $0.id })
+                    }
+                }) {
+                    Text(selectedCacheIDs.count == cachesToShow.count && !cachesToShow.isEmpty ? "Deselect All" : "Select All")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.accentColor)
                 }
                 .buttonStyle(.plain)
             }
@@ -1098,77 +1153,91 @@ struct MainView: View {
             
             Divider()
             
-            // Cache list
+            // Cache list with checkboxes
             ScrollView {
-                let cachesToShow = cacheCleanMode == .safe
-                    ? diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
-                    : diskMonitor.devCaches
-                let totalSize = cachesToShow.reduce(Int64(0)) { $0 + $1.size }
-                
                 VStack(spacing: 0) {
-                    // Summary
-                    HStack {
-                        Text("\(cachesToShow.count) caches")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(formatBytes(totalSize))
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundColor(cacheCleanMode == .safe ? .green : .red)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    
-                    ForEach(cachesToShow) { cache in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(cache.riskLevel == "risky" ? Color.red : cache.riskLevel == "caution" ? Color.yellow : Color.green)
-                                .frame(width: 8, height: 8)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(cache.name)
-                                    .font(.system(size: 11, weight: .medium))
-                                Text(cache.cacheDescription)
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Text(formatBytes(cache.size))
-                                .font(.system(size: 10, design: .monospaced))
+                    if cachesToShow.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "externaldrive.badge.checkmark")
+                                .font(.system(size: 24))
+                                .foregroundColor(.secondary)
+                            Text("No caches found")
+                                .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                    }
-                    
-                    // Risky warning (only in All mode)
-                    if cacheCleanMode == .all {
-                        let riskyCaches = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }
-                        if !riskyCaches.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.red)
-                                    Text("Risky caches included:")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundColor(.red)
+                        .padding(.top, 40)
+                    } else {
+                        ForEach(cachesToShow) { cache in
+                            let isSelected = selectedCacheIDs.contains(cache.id)
+                            Button(action: {
+                                if isSelected {
+                                    selectedCacheIDs.remove(cache.id)
+                                } else {
+                                    selectedCacheIDs.insert(cache.id)
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(isSelected ? .accentColor : .secondary.opacity(0.5))
+                                    
+                                    Circle()
+                                        .fill(cache.riskLevel == "risky" ? Color.red : cache.riskLevel == "caution" ? Color.yellow : Color.green)
+                                        .frame(width: 8, height: 8)
+                                    
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(cache.name)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(.primary)
+                                        Text(cache.cacheDescription)
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    
                                     Spacer()
+                                    
+                                    Text(formatBytes(cache.size))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(.secondary)
                                 }
-                                ForEach(riskyCaches) { cache in
-                                    Text("• \(cache.name) — \(formatBytes(cache.size))")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.red.opacity(0.8))
-                                }
-                                Text("May contain data that cannot be rebuilt")
-                                    .font(.system(size: 9))
-                                    .foregroundColor(.secondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .contentShape(Rectangle())
+                                .background(isSelected ? Color.accentColor.opacity(0.04) : Color.clear)
                             }
-                            .padding(10)
-                            .background(Color.red.opacity(0.06))
-                            .cornerRadius(8)
-                            .padding(.horizontal, 12)
-                            .padding(.top, 6)
+                            .buttonStyle(.plain)
+                        }
+                        
+                        // Risky warning (only in All mode)
+                        if cacheCleanMode == .all {
+                            let riskySelected = diskMonitor.devCaches.filter { $0.riskLevel == "risky" && selectedCacheIDs.contains($0.id) }
+                            if !riskySelected.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.red)
+                                        Text("\(riskySelected.count) risky cache(s) selected:")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundColor(.red)
+                                        Spacer()
+                                    }
+                                    ForEach(riskySelected) { cache in
+                                        Text("• \(cache.name) — \(formatBytes(cache.size))")
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.red.opacity(0.8))
+                                    }
+                                    Text("May contain data that cannot be rebuilt")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(10)
+                                .background(Color.red.opacity(0.06))
+                                .cornerRadius(8)
+                                .padding(.horizontal, 12)
+                                .padding(.top, 6)
+                            }
                         }
                     }
                 }
@@ -1177,17 +1246,18 @@ struct MainView: View {
             
             Divider()
             
-            // Action button
-            let selectedCaches = cacheCleanMode == .safe
-                ? diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
-                : diskMonitor.devCaches
-            let actionTotal = selectedCaches.reduce(Int64(0)) { $0 + $1.size }
+            // Selection summary + action
+            HStack {
+                Text("\(selectedCount) selected · \(formatBytes(selectedSize))")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            
             Button(action: {
-                if cacheCleanMode == .safe {
-                    showCleanSafeConfirm = true
-                } else {
-                    showCleanAllConfirm = true
-                }
+                showCleanSelectedCachesConfirm = true
             }) {
                 HStack(spacing: 6) {
                     if isCleaning {
@@ -1198,22 +1268,20 @@ struct MainView: View {
                         Image(systemName: "trash.fill")
                             .font(.system(size: 12))
                     }
-                    Text(isCleaning ? "Cleaning..."
-                         : cacheCleanMode == .safe
-                         ? "Clean Safe Caches (\(formatBytes(actionTotal)))"
-                         : "Clean All Caches (\(formatBytes(actionTotal)))")
+                    Text(isCleaning ? "Cleaning..." : "Clean Selected (\(formatBytes(selectedSize)))")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(isCleaning ? Color.gray : (cacheCleanMode == .safe ? Color.green : Color.red))
-                .foregroundColor(.white)
+                .background(selectedCount > 0 && !isCleaning ? Color.green : Color.gray.opacity(0.3))
+                .foregroundColor(selectedCount > 0 && !isCleaning ? .white : .secondary)
                 .cornerRadius(8)
             }
             .buttonStyle(.plain)
-            .disabled(isCleaning)
+            .disabled(selectedCount == 0 || isCleaning)
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.bottom, 8)
+            .padding(.top, 4)
         }
         .frame(width: 380, height: 540)
     }
