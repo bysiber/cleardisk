@@ -328,6 +328,7 @@ struct MainView: View {
                         .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
+                        .contentShape(Rectangle()) // Makes entire area clickable, not just text
                         .background(
                             selectedTab == tab
                                 ? Color.accentColor.opacity(0.1)
