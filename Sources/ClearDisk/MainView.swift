@@ -10,6 +10,11 @@ struct MainView: View {
     @State private var showCleanArtifactConfirm = false
     @State private var cacheToClean: DevCache?
     @State private var artifactToClean: ProjectArtifact?
+    @State private var projectSortMode: ProjectSortMode = .size
+    @State private var activeScreen: ActiveScreen = .main
+    @State private var cacheCleanMode: CacheCleanMode = .safe
+    @State private var selectedArtifactIDs: Set<UUID> = []
+    @State private var projectFilterMode: ProjectFilterMode = .all
     
     enum Tab: String, CaseIterable {
         case developer = "Developer"
@@ -18,56 +23,37 @@ struct MainView: View {
         case largeFiles = "Large Files"
     }
     
+    enum ProjectSortMode: String, CaseIterable {
+        case size = "Size"
+        case date = "Date"
+        case name = "Name"
+    }
+    
+    enum ActiveScreen {
+        case main
+        case cleanCaches
+        case cleanProjects
+    }
+    
+    enum CacheCleanMode {
+        case safe
+        case all
+    }
+    
+    enum ProjectFilterMode: String, CaseIterable {
+        case all = "All"
+        case stale = "Stale (>30d)"
+    }
+    
     var body: some View {
-        ZStack {
-            // Main app view
-            VStack(spacing: 0) {
-                // Header
-                headerView
-                
-                Divider()
-                
-                // Permission warnings (if any)
-                if !diskMonitor.inaccessiblePaths.isEmpty || diskMonitor.notificationPermission == .denied {
-                    permissionBanner
-                    Divider()
-                }
-                
-                // Cleanable summary card (only when there's stuff to clean)
-                if diskMonitor.safeCleanable > 10_485_760 || diskMonitor.riskyCleanable > 10_485_760 { // > 10MB
-                    cleanableSummary
-                    Divider()
-                }
-                
-                // Tab bar
-                tabBar
-                
-                Divider()
-                
-                // Content
-                ScrollView {
-                    switch selectedTab {
-                    case .overview:
-                        overviewContent
-                    case .developer:
-                        developerContent
-                    case .projects:
-                        projectsContent
-                    case .largeFiles:
-                        largeFilesContent
-                    }
-                }
-                .frame(maxHeight: .infinity)
-                
-                Divider()
-                
-                // Footer
-                footerView
-            }
-            
-            // Onboarding overlay (first launch)
-            if diskMonitor.isFirstLaunch && !diskMonitor.hasCompletedFirstScan {
-                onboardingView
+        Group {
+            switch activeScreen {
+            case .cleanCaches:
+                cleanCachesScreen
+            case .cleanProjects:
+                cleanProjectsScreen
+            case .main:
+                mainScreen
             }
         }
         .frame(width: 380, height: 540)
@@ -127,100 +113,198 @@ struct MainView: View {
         }
     }
     
+    // MARK: - Main Screen
+    var mainScreen: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                // Header
+                headerView
+                
+                Divider()
+                
+                // Permission warnings (if any)
+                if !diskMonitor.inaccessiblePaths.isEmpty || diskMonitor.notificationPermission == .denied {
+                    permissionBanner
+                    Divider()
+                }
+                
+                // Cleanable summary card (only when there's stuff to clean)
+                let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+                if diskMonitor.safeCleanable > 10_485_760 || diskMonitor.riskyCleanable > 10_485_760 || artifactTotal > 10_485_760 {
+                    cleanableSummary
+                    Divider()
+                }
+                
+                // Tab bar
+                tabBar
+                
+                Divider()
+                
+                // Content
+                ScrollView {
+                    switch selectedTab {
+                    case .overview:
+                        overviewContent
+                    case .developer:
+                        developerContent
+                    case .projects:
+                        projectsContent
+                    case .largeFiles:
+                        largeFilesContent
+                    }
+                }
+                .frame(maxHeight: .infinity)
+                
+                Divider()
+                
+                // Footer
+                footerView
+            }
+            
+            // Onboarding overlay (first launch)
+            if diskMonitor.isFirstLaunch && !diskMonitor.hasCompletedFirstScan {
+                onboardingView
+            }
+        }
+    }
+    
     // MARK: - Cleanable Summary (Hero Card)
     var cleanableSummary: some View {
-        VStack(spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(formatBytes(diskMonitor.safeCleanable))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(.green)
-                    Text("can be safely cleaned")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.green.opacity(0.8))
-                }
-                
+        let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let riskyDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+        let trashTotal = diskMonitor.trashSize()
+        let grandTotal = safeDevTotal + riskyDevTotal + artifactTotal + trashTotal
+        
+        return VStack(spacing: 8) {
+            // Big total number
+            HStack(alignment: .firstTextBaseline) {
+                Text(formatBytes(grandTotal))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
                 Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
-                    let trashTotal = diskMonitor.trashSize()
-                    let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
-                    
-                    if safeDevTotal > 0 {
-                        HStack(spacing: 4) {
-                            Circle().fill(.purple).frame(width: 6, height: 6)
-                            Text("\(formatBytes(safeDevTotal)) dev")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+            }
+            
+            Text("reclaimable space found")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Segmented breakdown bar
+            if grandTotal > 0 {
+                GeometryReader { geo in
+                    HStack(spacing: 1) {
+                        let w = geo.size.width
+                        if safeDevTotal > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.green)
+                                .frame(width: max(3, w * CGFloat(safeDevTotal) / CGFloat(grandTotal)))
                         }
-                    }
-                    if artifactTotal > 0 {
-                        HStack(spacing: 4) {
-                            Circle().fill(.cyan).frame(width: 6, height: 6)
-                            Text("\(formatBytes(artifactTotal)) projects")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                        if artifactTotal > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.cyan)
+                                .frame(width: max(3, w * CGFloat(artifactTotal) / CGFloat(grandTotal)))
                         }
-                    }
-                    if trashTotal > 0 {
-                        HStack(spacing: 4) {
-                            Circle().fill(.orange).frame(width: 6, height: 6)
-                            Text("\(formatBytes(trashTotal)) trash")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                        if riskyDevTotal > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.red.opacity(0.7))
+                                .frame(width: max(3, w * CGFloat(riskyDevTotal) / CGFloat(grandTotal)))
+                        }
+                        if trashTotal > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.orange)
+                                .frame(width: max(3, w * CGFloat(trashTotal) / CGFloat(grandTotal)))
                         }
                     }
                 }
+                .frame(height: 8)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             
-            // Risky warning line (e.g. Docker data)
-            if diskMonitor.riskyCleanable > 1_048_576 {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 9))
-                        .foregroundColor(.orange)
-                    let riskyNames = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.map { $0.name }.joined(separator: ", ")
-                    Text("\(formatBytes(diskMonitor.riskyCleanable)) in risky caches (\(riskyNames)) — not included above")
-                        .font(.system(size: 10))
-                        .foregroundColor(.orange)
-                    Spacer()
+            // Legend
+            HStack(spacing: 12) {
+                if safeDevTotal > 0 {
+                    HStack(spacing: 4) {
+                        Circle().fill(.green).frame(width: 6, height: 6)
+                        Text("\(formatBytes(safeDevTotal)) safe")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
                 }
+                if artifactTotal > 0 {
+                    HStack(spacing: 4) {
+                        Circle().fill(.cyan).frame(width: 6, height: 6)
+                        Text("\(formatBytes(artifactTotal)) projects")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if riskyDevTotal > 0 {
+                    HStack(spacing: 4) {
+                        Circle().fill(.red.opacity(0.7)).frame(width: 6, height: 6)
+                        Text("\(formatBytes(riskyDevTotal)) risky")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if trashTotal > 0 {
+                    HStack(spacing: 4) {
+                        Circle().fill(.orange).frame(width: 6, height: 6)
+                        Text("\(formatBytes(trashTotal)) trash")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
             }
             
-            // Quick action bar
+            // Action buttons
             HStack(spacing: 8) {
-                if !diskMonitor.devCaches.isEmpty {
-                    let safeCount = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.count
-                    let safeSize = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
-                    if safeSize > 0 {
-                        Button(action: {
-                            showCleanSafeConfirm = true
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 10))
-                                Text("Clean \(safeCount) safe caches (\(formatBytes(safeSize)))")
-                                    .font(.system(size: 10, weight: .medium))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.green.opacity(0.15))
-                            .cornerRadius(6)
+                let devTotal = safeDevTotal + riskyDevTotal
+                if devTotal > 0 {
+                    Button(action: {
+                        activeScreen = .cleanCaches
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10))
+                            Text("Clean Caches")
+                                .font(.system(size: 10, weight: .medium))
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.green)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.green.opacity(0.15))
+                        .cornerRadius(6)
                     }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.green)
                 }
-                Spacer()
+                if artifactTotal > 0 {
+                    Button(action: {
+                        selectedArtifactIDs = []
+                        projectFilterMode = .all
+                        activeScreen = .cleanProjects
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder.badge.minus")
+                                .font(.system(size: 10))
+                            Text("Clean Projects")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.cyan.opacity(0.15))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.cyan)
+                }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 0)
-                .fill(Color.green.opacity(0.04))
-        )
     }
     
     // MARK: - Header
@@ -472,7 +556,7 @@ struct MainView: View {
                 let totalDev = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Total Developer Cache")
+                        Text("Developer Caches")
                             .font(.system(size: 12, weight: .semibold))
                         Text("\(diskMonitor.devCaches.count) locations found")
                             .font(.system(size: 10))
@@ -481,16 +565,7 @@ struct MainView: View {
                     Spacer()
                     Text(formatBytes(totalDev))
                         .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .foregroundColor(.red)
-                    Button(action: {
-                        showCleanAllConfirm = true
-                    }) {
-                        Label("Clean All", systemImage: "trash.fill")
-                            .font(.system(size: 11))
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
+                        .foregroundColor(.purple)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -623,29 +698,68 @@ struct MainView: View {
             } else {
                 let totalArtifacts = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
                 let staleCount = diskMonitor.projectArtifacts.filter { $0.isStale }.count
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Project Build Artifacts")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                VStack(spacing: 4) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Project Build Artifacts")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Text(formatBytes(totalArtifacts))
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundColor(.orange)
                     }
-                    Spacer()
-                    Text(formatBytes(totalArtifacts))
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .foregroundColor(.orange)
+                    // Sort picker
+                    HStack(spacing: 0) {
+                        ForEach(ProjectSortMode.allCases, id: \.self) { mode in
+                            Button(action: { projectSortMode = mode }) {
+                                Text(mode.rawValue)
+                                    .font(.system(size: 10, weight: projectSortMode == mode ? .semibold : .regular))
+                                    .foregroundColor(projectSortMode == mode ? .accentColor : .secondary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 3)
+                                    .contentShape(Rectangle())
+                                    .background(
+                                        projectSortMode == mode
+                                            ? Color.accentColor.opacity(0.1)
+                                            : Color.clear
+                                    )
+                                    .cornerRadius(4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(Color.orange.opacity(0.04))
                 
-                ForEach(diskMonitor.projectArtifacts) { artifact in
+                ForEach(sortedProjectArtifacts) { artifact in
                     projectArtifactRow(artifact)
                 }
             }
         }
         .padding(.vertical, 4)
+    }
+    
+    var sortedProjectArtifacts: [ProjectArtifact] {
+        switch projectSortMode {
+        case .size:
+            return diskMonitor.projectArtifacts.sorted { $0.size > $1.size }
+        case .date:
+            return diskMonitor.projectArtifacts.sorted {
+                let dA = $0.daysSinceModified ?? 0
+                let dB = $1.daysSinceModified ?? 0
+                if dA != dB { return dA > dB }
+                return $0.size > $1.size
+            }
+        case .name:
+            return diskMonitor.projectArtifacts.sorted { $0.projectName.localizedCaseInsensitiveCompare($1.projectName) == .orderedAscending }
+        }
     }
     
     func projectArtifactRow(_ artifact: ProjectArtifact) -> some View {
@@ -927,6 +1041,375 @@ struct MainView: View {
         .background(Color.orange.opacity(0.06))
     }
     
+    // MARK: - Clean Caches Sub-Screen
+    var cleanCachesScreen: some View {
+        VStack(spacing: 0) {
+            // Navigation bar
+            HStack {
+                Button(action: { activeScreen = .main }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 12))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                Spacer()
+                Text("Clean Caches")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                // Invisible balancer
+                Text("Back__")
+                    .font(.system(size: 12))
+                    .hidden()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            
+            Divider()
+            
+            // Mode picker
+            HStack(spacing: 0) {
+                Button(action: { cacheCleanMode = .safe }) {
+                    Text("Safe Only")
+                        .font(.system(size: 11, weight: cacheCleanMode == .safe ? .semibold : .regular))
+                        .foregroundColor(cacheCleanMode == .safe ? .green : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .background(cacheCleanMode == .safe ? Color.green.opacity(0.1) : Color.clear)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: { cacheCleanMode = .all }) {
+                    Text("All (Including Risky)")
+                        .font(.system(size: 11, weight: cacheCleanMode == .all ? .semibold : .regular))
+                        .foregroundColor(cacheCleanMode == .all ? .red : .secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .background(cacheCleanMode == .all ? Color.red.opacity(0.1) : Color.clear)
+                        .cornerRadius(6)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            
+            Divider()
+            
+            // Cache list
+            ScrollView {
+                let cachesToShow = cacheCleanMode == .safe
+                    ? diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+                    : diskMonitor.devCaches
+                let totalSize = cachesToShow.reduce(Int64(0)) { $0 + $1.size }
+                
+                VStack(spacing: 0) {
+                    // Summary
+                    HStack {
+                        Text("\(cachesToShow.count) caches")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(formatBytes(totalSize))
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundColor(cacheCleanMode == .safe ? .green : .red)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    
+                    ForEach(cachesToShow) { cache in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(cache.riskLevel == "risky" ? Color.red : cache.riskLevel == "caution" ? Color.yellow : Color.green)
+                                .frame(width: 8, height: 8)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(cache.name)
+                                    .font(.system(size: 11, weight: .medium))
+                                Text(cache.cacheDescription)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            Text(formatBytes(cache.size))
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                    }
+                    
+                    // Risky warning (only in All mode)
+                    if cacheCleanMode == .all {
+                        let riskyCaches = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }
+                        if !riskyCaches.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.red)
+                                    Text("Risky caches included:")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(.red)
+                                    Spacer()
+                                }
+                                ForEach(riskyCaches) { cache in
+                                    Text("• \(cache.name) — \(formatBytes(cache.size))")
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.red.opacity(0.8))
+                                }
+                                Text("May contain data that cannot be rebuilt")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(10)
+                            .background(Color.red.opacity(0.06))
+                            .cornerRadius(8)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 6)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+            
+            Divider()
+            
+            // Action button
+            let selectedCaches = cacheCleanMode == .safe
+                ? diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+                : diskMonitor.devCaches
+            let actionTotal = selectedCaches.reduce(Int64(0)) { $0 + $1.size }
+            Button(action: {
+                if cacheCleanMode == .safe {
+                    showCleanSafeConfirm = true
+                } else {
+                    showCleanAllConfirm = true
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 12))
+                    Text(cacheCleanMode == .safe
+                         ? "Clean Safe Caches (\(formatBytes(actionTotal)))"
+                         : "Clean All Caches (\(formatBytes(actionTotal)))")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(cacheCleanMode == .safe ? Color.green : Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .frame(width: 380, height: 540)
+    }
+    
+    // MARK: - Clean Projects Sub-Screen
+    var cleanProjectsScreen: some View {
+        let filtered = filteredProjectArtifacts
+        let selectedSize = filtered.filter { selectedArtifactIDs.contains($0.id) }.reduce(Int64(0)) { $0 + $1.size }
+        let selectedCount = filtered.filter { selectedArtifactIDs.contains($0.id) }.count
+        
+        return VStack(spacing: 0) {
+            // Navigation bar
+            HStack {
+                Button(action: { activeScreen = .main }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 12))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                Spacer()
+                Text("Clean Projects")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text("Back__")
+                    .font(.system(size: 12))
+                    .hidden()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            
+            Divider()
+            
+            // Filter + Select controls
+            HStack(spacing: 6) {
+                // Filter picker
+                ForEach(ProjectFilterMode.allCases, id: \.self) { mode in
+                    Button(action: {
+                        projectFilterMode = mode
+                        selectedArtifactIDs = []
+                    }) {
+                        Text(mode.rawValue)
+                            .font(.system(size: 10, weight: projectFilterMode == mode ? .semibold : .regular))
+                            .foregroundColor(projectFilterMode == mode ? .accentColor : .secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                            .background(projectFilterMode == mode ? Color.accentColor.opacity(0.1) : Color.clear)
+                            .cornerRadius(4)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Spacer()
+                
+                // Select All / Deselect All
+                Button(action: {
+                    if selectedArtifactIDs.count == filtered.count {
+                        selectedArtifactIDs = []
+                    } else {
+                        selectedArtifactIDs = Set(filtered.map { $0.id })
+                    }
+                }) {
+                    Text(selectedArtifactIDs.count == filtered.count && !filtered.isEmpty ? "Deselect All" : "Select All")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            
+            Divider()
+            
+            // Artifact list with checkboxes
+            ScrollView {
+                VStack(spacing: 0) {
+                    if filtered.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "folder.badge.questionmark")
+                                .font(.system(size: 24))
+                                .foregroundColor(.secondary)
+                            Text("No artifacts match the filter")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 40)
+                    } else {
+                        ForEach(filtered) { artifact in
+                            let isSelected = selectedArtifactIDs.contains(artifact.id)
+                            Button(action: {
+                                if isSelected {
+                                    selectedArtifactIDs.remove(artifact.id)
+                                } else {
+                                    selectedArtifactIDs.insert(artifact.id)
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(isSelected ? .accentColor : .secondary.opacity(0.5))
+                                    
+                                    Image(systemName: artifact.typeIcon)
+                                        .font(.system(size: 12))
+                                        .frame(width: 18)
+                                        .foregroundColor(artifact.isStale ? .orange : .purple)
+                                    
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        HStack(spacing: 4) {
+                                            Text(artifact.projectName)
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundColor(.primary)
+                                            Text(artifact.artifactName)
+                                                .font(.system(size: 8))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 3)
+                                                .padding(.vertical, 1)
+                                                .background(RoundedRectangle(cornerRadius: 2).fill(Color.purple.opacity(0.5)))
+                                            if let days = artifact.daysSinceModified, days > 30 {
+                                                Text("\(days)d")
+                                                    .font(.system(size: 8))
+                                                    .foregroundColor(.orange)
+                                            }
+                                        }
+                                        Text(artifact.projectType)
+                                            .font(.system(size: 9))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatBytes(artifact.size))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .contentShape(Rectangle())
+                                .background(isSelected ? Color.accentColor.opacity(0.04) : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+            
+            Divider()
+            
+            // Selection summary + action
+            HStack {
+                Text("\(selectedCount) selected · \(formatBytes(selectedSize))")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            
+            Button(action: {
+                let toClean = diskMonitor.projectArtifacts.filter { selectedArtifactIDs.contains($0.id) }
+                for artifact in toClean {
+                    diskMonitor.cleanProjectArtifact(artifact)
+                }
+                selectedArtifactIDs = []
+                activeScreen = .main
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 12))
+                    Text("Remove Selected (\(formatBytes(selectedSize)))")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(selectedCount > 0 ? Color.orange : Color.gray.opacity(0.3))
+                .foregroundColor(selectedCount > 0 ? .white : .secondary)
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedCount == 0)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+            .padding(.top, 4)
+        }
+        .frame(width: 380, height: 540)
+    }
+    
+    var filteredProjectArtifacts: [ProjectArtifact] {
+        let sorted = sortedProjectArtifacts
+        switch projectFilterMode {
+        case .all:
+            return sorted
+        case .stale:
+            return sorted.filter { $0.isStale }
+        }
+    }
+    
     // MARK: - Footer
     var footerView: some View {
         HStack {
@@ -940,7 +1423,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.5.0")
+                Text("ClearDisk v1.6.0")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
