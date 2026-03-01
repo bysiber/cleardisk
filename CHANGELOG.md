@@ -3,6 +3,20 @@ BU USER NOTUDUR: SUBWATCHI BOŞVER SADECE CLEAR DISKE ODAKLAN !
 
 All notable changes to ClearDisk are documented here.
 
+## [1.6.1] - 2026-03-02
+### Added
+- **Premium dark app icon** — Custom-designed icon with dark gradient, disk symbol, emerald progress arc, and sparkle effect
+- **Screenshot showcase** — Professional card-deck style showcase with labeled screenshots in README
+- **Animated HD banner** — Added to GitHub README header
+
+### Changed
+- Removed "path not readable — sizes may be incomplete" warning from UI (silently handled)
+- SEO-optimized GitHub topics (20 tags for better discoverability)
+- Updated repo description for better attention capture
+
+### Removed
+- QA.md purged from repository history
+
 ## [1.6.0] - 2026-03-02
 ### Added
 - **Clean Caches Screen** — Dedicated sub-screen with Safe Only / All (Including Risky) mode toggle. Shows full cache list, risky warning details, and one-tap clean button
