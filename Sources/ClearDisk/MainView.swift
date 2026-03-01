@@ -656,11 +656,18 @@ struct MainView: View {
                     cacheToClean = cache
                     showCleanConfirm = true
                 }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11))
+                    if isCleaning {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                    }
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
+                .disabled(isCleaning)
                 .help("Clean \(cache.name)")
                 
                 Button(action: {
@@ -846,11 +853,18 @@ struct MainView: View {
                     artifactToClean = artifact
                     showCleanArtifactConfirm = true
                 }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11))
+                    if isCleaning {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                    }
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
+                .disabled(isCleaning)
                 .help("Clean \(artifact.artifactName)")
                 
                 Button(action: {
