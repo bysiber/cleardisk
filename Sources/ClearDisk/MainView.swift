@@ -123,7 +123,7 @@ struct MainView: View {
                 Divider()
                 
                 // Permission warnings (if any)
-                if !diskMonitor.inaccessiblePaths.isEmpty || diskMonitor.notificationPermission == .denied {
+                if diskMonitor.notificationPermission == .denied {
                     permissionBanner
                     Divider()
                 }
@@ -1023,8 +1023,6 @@ struct MainView: View {
                     .controlSize(.mini)
                 }
             }
-            
-            // Inaccessible paths info hidden from UI — silently handled
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
