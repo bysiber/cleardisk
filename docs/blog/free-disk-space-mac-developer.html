@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Free 50GB+ on Your Mac as a Developer (2025 Guide)</title>
+    <meta name="description" content="Step-by-step guide to reclaim 50-500GB of disk space on macOS. Clean Xcode DerivedData, node_modules, Docker images, pip cache, CocoaPods, Cargo targets, and more.">
+    <meta name="keywords" content="free disk space mac, clean Xcode DerivedData, delete node_modules, Docker cleanup mac, pip cache clear, developer disk cleanup macOS, mac storage full developer">
+    <meta property="og:title" content="How to Free 50GB+ on Your Mac as a Developer">
+    <meta property="og:description" content="Step-by-step guide to reclaim disk space from developer caches on macOS.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer">
+    <link rel="icon" href="https://raw.githubusercontent.com/bysiber/cleardisk/main/ClearDisk/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" type="image/png">
+
+    <!-- Schema.org Article structured data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "How to Free 50GB+ on Your Mac as a Developer (2025 Guide)",
+        "description": "Step-by-step guide to reclaim 50-500GB of disk space on macOS by cleaning developer caches.",
+        "author": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk",
+            "url": "https://github.com/bysiber/cleardisk"
+        },
+        "datePublished": "2025-03-02",
+        "dateModified": "2025-03-02",
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            line-height: 1.8;
+        }
+        .container { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+        /* Header */
+        .site-header {
+            padding: 20px 0;
+            border-bottom: 1px solid #21262d;
+            margin-bottom: 40px;
+        }
+        .site-header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .site-header a {
+            color: #58a6ff;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .site-header a:hover {
+            text-decoration: underline;
+        }
+
+        /* Article */
+        .article-header {
+            text-align: center;
+            padding: 40px 0 30px;
+        }
+        .article-header h1 {
+            font-size: 2.4rem;
+            font-weight: 700;
+            color: #f0f6fc;
+            margin-bottom: 16px;
+            line-height: 1.3;
+        }
+        .article-meta {
+            color: #8b949e;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+        }
+        .article-meta span {
+            margin: 0 8px;
+        }
+
+        .article-body h2 {
+            font-size: 1.6rem;
+            color: #f0f6fc;
+            margin: 48px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #21262d;
+        }
+        .article-body h3 {
+            font-size: 1.2rem;
+            color: #f0f6fc;
+            margin: 32px 0 12px;
+        }
+        .article-body p {
+            margin-bottom: 16px;
+        }
+        .article-body ul, .article-body ol {
+            margin: 0 0 16px 24px;
+        }
+        .article-body li {
+            margin-bottom: 8px;
+        }
+        .article-body a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .article-body a:hover {
+            text-decoration: underline;
+        }
+
+        /* Code blocks */
+        pre {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px 20px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+            color: #e6edf3;
+        }
+        p code, li code {
+            background: #161b22;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.88em;
+            border: 1px solid #30363d;
+        }
+
+        /* Info boxes */
+        .tip-box {
+            background: #0d2847;
+            border-left: 4px solid #58a6ff;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 24px 0;
+        }
+        .tip-box strong {
+            color: #58a6ff;
+        }
+        .warning-box {
+            background: #3d1f00;
+            border-left: 4px solid #d29922;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 24px 0;
+        }
+        .warning-box strong {
+            color: #d29922;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.95rem;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #21262d;
+        }
+        th {
+            background: #161b22;
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        tr:hover { background: #161b22; }
+
+        /* CTA */
+        .cta-box {
+            background: linear-gradient(135deg, #0d2847, #1a0d2e);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            margin: 48px 0;
+        }
+        .cta-box h3 {
+            color: #f0f6fc;
+            font-size: 1.4rem;
+            margin-bottom: 12px;
+        }
+        .cta-box p {
+            color: #8b949e;
+            margin-bottom: 20px;
+        }
+        .cta-btn {
+            display: inline-block;
+            background: #238636;
+            color: #fff;
+            padding: 12px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.05rem;
+            transition: background 0.2s;
+        }
+        .cta-btn:hover {
+            background: #2ea043;
+            text-decoration: none;
+        }
+
+        /* TOC */
+        .toc {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin: 24px 0 40px;
+        }
+        .toc h4 {
+            color: #f0f6fc;
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+        .toc ol {
+            margin: 0 0 0 20px;
+        }
+        .toc li {
+            margin-bottom: 6px;
+        }
+        .toc a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        .site-footer {
+            margin-top: 60px;
+            padding: 24px 0;
+            border-top: 1px solid #21262d;
+            text-align: center;
+            color: #484f58;
+            font-size: 0.9rem;
+        }
+        .site-footer a { color: #58a6ff; text-decoration: none; }
+        .site-footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 640px) {
+            .article-header h1 { font-size: 1.8rem; }
+            .container { padding: 0 16px; }
+            pre { font-size: 0.82rem; padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <div class="container">
+            <a href="../">ClearDisk</a>
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a>
+        </div>
+    </header>
+
+    <article class="container">
+        <div class="article-header">
+            <h1>How to Free 50GB+ on Your Mac as a Developer</h1>
+            <div class="article-meta">
+                <span>March 2025</span> &#183;
+                <span>10 min read</span> &#183;
+                <span>Developer Guide</span>
+            </div>
+        </div>
+
+        <div class="article-body">
+            <p>If you're a developer working on a Mac, you've probably seen the dreaded "Your disk is almost full" notification. Between Xcode's DerivedData, scattered <code>node_modules</code> folders, Docker images, and various package manager caches, developer tools can silently consume <strong>50 to 500 GB</strong> of your disk space.</p>
+
+            <p>This guide covers every major cache and build artifact location on macOS, with exact commands to check sizes and clean them safely. Whether you're on a 256GB MacBook Air or a 1TB MacBook Pro, these steps will help you reclaim significant space.</p>
+
+            <div class="toc">
+                <h4>Table of Contents</h4>
+                <ol>
+                    <li><a href="#xcode">Xcode DerivedData (10-80 GB)</a></li>
+                    <li><a href="#node">node_modules Folders (5-100 GB)</a></li>
+                    <li><a href="#docker">Docker Images & Containers (10-50 GB)</a></li>
+                    <li><a href="#homebrew">Homebrew Cache (1-10 GB)</a></li>
+                    <li><a href="#pip">pip Cache (1-5 GB)</a></li>
+                    <li><a href="#cocoapods">CocoaPods Cache (1-10 GB)</a></li>
+                    <li><a href="#cargo">Rust/Cargo Target Dirs (5-50 GB)</a></li>
+                    <li><a href="#gradle">Gradle Cache (2-20 GB)</a></li>
+                    <li><a href="#xcode-archives">Xcode Archives & Simulators (5-50 GB)</a></li>
+                    <li><a href="#misc">Other Hidden Space Eaters</a></li>
+                    <li><a href="#automated">The Automated Approach</a></li>
+                </ol>
+            </div>
+
+            <h2 id="xcode">1. Xcode DerivedData (10-80 GB)</h2>
+
+            <p>Xcode stores build artifacts, indexes, and logs in the DerivedData folder. If you work on multiple projects or switch branches frequently, this folder grows quickly.</p>
+
+            <h3>Check the size</h3>
+            <pre><code>du -sh ~/Library/Developer/Xcode/DerivedData</code></pre>
+
+            <p>It's common to see 20-80 GB here, especially if you've been developing for a while.</p>
+
+            <h3>Clean it</h3>
+            <pre><code># Delete all DerivedData (safe -- Xcode rebuilds what it needs)
+rm -rf ~/Library/Developer/Xcode/DerivedData/*</code></pre>
+
+            <div class="tip-box">
+                <strong>Tip:</strong> This is completely safe. Xcode will rebuild DerivedData for any project you open. The only downside is a slightly longer first build after cleaning.
+            </div>
+
+            <h3>Also check Xcode caches</h3>
+            <pre><code># Xcode cache folder
+du -sh ~/Library/Caches/com.apple.dt.Xcode
+
+# Clean it
+rm -rf ~/Library/Caches/com.apple.dt.Xcode/*</code></pre>
+
+            <h2 id="node">2. node_modules Folders (5-100 GB)</h2>
+
+            <p><code>node_modules</code> is famously heavy. Each Node.js project has its own copy of all dependencies, and they add up fast. A single React project can have a 500MB+ <code>node_modules</code> folder.</p>
+
+            <h3>Find all node_modules and their sizes</h3>
+            <pre><code># Find all node_modules folders, sorted by size
+find ~ -name "node_modules" -type d -prune 2>/dev/null | while read dir; do
+    echo "$(du -sh "$dir" 2>/dev/null | cut -f1)\t$dir"
+done | sort -hr | head -20</code></pre>
+
+            <h3>Clean old project node_modules</h3>
+            <pre><code># Delete node_modules from projects you haven't touched in 30+ days
+find ~/Projects -name "node_modules" -type d -prune \
+    -newer <(date -v-30d +%Y%m%d) -exec rm -rf {} + 2>/dev/null</code></pre>
+
+            <div class="warning-box">
+                <strong>Note:</strong> After deleting <code>node_modules</code>, you'll need to run <code>npm install</code> or <code>yarn install</code> in that project directory before building again.
+            </div>
+
+            <p>Also clean the npm/yarn global cache:</p>
+            <pre><code># npm cache
+du -sh ~/.npm
+npm cache clean --force
+
+# yarn cache
+du -sh ~/Library/Caches/Yarn
+yarn cache clean
+
+# pnpm cache
+du -sh ~/Library/pnpm/store
+pnpm store prune</code></pre>
+
+            <h2 id="docker">3. Docker Images & Containers (10-50 GB)</h2>
+
+            <p>Docker Desktop for Mac stores images, containers, volumes, and build cache in a single disk image. This can grow to enormous sizes.</p>
+
+            <h3>Check Docker disk usage</h3>
+            <pre><code>docker system df</code></pre>
+
+            <h3>Clean up Docker</h3>
+            <pre><code># Remove unused images, containers, networks, and build cache
+docker system prune -a
+
+# Also remove unused volumes (be careful -- this deletes data)
+docker system prune -a --volumes</code></pre>
+
+            <p>The Docker Desktop VM disk image is located at:</p>
+            <pre><code>du -sh ~/Library/Containers/com.docker.docker/Data/vms/</code></pre>
+
+            <div class="tip-box">
+                <strong>Tip:</strong> Even after pruning, Docker's disk image might not shrink immediately. Restarting Docker Desktop can help reclaim space.
+            </div>
+
+            <h2 id="homebrew">4. Homebrew Cache (1-10 GB)</h2>
+
+            <p>Homebrew keeps downloaded packages and old versions in its cache directory.</p>
+
+            <pre><code># Check size
+du -sh $(brew --cache)
+
+# Clean all cached downloads
+brew cleanup -s
+
+# Remove all cached downloads (aggressive)
+rm -rf $(brew --cache)/*</code></pre>
+
+            <h2 id="pip">5. pip Cache (1-5 GB)</h2>
+
+            <p>Python's pip stores downloaded packages in a cache directory.</p>
+
+            <pre><code># Check size
+du -sh ~/Library/Caches/pip
+
+# Clean pip cache
+pip cache purge
+
+# Or manually
+rm -rf ~/Library/Caches/pip/*</code></pre>
+
+            <p>If you use conda:</p>
+            <pre><code># Check conda package cache
+du -sh ~/miniconda3/pkgs  # or ~/anaconda3/pkgs
+
+# Clean conda
+conda clean --all</code></pre>
+
+            <h2 id="cocoapods">6. CocoaPods Cache (1-10 GB)</h2>
+
+            <p>CocoaPods caches pod specs and downloaded pods.</p>
+
+            <pre><code># Check size
+du -sh ~/Library/Caches/CocoaPods
+
+# Clean cache
+pod cache clean --all
+
+# Also clean specs repo
+rm -rf ~/.cocoapods/repos/trunk</code></pre>
+
+            <h2 id="cargo">7. Rust/Cargo Target Directories (5-50 GB)</h2>
+
+            <p>Rust compilation artifacts are stored in <code>target/</code> directories within each project. Debug builds are especially large.</p>
+
+            <pre><code># Find all Cargo target directories
+find ~ -name "target" -type d -path "*/target" 2>/dev/null | while read dir; do
+    if [ -f "$dir/../Cargo.toml" ]; then
+        echo "$(du -sh "$dir" 2>/dev/null | cut -f1)\t$dir"
+    fi
+done | sort -hr | head -20</code></pre>
+
+            <pre><code># Clean a specific project's build artifacts
+cd your-rust-project
+cargo clean
+
+# Cargo's global registry cache
+du -sh ~/.cargo/registry
+du -sh ~/.cargo/git</code></pre>
+
+            <h2 id="gradle">8. Gradle Cache (2-20 GB)</h2>
+
+            <p>If you do Android development or use Gradle-based Java/Kotlin projects:</p>
+
+            <pre><code># Check Gradle cache size
+du -sh ~/.gradle/caches
+
+# Clean Gradle caches
+rm -rf ~/.gradle/caches/*
+
+# Android build caches
+du -sh ~/.android/cache
+rm -rf ~/.android/cache/*</code></pre>
+
+            <h2 id="xcode-archives">9. Xcode Archives & Simulators (5-50 GB)</h2>
+
+            <p>Xcode archives (from Product > Archive) and iOS Simulators can consume massive space.</p>
+
+            <pre><code># Check archives
+du -sh ~/Library/Developer/Xcode/Archives
+
+# Check iOS Simulator data
+du -sh ~/Library/Developer/CoreSimulator
+
+# Delete old simulators
+xcrun simctl delete unavailable
+
+# Delete ALL simulator data (aggressive)
+rm -rf ~/Library/Developer/CoreSimulator/Devices/*</code></pre>
+
+            <h2 id="misc">10. Other Hidden Space Eaters</h2>
+
+            <h3>Composer (PHP)</h3>
+            <pre><code>du -sh ~/.composer/cache
+rm -rf ~/.composer/cache/*</code></pre>
+
+            <h3>Maven (Java)</h3>
+            <pre><code>du -sh ~/.m2/repository
+# Be selective -- delete specific old versions</code></pre>
+
+            <h3>Go modules</h3>
+            <pre><code>du -sh ~/go/pkg/mod
+go clean -modcache</code></pre>
+
+            <h3>Ruby gems</h3>
+            <pre><code>du -sh ~/.gem
+gem cleanup</code></pre>
+
+            <h3>Swift Package Manager</h3>
+            <pre><code>du -sh ~/Library/Developer/Xcode/DerivedData/*/SourcePackages
+du -sh ~/Library/org.swift.swiftpm</code></pre>
+
+            <h3>VS Code extensions cache</h3>
+            <pre><code>du -sh ~/.vscode/extensions</code></pre>
+
+            <h3>Trash</h3>
+            <pre><code># Don't forget to empty the Trash!
+du -sh ~/.Trash
+# Empty it from terminal
+rm -rf ~/.Trash/*</code></pre>
+
+            <h2>Quick Reference: All Locations</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cache Type</th>
+                        <th>Location</th>
+                        <th>Typical Size</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Xcode DerivedData</td>
+                        <td><code>~/Library/Developer/Xcode/DerivedData</code></td>
+                        <td>10-80 GB</td>
+                    </tr>
+                    <tr>
+                        <td>node_modules</td>
+                        <td>Each project directory</td>
+                        <td>5-100 GB total</td>
+                    </tr>
+                    <tr>
+                        <td>Docker</td>
+                        <td><code>~/Library/Containers/com.docker.docker</code></td>
+                        <td>10-50 GB</td>
+                    </tr>
+                    <tr>
+                        <td>Homebrew</td>
+                        <td><code>$(brew --cache)</code></td>
+                        <td>1-10 GB</td>
+                    </tr>
+                    <tr>
+                        <td>pip</td>
+                        <td><code>~/Library/Caches/pip</code></td>
+                        <td>1-5 GB</td>
+                    </tr>
+                    <tr>
+                        <td>CocoaPods</td>
+                        <td><code>~/Library/Caches/CocoaPods</code></td>
+                        <td>1-10 GB</td>
+                    </tr>
+                    <tr>
+                        <td>Cargo targets</td>
+                        <td><code>*/target/</code> in Rust projects</td>
+                        <td>5-50 GB</td>
+                    </tr>
+                    <tr>
+                        <td>Gradle</td>
+                        <td><code>~/.gradle/caches</code></td>
+                        <td>2-20 GB</td>
+                    </tr>
+                    <tr>
+                        <td>Xcode Archives</td>
+                        <td><code>~/Library/Developer/Xcode/Archives</code></td>
+                        <td>2-30 GB</td>
+                    </tr>
+                    <tr>
+                        <td>iOS Simulators</td>
+                        <td><code>~/Library/Developer/CoreSimulator</code></td>
+                        <td>5-40 GB</td>
+                    </tr>
+                    <tr>
+                        <td>Go modules</td>
+                        <td><code>~/go/pkg/mod</code></td>
+                        <td>1-10 GB</td>
+                    </tr>
+                    <tr>
+                        <td>npm/yarn cache</td>
+                        <td><code>~/.npm</code> / <code>~/Library/Caches/Yarn</code></td>
+                        <td>1-5 GB</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 id="automated">The Automated Approach</h2>
+
+            <p>Running all these commands manually is tedious and error-prone. You need to remember paths, check sizes, and be careful not to delete the wrong things.</p>
+
+            <div class="cta-box">
+                <h3>ClearDisk -- Clean All Caches Automatically</h3>
+                <p>Free, open-source macOS menu bar app that finds and visualizes all your developer caches in one place. One-click cleanup for Xcode, npm, Docker, pip, CocoaPods, Cargo, Homebrew, and more.</p>
+                <a href="https://github.com/bysiber/cleardisk" class="cta-btn">Get ClearDisk (Free)</a>
+            </div>
+
+            <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free, open-source macOS menu bar app built with SwiftUI that handles all of the above automatically:</p>
+
+            <ul>
+                <li><strong>Scans all cache locations</strong> -- Xcode DerivedData, node_modules, Docker, Homebrew, pip, CocoaPods, Cargo, SPM, and more</li>
+                <li><strong>Visual size breakdown</strong> -- See exactly how much space each cache type is using</li>
+                <li><strong>One-click cleanup</strong> -- Clean individual caches or everything at once</li>
+                <li><strong>Menu bar app</strong> -- Always accessible, lightweight, no main window needed</li>
+                <li><strong>Privacy-first</strong> -- No analytics, no telemetry, no network requests. Everything stays on your machine</li>
+            </ul>
+
+            <h3>Install via Homebrew</h3>
+            <pre><code>brew tap bysiber/cleardisk
+brew install --cask cleardisk</code></pre>
+
+            <p>Or download the latest <code>.dmg</code> from the <a href="https://github.com/bysiber/cleardisk/releases">releases page</a>.</p>
+
+            <h2>How Often Should You Clean?</h2>
+
+            <p>It depends on your workflow, but here's a general guideline:</p>
+
+            <ul>
+                <li><strong>Weekly:</strong> Check total disk usage. If it's getting tight, run a cleanup.</li>
+                <li><strong>Monthly:</strong> Clean Xcode DerivedData, old node_modules, and Docker unused images.</li>
+                <li><strong>Per project:</strong> After finishing a project or major milestone, clean its build artifacts.</li>
+                <li><strong>Before macOS updates:</strong> Free up space before installing major macOS updates (they need 20-40 GB free).</li>
+            </ul>
+
+            <div class="tip-box">
+                <strong>Pro tip:</strong> Having ClearDisk in your menu bar makes it easy to check cache sizes at a glance and clean when needed -- no commands to remember.
+            </div>
+
+            <h2>Summary</h2>
+
+            <p>Developer caches are the #1 hidden space consumer on a developer's Mac. Between Xcode, npm, Docker, and other tools, it's common to have 50-200 GB of reclaimable space without even realizing it.</p>
+
+            <p>The key locations to monitor are:</p>
+            <ol>
+                <li><code>~/Library/Developer/Xcode/DerivedData</code> -- usually the biggest offender</li>
+                <li>Scattered <code>node_modules</code> folders -- they add up fast across projects</li>
+                <li>Docker images and build cache -- grows silently in the background</li>
+                <li>Package manager caches (Homebrew, pip, CocoaPods, Cargo)</li>
+            </ol>
+
+            <p>Whether you clean manually with the commands above or use a tool like <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> to automate it, regular cache maintenance keeps your Mac fast and your disk healthy.</p>
+        </div>
+    </article>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p><a href="../">ClearDisk</a> -- Free, open-source macOS cache cleaner</p>
+            <p style="margin-top: 8px;">&copy; 2025 <a href="https://github.com/bysiber">bysiber</a>. MIT License.</p>
+        </div>
+    </footer>
+</body>
+</html>
