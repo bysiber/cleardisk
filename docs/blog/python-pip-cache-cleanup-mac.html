@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python & pip Taking Up Too Much Space on Mac? Complete Cleanup Guide (2025)</title>
+    <meta name="description" content="Python environments, pip cache, conda, and virtualenvs can consume 10-50GB+ on your Mac. Learn how to find and clean every Python-related cache, old environments, and unused packages.">
+    <meta name="keywords" content="python cache cleanup mac, pip cache clear, conda clean, virtualenv disk space, python taking up space mac, pip cache size, pyenv cleanup, python __pycache__ delete, free disk space python mac, clean python environments">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">
+
+    <meta property="og:title" content="Python & pip Taking Up Too Much Space on Mac? Complete Cleanup Guide">
+    <meta property="og:description" content="Python environments, pip cache, and conda can consume 10-50GB+ on your Mac. Learn how to reclaim all of it.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Python & pip Taking Up Too Much Space on Mac? Complete Cleanup Guide (2025)",
+        "description": "Python environments, pip cache, conda, and virtualenvs can consume 10-50GB+ on your Mac. Clean everything safely.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-26",
+        "dateModified": "2025-01-26",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>Python & pip Taking Up Too Much Space on Mac? Complete Cleanup Guide</h1>
+        <p class="meta">Updated January 2025 -- Covers pip, conda, pyenv, virtualenv, Poetry, and __pycache__</p>
+
+        <p>If you're a Python developer on macOS, you might not realize how much disk space Python-related files consume. Between pip's download cache, conda environments, multiple pyenv versions, scattered virtualenvs, and __pycache__ directories, it's common to find <strong>10-50GB+</strong> of Python debris across your system.</p>
+
+        <p>This guide covers every Python-related cache and environment on macOS, with exact commands to audit and clean each one.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit -- How Much Space is Python Using?</a>
+            <a href="#pip-cache">2. pip Cache (2-15GB)</a>
+            <a href="#conda">3. Conda / Miniconda / Anaconda (5-40GB)</a>
+            <a href="#pyenv">4. pyenv Versions (1-10GB)</a>
+            <a href="#virtualenvs">5. Virtualenvs and .venv Directories (1-20GB)</a>
+            <a href="#pycache">6. __pycache__ and .pyc Files</a>
+            <a href="#poetry">7. Poetry Cache</a>
+            <a href="#jupyter">8. Jupyter Notebook Cache</a>
+            <a href="#system-python">9. Multiple Python Installations</a>
+            <a href="#automation">10. Automate Python Cleanup</a>
+            <a href="#cheatsheet">11. Quick Reference Cheatsheet</a>
+        </div>
+
+        <h2 id="audit">1. Quick Audit -- How Much Space is Python Using?</h2>
+
+        <p>Before cleaning anything, let's see what's consuming disk space. Run this audit to get the full picture:</p>
+
+<pre>echo "=== pip cache ==="
+pip cache info 2>/dev/null || pip3 cache info 2>/dev/null
+
+echo -e "\n=== pip cache directory ==="
+du -sh ~/Library/Caches/pip/ 2>/dev/null
+
+echo -e "\n=== conda environments ==="
+du -sh ~/miniconda3/ 2>/dev/null
+du -sh ~/anaconda3/ 2>/dev/null
+du -sh ~/opt/anaconda3/ 2>/dev/null
+
+echo -e "\n=== pyenv versions ==="
+du -sh ~/.pyenv/versions/*/ 2>/dev/null
+
+echo -e "\n=== Poetry cache ==="
+du -sh ~/Library/Caches/pypoetry/ 2>/dev/null
+
+echo -e "\n=== Jupyter ==="
+du -sh ~/Library/Jupyter/ 2>/dev/null
+
+echo -e "\n=== virtualenvs (home) ==="
+du -sh ~/.virtualenvs/ 2>/dev/null
+du -sh ~/.local/share/virtualenvs/ 2>/dev/null</pre>
+
+        <p>You'll likely find several gigabytes spread across these locations. Here's what typically consumes the most:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>Typical Size</th>
+                    <th>Safe to Clean?</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>pip cache</td>
+                    <td><span class="size-badge">2-15 GB</span></td>
+                    <td>Yes -- fully safe</td>
+                </tr>
+                <tr>
+                    <td>Conda environments</td>
+                    <td><span class="size-badge">5-40 GB</span></td>
+                    <td>Unused envs: yes</td>
+                </tr>
+                <tr>
+                    <td>pyenv versions</td>
+                    <td><span class="size-badge">1-10 GB</span></td>
+                    <td>Old versions: yes</td>
+                </tr>
+                <tr>
+                    <td>virtualenvs / .venv</td>
+                    <td><span class="size-badge">1-20 GB</span></td>
+                    <td>Recreatable: yes</td>
+                </tr>
+                <tr>
+                    <td>__pycache__</td>
+                    <td>100 MB - 2 GB</td>
+                    <td>Yes -- fully safe</td>
+                </tr>
+                <tr>
+                    <td>Poetry cache</td>
+                    <td><span class="size-badge">1-8 GB</span></td>
+                    <td>Yes -- fully safe</td>
+                </tr>
+                <tr>
+                    <td>Jupyter data</td>
+                    <td>100 MB - 2 GB</td>
+                    <td>Kernels: be careful</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="pip-cache">2. pip Cache <span class="size-badge">2-15 GB</span></h2>
+
+        <p>Every time you run <code class="inline-code">pip install</code>, pip downloads and caches wheel files. Over months and years, this cache grows silently.</p>
+
+        <h3>Check pip Cache Size</h3>
+
+<pre>pip cache info
+
+# Typical output:
+# Package index page cache location: ...
+# Package index page cache size: 42.2 MB
+# Number of HTTP files: 847
+# Wheels location: /Users/you/Library/Caches/pip/wheels
+# Wheels size: 4.7 GB
+# Number of wheels: 1284</pre>
+
+        <h3>Clean the pip Cache</h3>
+
+<pre># Remove ALL cached packages
+pip cache purge
+
+# Or remove cache for a specific package
+pip cache remove numpy
+
+# Verify it's clean
+pip cache info</pre>
+
+        <div class="tip">
+            <strong>Safe to clean?</strong> Yes, completely safe. pip will simply re-download packages when needed. Already-installed packages are not affected.
+        </div>
+
+        <h3>Alternative: Manual Cleanup</h3>
+
+<pre># pip cache lives here on macOS
+du -sh ~/Library/Caches/pip/
+
+# Nuclear option -- delete everything
+rm -rf ~/Library/Caches/pip/
+
+# pip will recreate the directory automatically</pre>
+
+        <h2 id="conda">3. Conda / Miniconda / Anaconda <span class="size-badge">5-40 GB</span></h2>
+
+        <p>Conda is one of the biggest disk space consumers for Python developers. A base Anaconda install is 3-5GB, and each environment can add 1-5GB more. Data science libraries like PyTorch, TensorFlow, and CUDA toolkits are especially large.</p>
+
+        <h3>Check What's Using Space</h3>
+
+<pre># List all environments with sizes
+conda env list
+du -sh $(conda info --envs | grep -v "^#" | awk '{print $NF}' | grep -v "^$")
+
+# Check conda package cache
+du -sh $(conda info --base)/pkgs/
+
+# Check total conda installation
+du -sh ~/miniconda3/   # or ~/anaconda3/</pre>
+
+        <h3>Clean Conda Package Cache</h3>
+
+<pre># Remove index cache, lock files, unused tarballs, and packages
+conda clean --all
+
+# More targeted options:
+conda clean --tarballs    # remove downloaded .tar.bz2 files
+conda clean --packages    # remove unused packages from writable pkgs dirs
+conda clean --index-cache # remove cached channel index files
+conda clean --logfiles    # remove log files</pre>
+
+        <div class="tip">
+            <strong>Typical savings from <code>conda clean --all</code>:</strong> 2-10GB. This only removes cached/unused files, not your installed environments.
+        </div>
+
+        <h3>Remove Unused Environments</h3>
+
+<pre># List all environments
+conda env list
+
+# Remove an environment you no longer need
+conda env remove --name old_project
+
+# See how much space a specific env uses
+du -sh $(conda info --envs | grep old_project | awk '{print $NF}')</pre>
+
+        <h3>Switch from Anaconda to Miniconda</h3>
+
+        <p>Full Anaconda installs 250+ packages you probably don't need. Switching to Miniconda saves 3-4GB immediately:</p>
+
+<pre># Export your environments first!
+conda env export --name myenv > myenv.yml
+
+# Install Miniconda (much smaller)
+brew install --cask miniconda
+
+# Recreate only what you need
+conda env create -f myenv.yml</pre>
+
+        <h2 id="pyenv">4. pyenv Versions <span class="size-badge">1-10 GB</span></h2>
+
+        <p>Each Python version installed through pyenv takes 50-200MB. If you've installed many versions over time, this adds up.</p>
+
+<pre># List installed versions with sizes
+for v in $(pyenv versions --bare); do
+    size=$(du -sh "$(pyenv prefix $v)" 2>/dev/null | cut -f1)
+    echo "$size   Python $v"
+done
+
+# Which version are you actually using?
+pyenv version
+
+# Uninstall versions you don't need
+pyenv uninstall 3.8.12
+pyenv uninstall 3.9.7
+
+# After cleanup, rehash
+pyenv rehash</pre>
+
+        <div class="warning">
+            <strong>Keep at least:</strong> Your currently active version and one recent stable release. Check project <code class="inline-code">.python-version</code> files before removing versions.
+        </div>
+
+        <h2 id="virtualenvs">5. Virtualenvs and .venv Directories <span class="size-badge">1-20 GB</span></h2>
+
+        <p>Virtual environments are the biggest hidden disk hog for Python developers. Every project with a <code class="inline-code">.venv</code> or <code class="inline-code">venv</code> folder contains a complete copy of Python and all installed packages.</p>
+
+        <h3>Find All Virtualenvs</h3>
+
+<pre># Find .venv and venv directories in common project locations
+find ~/Projects ~/Developer ~/Code ~/Documents -maxdepth 4 \
+    -type d \( -name ".venv" -o -name "venv" -o -name ".virtualenv" \) \
+    -exec du -sh {} \; 2>/dev/null | sort -rh
+
+# Check centralised virtualenvs
+du -sh ~/.virtualenvs/*/  2>/dev/null
+du -sh ~/.local/share/virtualenvs/*/  2>/dev/null
+
+# Total across all locations
+find ~ -maxdepth 5 -type d -name ".venv" -exec du -sm {} \; 2>/dev/null | \
+    awk '{total += $1} END {print total " MB total across all .venv dirs"}'</pre>
+
+        <h3>Clean Old Virtualenvs</h3>
+
+<pre># Remove venv from a project you're not working on
+# (You can always recreate with: python -m venv .venv && pip install -r requirements.txt)
+rm -rf ~/Projects/old_project/.venv
+
+# Remove all pipenv virtualenvs
+rm -rf ~/.local/share/virtualenvs/*
+
+# Remove all virtualenvwrapper envs
+rm -rf ~/.virtualenvs/*</pre>
+
+        <div class="tip">
+            <strong>Pro tip:</strong> Virtual environments are fully recreatable from <code class="inline-code">requirements.txt</code> or <code class="inline-code">pyproject.toml</code>. If a project has its dependencies pinned, you can safely delete and recreate the venv anytime.
+        </div>
+
+        <h2 id="pycache">6. __pycache__ and .pyc Files</h2>
+
+        <p>Python creates <code class="inline-code">__pycache__</code> directories and <code class="inline-code">.pyc</code> bytecode files automatically. While individually small, they accumulate across hundreds of packages and projects.</p>
+
+<pre># Find and count all __pycache__ directories
+find ~/Projects -type d -name "__pycache__" | wc -l
+
+# See total size
+find ~/Projects -type d -name "__pycache__" -exec du -sm {} + 2>/dev/null | \
+    awk '{total += $1} END {print total " MB"}'
+
+# Delete all __pycache__ in your projects
+find ~/Projects -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+
+# Delete .pyc files too
+find ~/Projects -name "*.pyc" -delete
+find ~/Projects -name "*.pyo" -delete</pre>
+
+        <div class="tip">
+            <strong>Prevent __pycache__ creation during development:</strong> Set the environment variable <code class="inline-code">PYTHONDONTWRITEBYTECODE=1</code> in your shell profile. Add <code class="inline-code">export PYTHONDONTWRITEBYTECODE=1</code> to <code class="inline-code">~/.zshrc</code>.
+        </div>
+
+        <h2 id="poetry">7. Poetry Cache</h2>
+
+        <p>Poetry maintains its own package cache and virtual environments. The cache can grow to several GB, especially with large data science dependencies.</p>
+
+<pre># Check Poetry cache size
+du -sh ~/Library/Caches/pypoetry/
+
+# List Poetry's cache details
+poetry cache list
+
+# Clear all caches
+poetry cache clear --all .
+
+# Or clear a specific cache
+poetry cache clear pypi --all
+
+# Poetry virtualenvs (separate from cache)
+poetry env list
+du -sh $(poetry config virtualenvs.path)/*/ 2>/dev/null
+
+# Remove specific Poetry virtualenv
+poetry env remove python3.11</pre>
+
+        <h2 id="jupyter">8. Jupyter Notebook Cache</h2>
+
+        <p>Jupyter stores kernels, runtime files, and data that accumulates over time.</p>
+
+<pre># Check Jupyter data directory
+du -sh ~/Library/Jupyter/
+
+# List installed kernels
+jupyter kernelspec list
+
+# Remove unused kernels
+jupyter kernelspec uninstall old_kernel_name
+
+# Clean runtime files
+rm -rf ~/Library/Jupyter/runtime/*
+
+# IPython history and cache
+du -sh ~/.ipython/
+rm -rf ~/.ipython/profile_default/db/
+rm -rf ~/.ipython/profile_default/history.sqlite</pre>
+
+        <h2 id="system-python">9. Multiple Python Installations</h2>
+
+        <p>It's common to have 3-5 different Python installations on macOS without realizing it. Each one wastes space.</p>
+
+<pre># Find ALL Python installations
+which -a python python3
+
+# Check common locations
+ls -la /usr/bin/python*          # Apple's system Python
+ls -la /usr/local/bin/python*    # Homebrew / manual installs
+ls -la /opt/homebrew/bin/python* # Homebrew (Apple Silicon)
+ls -la /Library/Frameworks/Python.framework/Versions/
+
+# Size of Homebrew Python
+du -sh $(brew --prefix python@3.11)/ 2>/dev/null
+du -sh $(brew --prefix python@3.12)/ 2>/dev/null
+du -sh $(brew --prefix python@3.13)/ 2>/dev/null
+
+# Size of Python.org framework installs
+du -sh /Library/Frameworks/Python.framework/ 2>/dev/null</pre>
+
+        <h3>Consolidate Python Installations</h3>
+
+<pre># If using pyenv, you don't need Homebrew Python
+brew uninstall python@3.11  # If not needed by other formulae
+
+# Remove Python.org framework installs
+# (Check /Applications/ for Python folders first)
+sudo rm -rf /Library/Frameworks/Python.framework/Versions/3.9/
+sudo rm -rf /Applications/Python\ 3.9/
+
+# Verify your working Python
+python3 --version
+which python3</pre>
+
+        <div class="warning">
+            <strong>Don't remove:</strong> macOS system Python at <code class="inline-code">/usr/bin/python3</code>. Some macOS services depend on it. Only clean up duplicates from Homebrew, pyenv, or Python.org installers.
+        </div>
+
+        <h2 id="automation">10. Automate Python Cleanup</h2>
+
+        <h3>Shell Alias for Quick Cleanup</h3>
+
+        <p>Add this to your <code class="inline-code">~/.zshrc</code>:</p>
+
+<pre># Python cleanup alias
+alias pyclean='echo "Cleaning pip cache..." && \
+    pip cache purge 2>/dev/null; \
+    echo "Cleaning conda caches..." && \
+    conda clean --all -y 2>/dev/null; \
+    echo "Cleaning __pycache__..." && \
+    find ~/Projects -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null; \
+    find ~/Projects -name "*.pyc" -delete 2>/dev/null; \
+    echo "Cleaning Poetry cache..." && \
+    poetry cache clear --all . 2>/dev/null; \
+    echo "Python cleanup complete!"'</pre>
+
+        <h3>Cron Job for Weekly Cleanup</h3>
+
+<pre># Open crontab
+crontab -e
+
+# Add weekly pip cache cleanup (every Sunday at 3am)
+0 3 * * 0 pip cache purge 2>/dev/null
+0 3 * * 0 conda clean --all -y 2>/dev/null
+0 3 * * 0 find ~/Projects -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null</pre>
+
+        <h3>GUI Alternative -- ClearDisk</h3>
+
+        <p>If you prefer a visual approach, <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free, open-source macOS menu bar app that detects and cleans pip cache, conda environments, virtualenvs, __pycache__, and 12+ other developer caches with one click.</p>
+
+<pre># Install with Homebrew
+brew tap bysiber/cleardisk && brew install --cask cleardisk</pre>
+
+        <p>ClearDisk scans all standard Python cache locations automatically and shows you exactly how much space each one uses before you clean.</p>
+
+        <h2 id="cheatsheet">11. Quick Reference Cheatsheet</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Command</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Clear pip cache</td>
+                    <td><code>pip cache purge</code></td>
+                </tr>
+                <tr>
+                    <td>pip cache size</td>
+                    <td><code>pip cache info</code></td>
+                </tr>
+                <tr>
+                    <td>Conda full cleanup</td>
+                    <td><code>conda clean --all</code></td>
+                </tr>
+                <tr>
+                    <td>Remove conda env</td>
+                    <td><code>conda env remove --name OLD_ENV</code></td>
+                </tr>
+                <tr>
+                    <td>List pyenv versions</td>
+                    <td><code>pyenv versions</code></td>
+                </tr>
+                <tr>
+                    <td>Remove pyenv version</td>
+                    <td><code>pyenv uninstall 3.x.x</code></td>
+                </tr>
+                <tr>
+                    <td>Find all .venv dirs</td>
+                    <td><code>find ~ -maxdepth 5 -type d -name ".venv"</code></td>
+                </tr>
+                <tr>
+                    <td>Delete __pycache__</td>
+                    <td><code>find . -type d -name "__pycache__" -exec rm -rf {} +</code></td>
+                </tr>
+                <tr>
+                    <td>Clear Poetry cache</td>
+                    <td><code>poetry cache clear --all .</code></td>
+                </tr>
+                <tr>
+                    <td>Check Jupyter data</td>
+                    <td><code>du -sh ~/Library/Jupyter/</code></td>
+                </tr>
+                <tr>
+                    <td>All Pythons on system</td>
+                    <td><code>which -a python python3</code></td>
+                </tr>
+                <tr>
+                    <td>GUI cleanup (all caches)</td>
+                    <td><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Guide</a> | <a href="clean-node-modules-mac.html">node_modules Guide</a> | <a href="homebrew-cleanup-guide-mac.html">Homebrew Guide</a> | <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
