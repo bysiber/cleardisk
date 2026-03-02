@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xcode Taking Up Too Much Disk Space? Complete 2025 Cleanup Guide</title>
+    <meta name="description" content="Xcode can use 30-80GB+ of disk space. Learn how to safely clean DerivedData, iOS Device Support, Archives, Simulators, and more. Free tools and commands included.">
+    <meta name="keywords" content="xcode disk space, xcode deriveddata, clean xcode cache, xcode simulator delete, free disk space mac xcode, xcode ios device support, xcode archives delete, macos developer storage">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html">
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Xcode Taking Up Too Much Disk Space? Complete 2025 Cleanup Guide",
+        "description": "Comprehensive guide to cleaning all Xcode-related caches on macOS. Covers DerivedData, iOS Device Support, Simulators, Archives, and more.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-15",
+        "dateModified": "2025-01-15",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        h2 { font-size: 1.5em; margin-top: 40px; margin-bottom: 15px; color: #1d1d1f; border-bottom: 2px solid #0071e3; padding-bottom: 5px; display: inline-block; }
+        h3 { font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+        
+        .meta { color: #6e6e73; margin-bottom: 30px; font-size: 0.95em; }
+        
+        p { margin-bottom: 15px; }
+        
+        .toc { background: #f5f5f7; padding: 20px 30px; border-radius: 12px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { padding-left: 20px; }
+        .toc li { margin-bottom: 5px; }
+        .toc a { color: #0071e3; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 18px 22px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 20px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            background: #f5f5f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        th { background: #f5f5f7; font-weight: 600; }
+        tr:hover { background: #fafafa; }
+        
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        .size-badge.medium { background: #ff9500; }
+        .size-badge.small { background: #34c759; }
+        
+        .cta-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 35px 0;
+            text-align: center;
+        }
+        .cta-box h3 { color: white; margin-top: 0; font-size: 1.4em; }
+        .cta-box p { color: rgba(255,255,255,0.9); }
+        .cta-box a {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: transform 0.2s;
+        }
+        .cta-box a:hover { transform: scale(1.05); }
+        
+        .total-box {
+            background: #f5f5f7;
+            padding: 25px;
+            border-radius: 16px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .total-box .number {
+            font-size: 3em;
+            font-weight: 700;
+            color: #0071e3;
+        }
+        
+        .breadcrumb { font-size: 0.85em; color: #6e6e73; margin-bottom: 20px; }
+        .breadcrumb a { color: #0071e3; text-decoration: none; }
+        
+        footer { text-align: center; padding: 40px 20px; color: #6e6e73; font-size: 0.85em; border-top: 1px solid #e5e5e7; margin-top: 50px; }
+        footer a { color: #0071e3; text-decoration: none; }
+        
+        @media (max-width: 600px) {
+            h1 { font-size: 1.6em; }
+            .container { padding: 20px 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="../">ClearDisk</a> / <a href="free-disk-space-mac-developer.html">Blog</a> / Xcode Disk Space Guide
+        </div>
+
+        <h1>Xcode Taking Up Too Much Disk Space? Complete 2025 Cleanup Guide</h1>
+        <p class="meta">Updated January 2025 -- 8 min read</p>
+
+        <p>If you're an iOS or macOS developer, you've probably noticed Xcode silently consuming massive amounts of disk space. Between DerivedData, iOS Device Support files, old simulators, and archived builds, <strong>Xcode can easily use 30-80GB+ of your Mac's storage</strong>.</p>
+
+        <p>This guide covers every Xcode-related cache, how much space each typically uses, whether it's safe to delete, and the exact commands to clean it up.</p>
+
+        <div class="total-box">
+            <div class="number">30-80GB+</div>
+            <p>Typical Xcode disk usage on an active developer's Mac</p>
+        </div>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#deriveddata">DerivedData (5-50GB)</a></li>
+                <li><a href="#device-support">iOS Device Support (2-20GB)</a></li>
+                <li><a href="#archives">Xcode Archives (1-10GB)</a></li>
+                <li><a href="#simulators">iOS Simulators (5-30GB)</a></li>
+                <li><a href="#caches">Xcode Caches (1-5GB)</a></li>
+                <li><a href="#core-simulator">CoreSimulator Devices (2-15GB)</a></li>
+                <li><a href="#old-sdks">Old SDKs and Toolchains (1-5GB)</a></li>
+                <li><a href="#swift-pm">Swift Package Manager Cache (1-5GB)</a></li>
+                <li><a href="#summary">Summary Table</a></li>
+                <li><a href="#automated">Automated Cleanup Tools</a></li>
+            </ol>
+        </div>
+
+        <h2 id="deriveddata">1. DerivedData</h2>
+        <p class="size-badge">5-50GB</p>
+
+        <p>DerivedData is the <strong>biggest offender</strong>. It contains build products, indexes, and logs for every Xcode project and workspace you've opened.</p>
+
+        <h3>Location</h3>
+        <pre><code>~/Library/Developer/Xcode/DerivedData/</code></pre>
+
+        <h3>What's Inside</h3>
+        <ul style="margin: 10px 0 15px 25px;">
+            <li><strong>Build/</strong> -- Compiled binaries, object files, intermediate build products</li>
+            <li><strong>Index/</strong> -- Code completion and syntax highlighting data</li>
+            <li><strong>Logs/</strong> -- Build and test logs</li>
+            <li><strong>ModuleCache.noindex/</strong> -- Cached Swift/Clang modules</li>
+        </ul>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="tip">
+            <strong>Yes, completely safe.</strong> Xcode regenerates everything automatically when you build your project. You'll just experience a slightly longer first build.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code># Delete all DerivedData
+rm -rf ~/Library/Developer/Xcode/DerivedData
+
+# Or delete a specific project's data
+rm -rf ~/Library/Developer/Xcode/DerivedData/YourProject-*
+
+# Check size before deleting
+du -sh ~/Library/Developer/Xcode/DerivedData</code></pre>
+
+        <p>You can also clean from within Xcode: <strong>Settings > Locations > DerivedData</strong> -- click the arrow to open in Finder.</p>
+
+        <!-- ======================== -->
+
+        <h2 id="device-support">2. iOS Device Support</h2>
+        <p class="size-badge">2-20GB</p>
+
+        <p>Every time you connect a physical iOS device, Xcode downloads debug symbols for that device's iOS version. These accumulate over years.</p>
+
+        <h3>Location</h3>
+        <pre><code>~/Library/Developer/Xcode/iOS DeviceSupport/</code></pre>
+
+        <h3>What's Inside</h3>
+        <p>Debug symbol files for each iOS version you've ever connected. Each version is 2-4GB. If you've been developing for several years, you might have symbols for iOS 14, 15, 16, 17, and 18.</p>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="tip">
+            <strong>Yes, safe to delete old versions.</strong> Keep the version(s) matching your current test devices. Xcode re-downloads symbols when you connect a device.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code># See sizes per iOS version
+du -sh ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
+
+# Delete all (Xcode will re-download as needed)
+rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
+
+# Delete only old versions (keep 18.x)
+find ~/Library/Developer/Xcode/iOS\ DeviceSupport -maxdepth 1 -name "1[4567]*" -exec rm -rf {} +</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="archives">3. Xcode Archives</h2>
+        <p class="size-badge medium">1-10GB</p>
+
+        <h3>Location</h3>
+        <pre><code>~/Library/Developer/Xcode/Archives/</code></pre>
+
+        <h3>What's Inside</h3>
+        <p>Every time you archive a build for App Store submission or ad-hoc distribution, Xcode saves the full archive (.xcarchive). These include the compiled app, dSYM files, and Info.plist.</p>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="warning">
+            <strong>Be careful.</strong> Archives contain dSYM files needed to symbolicate crash reports. Keep archives for app versions currently in production. Old versions you no longer support can be safely deleted.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code># Check total size
+du -sh ~/Library/Developer/Xcode/Archives
+
+# Open in Finder to review individually
+open ~/Library/Developer/Xcode/Archives
+
+# Or use Xcode Organizer: Window > Organizer > Archives
+# Right-click to delete specific archives</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="simulators">4. iOS Simulators</h2>
+        <p class="size-badge">5-30GB</p>
+
+        <p>Xcode installs simulator runtimes for each iOS version. Each runtime is 5-7GB, and they accumulate if you don't clean up after Xcode updates.</p>
+
+        <h3>Location</h3>
+        <pre><code># Simulator runtimes (macOS 14+)
+/Library/Developer/CoreSimulator/Volumes/
+
+# Older macOS
+~/Library/Developer/CoreSimulator/Profiles/Runtimes/</code></pre>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="tip">
+            <strong>Yes, old runtimes are safe to delete.</strong> Keep the runtime(s) you actively test against. You can always re-download them from Xcode > Settings > Platforms.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code># List installed simulator runtimes
+xcrun simctl runtime list
+
+# Delete unavailable/orphaned simulators
+xcrun simctl delete unavailable
+
+# Delete a specific runtime (get the identifier from the list above)
+xcrun simctl runtime delete &lt;identifier&gt;
+
+# List all simulators and their sizes
+xcrun simctl list devices</code></pre>
+
+        <p>You can also manage simulators from <strong>Xcode > Settings > Platforms</strong>.</p>
+
+        <!-- ======================== -->
+
+        <h2 id="caches">5. Xcode Caches</h2>
+        <p class="size-badge small">1-5GB</p>
+
+        <h3>Locations</h3>
+        <pre><code>~/Library/Caches/com.apple.dt.Xcode/
+~/Library/Caches/com.apple.dt.XCTRunner/</code></pre>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="tip">
+            <strong>Yes, completely safe.</strong> These are just caches that Xcode recreates automatically.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code>rm -rf ~/Library/Caches/com.apple.dt.Xcode
+rm -rf ~/Library/Caches/com.apple.dt.XCTRunner</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="core-simulator">6. CoreSimulator Device Data</h2>
+        <p class="size-badge medium">2-15GB</p>
+
+        <p>Each simulator device has its own data directory with installed apps, app data, and system files.</p>
+
+        <h3>Location</h3>
+        <pre><code>~/Library/Developer/CoreSimulator/Devices/</code></pre>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="warning">
+            <strong>Mostly safe.</strong> Deleting removes simulator-installed apps and their data. Your source code is not affected. Use the <code>simctl</code> command to cleanly remove unavailable devices.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code># Best approach: remove unavailable devices
+xcrun simctl delete unavailable
+
+# Erase all simulator content and settings
+xcrun simctl erase all
+
+# Check total size
+du -sh ~/Library/Developer/CoreSimulator/Devices</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="old-sdks">7. Old SDKs and Toolchains</h2>
+        <p class="size-badge small">1-5GB</p>
+
+        <p>If you've installed additional Swift toolchains or have leftover files from old Xcode versions:</p>
+
+        <h3>Location</h3>
+        <pre><code># Custom toolchains
+~/Library/Developer/Toolchains/
+
+# Command line tools (separate from Xcode)
+/Library/Developer/CommandLineTools/</code></pre>
+
+        <h3>How to Clean</h3>
+        <pre><code># Remove custom toolchains you no longer use
+ls ~/Library/Developer/Toolchains/
+
+# If you're using Xcode, you can safely remove standalone command line tools
+# (Xcode includes its own)
+sudo rm -rf /Library/Developer/CommandLineTools</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="swift-pm">8. Swift Package Manager Cache</h2>
+        <p class="size-badge small">1-5GB</p>
+
+        <p>SPM caches downloaded package sources and resolved artifacts.</p>
+
+        <h3>Location</h3>
+        <pre><code>~/Library/Caches/org.swift.swiftpm/
+~/Library/org.swift.swiftpm/</code></pre>
+
+        <h3>Is It Safe to Delete?</h3>
+        <div class="tip">
+            <strong>Yes, safe.</strong> SPM re-downloads packages when you resolve dependencies. Deleting just means a longer first build.
+        </div>
+
+        <h3>How to Clean</h3>
+        <pre><code># Clean SPM cache
+rm -rf ~/Library/Caches/org.swift.swiftpm
+rm -rf ~/Library/org.swift.swiftpm
+
+# Or use Swift's built-in command
+swift package purge-cache
+
+# Reset package resolution in Xcode
+# File > Packages > Reset Package Caches</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="summary">Summary: All Xcode Storage Locations</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Typical Size</th>
+                    <th>Safe to Delete?</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>DerivedData</strong></td>
+                    <td>~/Library/Developer/Xcode/DerivedData</td>
+                    <td>5-50GB</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td><strong>iOS Device Support</strong></td>
+                    <td>~/Library/Developer/Xcode/iOS DeviceSupport</td>
+                    <td>2-20GB</td>
+                    <td>Yes (old versions)</td>
+                </tr>
+                <tr>
+                    <td><strong>Archives</strong></td>
+                    <td>~/Library/Developer/Xcode/Archives</td>
+                    <td>1-10GB</td>
+                    <td>Keep production</td>
+                </tr>
+                <tr>
+                    <td><strong>Simulator Runtimes</strong></td>
+                    <td>/Library/Developer/CoreSimulator/Volumes</td>
+                    <td>5-30GB</td>
+                    <td>Yes (old runtimes)</td>
+                </tr>
+                <tr>
+                    <td><strong>Xcode Caches</strong></td>
+                    <td>~/Library/Caches/com.apple.dt.Xcode</td>
+                    <td>1-5GB</td>
+                    <td>Yes</td>
+                </tr>
+                <tr>
+                    <td><strong>CoreSimulator Devices</strong></td>
+                    <td>~/Library/Developer/CoreSimulator/Devices</td>
+                    <td>2-15GB</td>
+                    <td>Yes (unavailable)</td>
+                </tr>
+                <tr>
+                    <td><strong>Swift Toolchains</strong></td>
+                    <td>~/Library/Developer/Toolchains</td>
+                    <td>1-5GB</td>
+                    <td>Yes (unused)</td>
+                </tr>
+                <tr>
+                    <td><strong>SPM Cache</strong></td>
+                    <td>~/Library/Caches/org.swift.swiftpm</td>
+                    <td>1-5GB</td>
+                    <td>Yes</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- ======================== -->
+
+        <h2 id="automated">One-Click Cleanup with ClearDisk</h2>
+
+        <p>Running these commands manually every week gets tedious. <strong><a href="https://github.com/bysiber/cleardisk">ClearDisk</a></strong> is a free, open-source macOS menu bar app that:</p>
+
+        <ul style="margin: 15px 0 15px 25px;">
+            <li>Detects all Xcode-related caches automatically</li>
+            <li>Shows the size of each cache category in real-time</li>
+            <li>Cleans with one click -- no terminal commands needed</li>
+            <li>Also handles non-Xcode caches: node_modules, Docker, Homebrew, pip, CocoaPods, Cargo, and more</li>
+            <li>Lives in your menu bar -- always accessible, zero overhead</li>
+        </ul>
+
+        <div class="cta-box">
+            <h3>Clean All Xcode Caches in One Click</h3>
+            <p>ClearDisk detects DerivedData, Device Support, Simulators, SPM cache, and 15+ other developer caches. Free and open source.</p>
+            <a href="https://github.com/bysiber/cleardisk">View on GitHub</a>
+        </div>
+
+        <h3>Install via Homebrew</h3>
+        <pre><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></pre>
+
+        <h3>Or Download Directly</h3>
+        <p>Grab the latest DMG from <a href="https://github.com/bysiber/cleardisk/releases">GitHub Releases</a>.</p>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e5e7;">
+
+        <h2>Quick One-Liner: Clean Everything</h2>
+        <p>If you prefer the terminal approach, here's a script that cleans all Xcode caches in one go:</p>
+
+        <pre><code>#!/bin/bash
+# Clean all Xcode caches
+echo "Cleaning DerivedData..."
+rm -rf ~/Library/Developer/Xcode/DerivedData
+
+echo "Cleaning iOS Device Support..."
+rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport
+
+echo "Cleaning Xcode Cache..."
+rm -rf ~/Library/Caches/com.apple.dt.Xcode
+
+echo "Cleaning SPM Cache..."
+rm -rf ~/Library/Caches/org.swift.swiftpm
+
+echo "Removing unavailable simulators..."
+xcrun simctl delete unavailable
+
+echo "Done! Restart Xcode for best results."</code></pre>
+
+        <div class="warning">
+            <strong>Note:</strong> This script does NOT delete Archives (you may need dSYMs) or simulator runtimes (re-download is slow). Remove those manually after reviewing.
+        </div>
+
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="free-disk-space-mac-developer.html">Developer Disk Space Guide</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
