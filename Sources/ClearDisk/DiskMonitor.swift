@@ -371,7 +371,11 @@ class DiskMonitor: ObservableObject {
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
         "Flutter/Pub Cache": "Cached Dart/Flutter packages. Re-downloads on flutter pub get.",
         "JetBrains Cache": "IDE caches (IntelliJ, WebStorm, etc). Rebuilds on IDE restart.",
-        "Ruby Gems": "Installed Ruby gems and documentation. Re-install with bundle install.",
+        "Ruby Gems": "Installed gems and docs. Reinstall with bundle install.",
+        "rbenv Versions": "Ruby versions managed by rbenv. Reinstall with rbenv install X.Y.Z.",
+        "mise Rubies": "Ruby versions managed by mise. Reinstall with mise install ruby@X.Y.Z.",
+        "RVM": "RVM rubies and gemsets. Reinstall with rvm install X.Y.Z.",
+        "Bundler Cache": "Downloaded gem files. Rebuilds automatically with bundle install.",
     ]
     
     /// Resolve DerivedData subfolders to project names using info.plist → WorkspacePath
@@ -466,6 +470,10 @@ class DiskMonitor: ObservableObject {
             ("JetBrains Cache", "\(home)/.cache/JetBrains"),
             // Ruby
             ("Ruby Gems", "\(home)/.gem"),
+            ("rbenv Versions", "\(home)/.rbenv/versions"),
+            ("mise Rubies", "\(home)/.local/share/mise/installs/ruby"),
+            ("RVM", "\(home)/.rvm"),
+            ("Bundler Cache", "\(home)/.bundle/cache"),
         ]
     }
     
@@ -515,6 +523,10 @@ class DiskMonitor: ObservableObject {
             ("JetBrains Cache", "laptopcomputer", "\(home)/.cache/JetBrains", "safe"),
             // Ruby
             ("Ruby Gems", "diamond.fill", "\(home)/.gem", "safe"),
+            ("rbenv Versions", "diamond.fill", "\(home)/.rbenv/versions", "caution"),
+            ("mise Rubies", "diamond.fill", "\(home)/.local/share/mise/installs/ruby", "caution"),
+            ("RVM", "diamond.fill", "\(home)/.rvm", "caution"),
+            ("Bundler Cache", "shippingbox.fill", "\(home)/.bundle/cache", "safe"),
         ]
         
         var caches: [DevCache] = []
