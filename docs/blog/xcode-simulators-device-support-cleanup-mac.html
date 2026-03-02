@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xcode Simulators & DeviceSupport Taking Up 50GB+ on Mac? Complete Cleanup Guide</title>
+    <meta name="description" content="Xcode iOS Simulators, DeviceSupport, and CoreSimulator can consume 20-80GB on macOS. Learn how to delete old simulators, remove device support files, clean Xcode archives, and reclaim massive disk space.">
+    <meta name="keywords" content="xcode simulator disk space, delete old ios simulators, coresimulator cleanup mac, xcode device support cleanup, xcode archives delete, xcode disk space mac, ios simulator too big, remove old simulators xcode">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/xcode-simulators-device-support-cleanup-mac.html">
+    <meta property="og:title" content="Xcode Simulators & DeviceSupport Cleanup Guide for macOS">
+    <meta property="og:description" content="Xcode simulators and device support files can quietly consume 20-80GB. Complete guide to reclaiming space.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/xcode-simulators-device-support-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Xcode Simulators & DeviceSupport Cleanup Guide for macOS">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Xcode Simulators & DeviceSupport Taking Up 50GB+ on Mac?",
+        "description": "Complete guide to cleaning Xcode iOS Simulators, DeviceSupport, CoreSimulator, Archives, and derived data on macOS",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "datePublished": "2025-07-26",
+        "dateModified": "2025-07-26",
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/xcode-simulators-device-support-cleanup-mac.html"
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .header { background: linear-gradient(135deg, #1C1C1E 0%, #007AFF 100%); color: white; padding: 60px 20px; text-align: center; }
+        .header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; }
+        .header p { font-size: 1.1em; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .content { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #1C1C1E; border-bottom: 2px solid #007AFF; padding-bottom: 8px; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #333; }
+        p { margin: 15px 0; }
+        pre { background: #1a1a2e; color: #e0e0e0; padding: 20px; border-radius: 10px; overflow-x: auto; margin: 20px 0; font-size: 0.9em; line-height: 1.5; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #007AFF; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .danger { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #1C1C1E; }
+        tr:hover { background: #f8f9fa; }
+        .cta { background: linear-gradient(135deg, #1C1C1E 0%, #007AFF 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 40px 0; }
+        .cta a { color: white; font-weight: 600; text-decoration: underline; }
+        .size-chart { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        .size-item { background: #f8f9fa; padding: 20px; border-radius: 10px; text-align: center; }
+        .size-item .size { font-size: 2em; font-weight: 700; color: #dc3545; }
+        .size-item .label { color: #666; margin-top: 5px; }
+        .footer { text-align: center; padding: 40px 20px; background: #f8f9fa; margin-top: 60px; }
+        .footer a { color: #007AFF; text-decoration: none; margin: 0 8px; }
+        @media (max-width: 600px) { .header h1 { font-size: 1.6em; } h2 { font-size: 1.3em; } .size-chart { grid-template-columns: 1fr 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Xcode Simulators & DeviceSupport Taking Up 50GB+ on Mac?</h1>
+        <p>How iOS Simulators, DeviceSupport files, and CoreSimulator quietly consume your entire SSD</p>
+    </div>
+
+    <div class="content">
+        <p>If you've been doing iOS development for more than a year, there's a good chance Xcode-related files are consuming <strong>50-100GB</strong> of your Mac's SSD -- and most of it is from simulators and device support files you don't even use anymore.</p>
+
+        <p>Unlike DerivedData (covered in our <a href="xcode-disk-space-cleanup-guide.html">Xcode Cleanup Guide</a>), simulator and device support files persist across project cleanups and Xcode updates. They silently accumulate with every iOS version and every device you've ever connected.</p>
+
+        <div class="size-chart">
+            <div class="size-item">
+                <div class="size">10-40GB</div>
+                <div class="label">CoreSimulator Devices</div>
+            </div>
+            <div class="size-item">
+                <div class="size">5-20GB</div>
+                <div class="label">iOS DeviceSupport</div>
+            </div>
+            <div class="size-item">
+                <div class="size">5-15GB</div>
+                <div class="label">Xcode Archives</div>
+            </div>
+            <div class="size-item">
+                <div class="size">3-10GB</div>
+                <div class="label">watchOS/tvOS Support</div>
+            </div>
+        </div>
+
+        <h2>The Full Xcode Disk Space Audit</h2>
+
+        <p>Run this to see exactly what Xcode is costing you:</p>
+
+<pre><code><span style="color:#6bb3e0;"># === SIMULATORS ===</span>
+du -sh ~/Library/Developer/CoreSimulator/Devices/ 2>/dev/null
+du -sh ~/Library/Developer/CoreSimulator/Caches/ 2>/dev/null
+du -sh ~/Library/Developer/CoreSimulator/Profiles/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># === DEVICE SUPPORT ===</span>
+du -sh ~/Library/Developer/Xcode/iOS\ DeviceSupport/ 2>/dev/null
+du -sh ~/Library/Developer/Xcode/watchOS\ DeviceSupport/ 2>/dev/null
+du -sh ~/Library/Developer/Xcode/tvOS\ DeviceSupport/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># === BUILD ARTIFACTS ===</span>
+du -sh ~/Library/Developer/Xcode/DerivedData/ 2>/dev/null
+du -sh ~/Library/Developer/Xcode/Archives/ 2>/dev/null
+du -sh ~/Library/Developer/Xcode/Products/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># === DOCUMENTATION & CACHES ===</span>
+du -sh ~/Library/Caches/com.apple.dt.Xcode/ 2>/dev/null
+du -sh ~/Library/Developer/Xcode/DocumentationCache/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># === TOTAL ===</span>
+echo "=== Complete Xcode Disk Usage ==="
+du -shc ~/Library/Developer/CoreSimulator ~/Library/Developer/Xcode ~/Library/Caches/com.apple.dt.Xcode 2>/dev/null | tail -1</code></pre>
+
+        <h2>1. Cleaning iOS Simulators (Biggest Space Saver)</h2>
+
+        <p>Each iOS simulator runtime is a full iOS image. Having simulators for iOS 15, 16, 17, and 18 means 4 complete iOS system images cached on your Mac. Each runtime is <strong>5-8GB</strong>.</p>
+
+        <h3>List All Simulator Runtimes</h3>
+
+<pre><code><span style="color:#6bb3e0;"># List all installed runtimes</span>
+xcrun simctl runtime list
+
+<span style="color:#6bb3e0;"># List all simulator devices</span>
+xcrun simctl list devices
+
+<span style="color:#6bb3e0;"># Show disk usage per runtime</span>
+xcrun simctl runtime list -j | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for rt in data.get('runtimes', []):
+    name = rt.get('name', 'Unknown')
+    size = rt.get('sizeBytes', 0) / (1024**3)
+    print(f'  {name}: {size:.1f} GB')
+"</code></pre>
+
+        <h3>Delete Old Simulator Runtimes</h3>
+
+<pre><code><span style="color:#6bb3e0;"># Delete a specific runtime (e.g., iOS 16.4)</span>
+xcrun simctl runtime delete "iOS 16.4"
+
+<span style="color:#6bb3e0;"># Delete ALL unavailable simulators (devices for uninstalled runtimes)</span>
+xcrun simctl delete unavailable
+
+<span style="color:#6bb3e0;"># Delete all simulators (nuclear option)</span>
+xcrun simctl delete all
+
+<span style="color:#6bb3e0;"># List what runtimes are available to delete</span>
+xcrun simctl runtime list | grep -v "== "
+
+<span style="color:#6bb3e0;"># Clean the CoreSimulator cache</span>
+rm -rf ~/Library/Developer/CoreSimulator/Caches/*</code></pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> Only delete simulator runtimes you don't actively test against. If you need to support iOS 16+, keep only iOS 16 and your current iOS version.
+        </div>
+
+        <h3>Check Individual Simulator Sizes</h3>
+
+<pre><code><span style="color:#6bb3e0;"># Size of each simulator device</span>
+for device_dir in ~/Library/Developer/CoreSimulator/Devices/*/; do
+    name=$(defaults read "${device_dir}device.plist" name 2>/dev/null || echo "Unknown")
+    runtime=$(defaults read "${device_dir}device.plist" runtime 2>/dev/null | sed 's/.*\.//' || echo "?")
+    size=$(du -sh "$device_dir" 2>/dev/null | cut -f1)
+    echo "$size  $name ($runtime)"
+done | sort -rh | head -15</code></pre>
+
+        <h2>2. Cleaning iOS DeviceSupport Files</h2>
+
+        <p>Every time you connect an iPhone or iPad to your Mac for debugging, Xcode downloads <strong>2-5GB</strong> of device support symbols for that specific iOS version. These files persist forever:</p>
+
+<pre><code><span style="color:#6bb3e0;"># List all iOS DeviceSupport directories with sizes</span>
+ls -la ~/Library/Developer/Xcode/iOS\ DeviceSupport/ | head -20
+du -sh ~/Library/Developer/Xcode/iOS\ DeviceSupport/*/ 2>/dev/null | sort -rh
+
+<span style="color:#6bb3e0;"># Remove device support for old iOS versions</span>
+<span style="color:#6bb3e0;"># Keep only the versions you're actively debugging against</span>
+rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/15.*
+rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/16.*
+
+<span style="color:#6bb3e0;"># watchOS DeviceSupport (often forgotten)</span>
+du -sh ~/Library/Developer/Xcode/watchOS\ DeviceSupport/*/ 2>/dev/null | sort -rh
+rm -rf ~/Library/Developer/Xcode/watchOS\ DeviceSupport/*
+
+<span style="color:#6bb3e0;"># tvOS DeviceSupport</span>
+rm -rf ~/Library/Developer/Xcode/tvOS\ DeviceSupport/*</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> DeviceSupport files are re-downloaded when you next connect a device with that iOS version. It's safe to delete all of them -- the worst that happens is a brief wait the next time you debug on a device.
+        </div>
+
+        <h2>3. Cleaning Xcode Archives</h2>
+
+        <p>Every time you archive an app for distribution, Xcode saves the entire archive (including dSYM files) in the Archives folder. These accumulate across app versions:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Check total archive size</span>
+du -sh ~/Library/Developer/Xcode/Archives/
+
+<span style="color:#6bb3e0;"># List archives by date</span>
+ls -la ~/Library/Developer/Xcode/Archives/
+
+<span style="color:#6bb3e0;"># Delete old archives (keep recent ones for crash symbolication)</span>
+<span style="color:#6bb3e0;"># Delete archives older than 6 months</span>
+find ~/Library/Developer/Xcode/Archives -name "*.xcarchive" -mtime +180 -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#6bb3e0;"># Or manage through Xcode: Window → Organizer → Archives</span></code></pre>
+
+        <div class="danger">
+            <strong>Important:</strong> Keep archives for your currently published app versions. The dSYM files inside are needed to symbolicate crash reports from TestFlight and App Store users.
+        </div>
+
+        <h2>4. SPM (Swift Package Manager) Cache</h2>
+
+<pre><code><span style="color:#6bb3e0;"># SPM package cache</span>
+du -sh ~/Library/Caches/org.swift.swiftpm/ 2>/dev/null
+du -sh ~/Library/org.swift.swiftpm/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># SPM derived data (separate from Xcode DerivedData)</span>
+du -sh ~/Library/Developer/Xcode/DerivedData/*/SourcePackages/ 2>/dev/null | sort -rh | head -10
+
+<span style="color:#6bb3e0;"># Clean SPM cache</span>
+rm -rf ~/Library/Caches/org.swift.swiftpm/
+rm -rf ~/Library/org.swift.swiftpm/repositories/</code></pre>
+
+        <h2>5. DerivedData Deep Clean</h2>
+
+        <p>DerivedData contains build products, module caches, and index data for every project you've opened:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Total DerivedData size</span>
+du -sh ~/Library/Developer/Xcode/DerivedData/
+
+<span style="color:#6bb3e0;"># Per-project breakdown</span>
+du -sh ~/Library/Developer/Xcode/DerivedData/*/ 2>/dev/null | sort -rh | head -20
+
+<span style="color:#6bb3e0;"># Delete all DerivedData (safest cleanup)</span>
+rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
+<span style="color:#6bb3e0;"># Delete DerivedData for projects not modified in 30+ days</span>
+find ~/Library/Developer/Xcode/DerivedData -maxdepth 1 -type d -mtime +30 -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#6bb3e0;"># Or from Xcode: Settings → Locations → Derived Data → (click arrow to reveal in Finder)</span></code></pre>
+
+        <h2>Using ClearDisk to Monitor Xcode Caches</h2>
+
+        <div class="cta">
+            <h3>ClearDisk -- Free, Open-Source Xcode Cache Monitor</h3>
+            <p style="margin: 15px 0;">Instead of running commands manually, <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> sits in your menu bar and tracks all Xcode-related caches:</p>
+            <ul style="text-align: left; max-width: 500px; margin: 15px auto; list-style: none;">
+                <li>CoreSimulator (iOS Simulators)</li>
+                <li>iOS/watchOS/tvOS DeviceSupport</li>
+                <li>DerivedData + Archives</li>
+                <li>SPM + CocoaPods cache</li>
+                <li>Plus: Docker, node_modules, Rust, Go, Maven, Homebrew, pip</li>
+            </ul>
+            <p style="margin-top: 15px;"><a href="https://github.com/bysiber/cleardisk">View on GitHub</a> -- MIT License, Swift/SwiftUI, macOS 14+</p>
+            <p style="margin-top: 10px;">Install: <code style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 6px;">brew tap bysiber/cleardisk && brew install --cask cleardisk</code></p>
+        </div>
+
+        <h2>Complete Cleanup Script</h2>
+
+        <p>Save this and run it when you need to reclaim space fast:</p>
+
+<pre><code>#!/bin/bash
+<span style="color:#6bb3e0;"># Xcode Simulator & DeviceSupport Cleanup Script</span>
+
+echo "=== Before Cleanup ==="
+du -shc ~/Library/Developer/CoreSimulator ~/Library/Developer/Xcode 2>/dev/null | tail -1
+
+<span style="color:#6bb3e0;"># 1. Delete unavailable simulators</span>
+xcrun simctl delete unavailable 2>/dev/null
+echo "Deleted unavailable simulators"
+
+<span style="color:#6bb3e0;"># 2. Clean CoreSimulator caches</span>
+rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+echo "Cleaned CoreSimulator caches"
+
+<span style="color:#6bb3e0;"># 3. Clean old DeviceSupport (keep iOS 17+)</span>
+for ver in 14 15 16; do
+    rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/${ver}.* 2>/dev/null
+done
+rm -rf ~/Library/Developer/Xcode/watchOS\ DeviceSupport/* 2>/dev/null
+rm -rf ~/Library/Developer/Xcode/tvOS\ DeviceSupport/* 2>/dev/null
+echo "Cleaned old DeviceSupport"
+
+<span style="color:#6bb3e0;"># 4. Clean old DerivedData</span>
+find ~/Library/Developer/Xcode/DerivedData -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null
+echo "Cleaned stale DerivedData"
+
+<span style="color:#6bb3e0;"># 5. Clean documentation cache</span>
+rm -rf ~/Library/Developer/Xcode/DocumentationCache/* 2>/dev/null
+
+<span style="color:#6bb3e0;"># 6. Clean SPM cache</span>
+rm -rf ~/Library/Caches/org.swift.swiftpm/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># 7. Clean Xcode general caches</span>
+rm -rf ~/Library/Caches/com.apple.dt.Xcode/* 2>/dev/null
+
+echo ""
+echo "=== After Cleanup ==="
+du -shc ~/Library/Developer/CoreSimulator ~/Library/Developer/Xcode 2>/dev/null | tail -1</code></pre>
+
+        <h2>How Much Space Will I Save?</h2>
+
+        <table>
+            <tr><th>What You Clean</th><th>Expected Recovery</th><th>Risk Level</th></tr>
+            <tr><td>Unavailable simulators</td><td>5-20GB</td><td>None</td></tr>
+            <tr><td>Old iOS DeviceSupport (14, 15, 16)</td><td>5-15GB</td><td>None (re-downloads when needed)</td></tr>
+            <tr><td>watchOS/tvOS DeviceSupport</td><td>2-5GB</td><td>None</td></tr>
+            <tr><td>Old DerivedData</td><td>5-20GB</td><td>None (rebuilds on next open)</td></tr>
+            <tr><td>Old Archives</td><td>2-10GB</td><td>Low (keep recent for crash reports)</td></tr>
+            <tr><td>SPM cache</td><td>1-3GB</td><td>None (re-resolves packages)</td></tr>
+            <tr><td>CoreSimulator caches</td><td>1-3GB</td><td>None</td></tr>
+            <tr><td><strong>TOTAL</strong></td><td><strong>20-70GB</strong></td><td></td></tr>
+        </table>
+
+        <h2>Frequently Asked Questions</h2>
+
+        <h3>Will deleting simulators break my projects?</h3>
+        <p>No. Deleting simulator devices (<span class="inline-code">xcrun simctl delete unavailable</span>) only removes devices for runtimes that aren't installed. Your projects will create new simulator instances as needed. Deleting runtimes means you'd need to re-download them from Xcode settings if you want to test on those iOS versions again.</p>
+
+        <h3>How often does DeviceSupport accumulate?</h3>
+        <p>Every major and minor iOS update creates a new DeviceSupport directory. Over 2-3 years of iOS development, you can accumulate 10+ versions (iOS 14.x through 18.x), each consuming 2-5GB.</p>
+
+        <h3>Can I delete everything in CoreSimulator?</h3>
+        <p>You can safely delete <span class="inline-code">~/Library/Developer/CoreSimulator/Devices/</span> and <span class="inline-code">Caches/</span>. Xcode will recreate default simulator devices when you next open it. However, any custom simulator configurations will be lost.</p>
+
+        <h3>What about Xcode itself -- can I have multiple versions?</h3>
+        <p>Each Xcode version is about 12-15GB (plus platforms). If you need multiple Xcode versions (for different project requirements), that alone is 25-45GB. Consider keeping only the version you actively need and downloading others from the Apple Developer portal when required.</p>
+
+        <h3>Does Xcode 16 clean up automatically?</h3>
+        <p>Xcode 16 improved automatic cleanup of some caches, but simulators, DeviceSupport, and Archives still require manual cleanup. DerivedData gets partially cleaned but old project data persists.</p>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://bysiber.github.io/cleardisk/">ClearDisk Home</a></p>
+        <p style="margin-top: 15px;">
+            <a href="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer.html">Free 50GB+ Guide</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">node_modules Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">Docker Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">ClearDisk vs Others</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">Rust/Cargo Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/gradle-cache-cleanup-mac.html">Gradle Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/cocoapods-cache-cleanup-mac.html">CocoaPods Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/maven-sbt-cache-cleanup-mac.html">Maven/sbt Cleanup</a> |
+            <strong>Xcode Simulators</strong>
+        </p>
+        <p style="margin-top: 15px; color: #999;">
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a> |
+            Published July 2025
+        </p>
+    </div>
+</body>
+</html>

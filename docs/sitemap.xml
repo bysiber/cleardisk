@@ -96,4 +96,10 @@
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
     </url>
+    <url>
+        <loc>https://bysiber.github.io/cleardisk/blog/xcode-simulators-device-support-cleanup-mac.html</loc>
+        <lastmod>2025-07-26</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
 </urlset>
