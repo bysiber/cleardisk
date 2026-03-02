@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClearDisk Blog - macOS Developer Disk Cleanup Guides</title>
+    <meta name="description" content="Guides and tips for freeing disk space on macOS as a developer. Clean Xcode DerivedData, node_modules, Docker cache, and more.">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; }
+        .subtitle { color: #6e6e73; margin-bottom: 40px; font-size: 1.1em; }
+        
+        .post-card {
+            border: 1px solid #e5e5e7;
+            border-radius: 16px;
+            padding: 25px 30px;
+            margin-bottom: 20px;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .post-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        .post-card h2 {
+            font-size: 1.3em;
+            margin-bottom: 8px;
+        }
+        .post-card h2 a {
+            color: #1d1d1f;
+            text-decoration: none;
+        }
+        .post-card h2 a:hover { color: #0071e3; }
+        .post-card .meta {
+            color: #6e6e73;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+        }
+        .post-card .excerpt {
+            color: #424245;
+            font-size: 0.95em;
+        }
+        .post-card .tags {
+            margin-top: 12px;
+        }
+        .post-card .tag {
+            display: inline-block;
+            background: #f5f5f7;
+            color: #6e6e73;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+
+        .breadcrumb { font-size: 0.85em; color: #6e6e73; margin-bottom: 30px; }
+        .breadcrumb a { color: #0071e3; text-decoration: none; }
+
+        .cta-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 35px 0;
+            text-align: center;
+        }
+        .cta-box h3 { color: white; font-size: 1.3em; margin-bottom: 10px; }
+        .cta-box p { color: rgba(255,255,255,0.9); margin-bottom: 15px; }
+        .cta-box a {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 10px 24px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        footer { text-align: center; padding: 40px 20px; color: #6e6e73; font-size: 0.85em; border-top: 1px solid #e5e5e7; margin-top: 50px; }
+        footer a { color: #0071e3; text-decoration: none; }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.6em; }
+            .container { padding: 20px 15px; }
+            .post-card { padding: 18px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="../">ClearDisk</a> / Blog
+        </div>
+
+        <h1>ClearDisk Blog</h1>
+        <p class="subtitle">Guides for freeing disk space on macOS as a developer</p>
+
+        <div class="post-card">
+            <h2><a href="free-disk-space-mac-developer.html">How to Free 50GB+ on Your Mac as a Developer (2025 Guide)</a></h2>
+            <div class="meta">January 2025 -- 10 min read</div>
+            <p class="excerpt">Comprehensive guide covering 10 major developer cache locations on macOS. Learn exactly where Xcode, Node.js, Docker, Homebrew, pip, CocoaPods, Cargo, and Gradle store their caches and how to safely clean them.</p>
+            <div class="tags">
+                <span class="tag">macOS</span>
+                <span class="tag">Xcode</span>
+                <span class="tag">node_modules</span>
+                <span class="tag">Docker</span>
+                <span class="tag">Homebrew</span>
+            </div>
+        </div>
+
+        <div class="post-card">
+            <h2><a href="xcode-disk-space-cleanup-guide.html">Xcode Taking Up Too Much Disk Space? Complete 2025 Cleanup Guide</a></h2>
+            <div class="meta">January 2025 -- 8 min read</div>
+            <p class="excerpt">Deep-dive into every Xcode-related cache: DerivedData, iOS Device Support, Archives, Simulators, CoreSimulator, Toolchains, and Swift Package Manager. Includes a summary table and a one-liner cleanup script.</p>
+            <div class="tags">
+                <span class="tag">Xcode</span>
+                <span class="tag">DerivedData</span>
+                <span class="tag">iOS</span>
+                <span class="tag">Simulators</span>
+                <span class="tag">Swift</span>
+            </div>
+        </div>
+
+        <div class="post-card">
+            <h2><a href="clean-node-modules-mac.html">How to Find and Delete All node_modules on Your Mac (2025 Guide)</a></h2>
+            <div class="meta">January 2025 -- 6 min read</div>
+            <p class="excerpt">Find every node_modules directory on your Mac, see how much space they use, and safely delete them. Covers selective deletion, npm/yarn/pnpm cache cleanup, tools comparison, and prevention strategies.</p>
+            <div class="tags">
+                <span class="tag">node_modules</span>
+                <span class="tag">npm</span>
+                <span class="tag">yarn</span>
+                <span class="tag">pnpm</span>
+                <span class="tag">Node.js</span>
+            </div>
+        </div>
+
+        <div class="cta-box">
+            <h3>Skip the Terminal Commands</h3>
+            <p>ClearDisk detects and cleans all these caches automatically. Free, open-source macOS menu bar app.</p>
+            <a href="https://github.com/bysiber/cleardisk">Get ClearDisk</a>
+        </div>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
