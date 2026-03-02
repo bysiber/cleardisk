@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClearDisk vs CleanMyMac vs DaisyDisk -- Best Mac Disk Cleaner Comparison 2025</title>
+    <meta name="description" content="Detailed comparison of Mac disk cleaners: ClearDisk (free, open-source) vs CleanMyMac X ($40-90/yr) vs DaisyDisk ($10) vs OnyX (free). Features, pricing, developer focus, and honest recommendations.">
+    <meta name="keywords" content="ClearDisk vs CleanMyMac, best mac disk cleaner free, CleanMyMac alternative free, mac cleaner comparison 2025, DaisyDisk alternative, free mac disk cleanup, open source mac cleaner, developer disk cleaner mac">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">
+
+    <meta property="og:title" content="Best Mac Disk Cleaners Compared: ClearDisk vs CleanMyMac vs DaisyDisk (2025)">
+    <meta property="og:description" content="Honest comparison of Mac disk cleaners. Which one is actually worth it?">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "ClearDisk vs CleanMyMac vs DaisyDisk -- Best Mac Disk Cleaner Comparison 2025",
+        "description": "Detailed comparison of Mac disk cleaners including ClearDisk, CleanMyMac X, DaisyDisk, OnyX, and developer-focused alternatives.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-22",
+        "dateModified": "2025-01-22",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 820px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2em; margin-bottom: 10px; line-height: 1.2; }
+        h2 { font-size: 1.5em; margin-top: 40px; margin-bottom: 15px; color: #1d1d1f; border-bottom: 2px solid #0071e3; padding-bottom: 5px; display: inline-block; }
+        h3 { font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+        .meta { color: #6e6e73; margin-bottom: 30px; font-size: 0.95em; }
+        p { margin-bottom: 15px; }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 5px; }
+
+        .toc { background: #f5f5f7; padding: 20px 30px; border-radius: 12px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { padding-left: 20px; }
+        .toc a { color: #0071e3; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 18px 22px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 20px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code { background: #f5f5f7; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+
+        /* Comparison table */
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 25px 0; font-size: 0.92em; }
+        .comparison-table th, .comparison-table td { padding: 12px 14px; text-align: center; border: 1px solid #e5e5e7; }
+        .comparison-table th { background: #f5f5f7; font-weight: 600; }
+        .comparison-table td:first-child, .comparison-table th:first-child { text-align: left; font-weight: 500; }
+        .comparison-table .highlight { background: #e8f5e9; }
+        .comparison-table .check { color: #28a745; font-weight: bold; }
+        .comparison-table .cross { color: #dc3545; }
+        .comparison-table .partial { color: #ffc107; }
+
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { background: #f5f5f7; font-weight: 600; }
+
+        .verdict-box {
+            background: #f5f5f7;
+            padding: 25px;
+            border-radius: 16px;
+            margin: 25px 0;
+        }
+        .verdict-box h3 { margin-top: 0; color: #0071e3; }
+
+        .cta-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 35px 0;
+            text-align: center;
+        }
+        .cta-box h3 { color: white; margin-top: 0; font-size: 1.4em; }
+        .cta-box a { color: white; }
+        .cta-box code { background: rgba(255,255,255,0.2); color: white; }
+
+        .tool-card {
+            border: 1px solid #e5e5e7;
+            border-radius: 12px;
+            padding: 20px 25px;
+            margin: 20px 0;
+        }
+        .tool-card h3 { margin-top: 0; }
+        .tool-card .price { color: #0071e3; font-weight: 600; font-size: 1.1em; }
+        .tool-card .pros { color: #28a745; }
+        .tool-card .cons { color: #dc3545; }
+
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: #6e6e73;
+            font-size: 0.9em;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 40px;
+        }
+        footer a { color: #0071e3; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ClearDisk vs CleanMyMac vs DaisyDisk -- Best Mac Disk Cleaner (2025)</h1>
+        <p class="meta">Updated January 2025 -- Honest comparison from a developer who tested them all</p>
+
+        <p>Your Mac is running out of space. You search for "mac disk cleaner" and find dozens of options ranging from free to $90/year. Which one is actually worth using?</p>
+
+        <p>This comparison focuses on what matters: <strong>does it actually find and clean the stuff taking your disk space, without charging a fortune or being sketchy?</strong></p>
+
+        <div class="info">
+            <strong>Disclosure:</strong> This comparison is published on the ClearDisk website. We've tried to be as fair and honest as possible -- we'll tell you when a competitor is the better choice for your use case.
+        </div>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#tldr">TL;DR -- Quick Verdict</a></li>
+                <li><a href="#table">Feature Comparison Table</a></li>
+                <li><a href="#cleardisk">ClearDisk (Free, Open Source)</a></li>
+                <li><a href="#cleanmymac">CleanMyMac X ($40--90/year)</a></li>
+                <li><a href="#daisydisk">DaisyDisk ($10 one-time)</a></li>
+                <li><a href="#onyx">OnyX (Free)</a></li>
+                <li><a href="#devcleaner">DevCleaner for Xcode (Free)</a></li>
+                <li><a href="#terminal">Terminal Commands (Free, DIY)</a></li>
+                <li><a href="#who">Which Tool is Right for You?</a></li>
+            </ol>
+        </div>
+
+        <h2 id="tldr">TL;DR -- Quick Verdict</h2>
+
+        <div class="verdict-box">
+            <h3>Best for developers</h3>
+            <p><strong>ClearDisk</strong> -- Free, knows exactly where dev caches live (Xcode, node_modules, Docker, pip, CocoaPods, Cargo, etc.). Menu bar app, always accessible.</p>
+        </div>
+
+        <div class="verdict-box">
+            <h3>Best disk space visualizer</h3>
+            <p><strong>DaisyDisk</strong> -- $10 one-time, beautiful sunburst chart showing what's using your disk. Best at answering "what's taking all my space?" but doesn't know about dev-specific caches.</p>
+        </div>
+
+        <div class="verdict-box">
+            <h3>Best all-in-one (if you'll pay)</h3>
+            <p><strong>CleanMyMac X</strong> -- $40--90/year subscription. Cleans system junk, malware scanning, app updater, uninstaller. Most features, but also most expensive and overkill for many users.</p>
+        </div>
+
+        <div class="verdict-box">
+            <h3>Best for Xcode-only cleanup</h3>
+            <p><strong>DevCleaner</strong> -- Free, App Store, focused exclusively on Xcode caches (DerivedData, Archives, Device Support).</p>
+        </div>
+
+        <h2 id="table">Feature Comparison Table</h2>
+
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th class="highlight">ClearDisk</th>
+                    <th>CleanMyMac X</th>
+                    <th>DaisyDisk</th>
+                    <th>OnyX</th>
+                    <th>DevCleaner</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Price</strong></td>
+                    <td class="highlight"><strong>Free</strong></td>
+                    <td>$40--90/yr</td>
+                    <td>$10</td>
+                    <td>Free</td>
+                    <td>Free</td>
+                </tr>
+                <tr>
+                    <td><strong>Open Source</strong></td>
+                    <td class="highlight check">Yes (MIT)</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="check">Yes</td>
+                </tr>
+                <tr>
+                    <td><strong>Menu Bar App</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="cross">No (full app)</td>
+                    <td class="cross">No (full app)</td>
+                    <td class="cross">No (full app)</td>
+                    <td class="cross">No (full app)</td>
+                </tr>
+                <tr>
+                    <td><strong>Xcode DerivedData</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="partial">Partial</td>
+                    <td class="cross">Manual find</td>
+                    <td class="cross">No</td>
+                    <td class="check">Yes</td>
+                </tr>
+                <tr>
+                    <td><strong>node_modules</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">Manual find</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>Docker cache</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>CocoaPods cache</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>Homebrew cache</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="partial">Partial</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>pip/Python cache</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>Cargo/Rust cache</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>Disk visualization</strong></td>
+                    <td class="highlight cross">No</td>
+                    <td class="check">Yes</td>
+                    <td class="check">Yes (best)</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>Malware scanning</strong></td>
+                    <td class="highlight cross">No</td>
+                    <td class="check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>App uninstaller</strong></td>
+                    <td class="highlight cross">No</td>
+                    <td class="check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>System junk cleanup</strong></td>
+                    <td class="highlight cross">No</td>
+                    <td class="check">Yes</td>
+                    <td class="cross">No</td>
+                    <td class="check">Yes</td>
+                    <td class="cross">No</td>
+                </tr>
+                <tr>
+                    <td><strong>macOS compatibility</strong></td>
+                    <td class="highlight">14+ (Sonoma)</td>
+                    <td>12+</td>
+                    <td>10.15+</td>
+                    <td>Varies</td>
+                    <td>12+</td>
+                </tr>
+                <tr>
+                    <td><strong>Install via Homebrew</strong></td>
+                    <td class="highlight check">Yes</td>
+                    <td class="check">Yes</td>
+                    <td class="check">Yes</td>
+                    <td class="check">Yes</td>
+                    <td class="cross">App Store</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="cleardisk">ClearDisk (Free, Open Source)</h2>
+
+        <div class="tool-card">
+            <h3>ClearDisk</h3>
+            <p class="price">Free -- MIT License -- Open Source</p>
+            <p>Menu bar app built with Swift/SwiftUI. Focuses specifically on developer caches that other cleaners miss entirely.</p>
+
+            <p><strong class="pros">Pros:</strong></p>
+            <ul>
+                <li>100% free, no trials, no upsells, no subscriptions</li>
+                <li>Open source -- you can audit exactly what it does</li>
+                <li>Menu bar app -- always one click away, no window management</li>
+                <li>Detects 15+ developer cache types (Xcode, npm, Docker, pip, CocoaPods, Cargo, SPM, Homebrew, etc.)</li>
+                <li>Shows real-time sizes before you clean anything</li>
+                <li>Install via Homebrew: <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></li>
+                <li>Lightweight (~590 KB)</li>
+            </ul>
+
+            <p><strong class="cons">Cons:</strong></p>
+            <ul>
+                <li>Requires macOS 14 (Sonoma) or later</li>
+                <li>No disk space visualization (sunburst chart etc.)</li>
+                <li>No malware scanning or system junk cleanup</li>
+                <li>Developer-focused -- not for general system maintenance</li>
+                <li>Relatively new project, smaller community</li>
+            </ul>
+
+            <p><strong>Best for:</strong> Developers who want a free, trustworthy tool that knows exactly where Xcode, Node.js, Docker, and other dev tools hide their caches.</p>
+        </div>
+
+        <h2 id="cleanmymac">CleanMyMac X ($40--90/year)</h2>
+
+        <div class="tool-card">
+            <h3>CleanMyMac X by MacPaw</h3>
+            <p class="price">$40/year (1 Mac) -- $90/year (5 Macs) -- or $120 one-time</p>
+            <p>The most well-known Mac cleaner. All-in-one with system cleaning, malware scanning, app updates, and more.</p>
+
+            <p><strong class="pros">Pros:</strong></p>
+            <ul>
+                <li>Most comprehensive feature set -- cleaning, malware, updates, uninstaller</li>
+                <li>Polished UI with disk visualization</li>
+                <li>Cleans system caches, logs, mail attachments, Trash</li>
+                <li>Apple-notarized, well-established company</li>
+                <li>Good at finding general system junk</li>
+            </ul>
+
+            <p><strong class="cons">Cons:</strong></p>
+            <ul>
+                <li>Expensive -- $40-90/year ongoing subscription</li>
+                <li>Closed source -- you can't verify what it does or deletes</li>
+                <li>Doesn't know about most developer caches (node_modules, Docker, pip, CocoaPods, Cargo)</li>
+                <li>Aggressive upsell notifications</li>
+                <li>Some Reddit users report it as "scamware" or unnecessary for tech-savvy users</li>
+                <li>macOS already has built-in storage management (Apple menu -> About This Mac -> Storage)</li>
+            </ul>
+
+            <p><strong>Best for:</strong> Non-technical users who want a one-click solution and don't mind paying a subscription. Less useful for developers who need targeted cache cleanup.</p>
+        </div>
+
+        <h2 id="daisydisk">DaisyDisk ($10 one-time)</h2>
+
+        <div class="tool-card">
+            <h3>DaisyDisk</h3>
+            <p class="price">$10 one-time -- Mac App Store or direct</p>
+            <p>Beautiful disk space visualizer with a sunburst chart. Scans your entire disk and shows what's taking space.</p>
+
+            <p><strong class="pros">Pros:</strong></p>
+            <ul>
+                <li>Best disk visualization -- interactive sunburst chart</li>
+                <li>One-time purchase, no subscription</li>
+                <li>Fast full-disk scan</li>
+                <li>Drag-and-drop deletion</li>
+                <li>Shows hidden files that Finder doesn't</li>
+                <li>Apple Design Award winner</li>
+            </ul>
+
+            <p><strong class="cons">Cons:</strong></p>
+            <ul>
+                <li>Doesn't know what developer caches are -- you have to find them manually in the chart</li>
+                <li>No automated cleanup categories</li>
+                <li>Scan-and-browse approach means you need to know what to look for</li>
+                <li>Can't clean system-protected locations without admin privileges</li>
+            </ul>
+
+            <p><strong>Best for:</strong> Anyone who wants to understand where their disk space went. Excellent visual tool, but pairs well with a dev-specific cleaner like ClearDisk for targeted cleanup.</p>
+        </div>
+
+        <h2 id="onyx">OnyX (Free)</h2>
+
+        <div class="tool-card">
+            <h3>OnyX by Titanium Software</h3>
+            <p class="price">Free</p>
+            <p>Swiss army knife for macOS maintenance. Cleans system caches, runs maintenance scripts, tweaks hidden settings.</p>
+
+            <p><strong class="pros">Pros:</strong></p>
+            <ul>
+                <li>Free, well-respected, been around since Mac OS X 10.0</li>
+                <li>Cleans system, user, and font caches</li>
+                <li>Runs macOS maintenance scripts</li>
+                <li>Verifies disk and system file integrity</li>
+                <li>Tons of hidden macOS preferences tweaks</li>
+            </ul>
+
+            <p><strong class="cons">Cons:</strong></p>
+            <ul>
+                <li>Looks dated, complex UI</li>
+                <li>Not developer-focused -- doesn't know about Xcode, npm, Docker caches</li>
+                <li>Must download the correct version for your exact macOS version</li>
+                <li>Can be confusing for beginners</li>
+                <li>No automatic detection of what to clean</li>
+            </ul>
+
+            <p><strong>Best for:</strong> Power users who want system maintenance tools beyond just disk cleanup. Not a replacement for dev-specific cache cleaning.</p>
+        </div>
+
+        <h2 id="devcleaner">DevCleaner for Xcode (Free)</h2>
+
+        <div class="tool-card">
+            <h3>DevCleaner</h3>
+            <p class="price">Free -- Open Source -- Mac App Store</p>
+            <p>Focused exclusively on cleaning Xcode-related caches: DerivedData, Archives, Device Support, and documentation.</p>
+
+            <p><strong class="pros">Pros:</strong></p>
+            <ul>
+                <li>Free on the Mac App Store</li>
+                <li>Open source</li>
+                <li>Thorough Xcode cleanup (DerivedData, Archives, old simulators, documentation)</li>
+                <li>Simple, focused UI</li>
+            </ul>
+
+            <p><strong class="cons">Cons:</strong></p>
+            <ul>
+                <li>Xcode only -- doesn't touch node_modules, Docker, pip, Homebrew, CocoaPods, etc.</li>
+                <li>Not a menu bar app -- needs to be launched manually</li>
+                <li>If you don't use Xcode, this app is useless</li>
+            </ul>
+
+            <p><strong>Best for:</strong> iOS/macOS developers who only need Xcode cleanup. Consider ClearDisk if you also use Node.js, Docker, Python, or other dev tools.</p>
+        </div>
+
+        <h2 id="terminal">Terminal Commands (Free, DIY)</h2>
+
+        <div class="tool-card">
+            <h3>Manual Terminal Cleanup</h3>
+            <p class="price">Free -- comes with macOS</p>
+            <p>You can clean everything manually with terminal commands. No app needed.</p>
+
+            <pre><code># Xcode DerivedData
+rm -rf ~/Library/Developer/Xcode/DerivedData
+
+# node_modules (find all, show sizes)
+find ~ -name "node_modules" -type d -prune -exec du -sm {} \;
+
+# Docker
+docker system prune -a --volumes
+
+# Homebrew
+brew cleanup --prune=all
+
+# pip
+pip cache purge
+
+# CocoaPods
+pod cache clean --all && rm -rf ~/Library/Caches/CocoaPods
+
+# npm cache
+npm cache clean --force</code></pre>
+
+            <p><strong>Pros:</strong> Free, precise control, nothing to install</p>
+            <p><strong>Cons:</strong> You need to remember 10+ different commands for different tools. No size preview. Easy to miss locations. Tedious to do regularly.</p>
+            <p><strong>Best for:</strong> Developers comfortable with the terminal who want maximum control. Or use ClearDisk to see everything at once, then use terminal commands selectively.</p>
+        </div>
+
+        <h2 id="who">Which Tool is Right For You?</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>If you are...</th>
+                    <th>Use this</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>A developer who uses Xcode, Node.js, Docker, Python, etc.</td>
+                    <td><strong>ClearDisk</strong> (free, knows all dev caches)</td>
+                </tr>
+                <tr>
+                    <td>Curious what's eating your disk space visually</td>
+                    <td><strong>DaisyDisk</strong> ($10, best visualization)</td>
+                </tr>
+                <tr>
+                    <td>A non-technical user who wants one-click cleanup</td>
+                    <td><strong>CleanMyMac X</strong> ($40-90/yr, most features)</td>
+                </tr>
+                <tr>
+                    <td>An iOS-only developer using just Xcode</td>
+                    <td><strong>DevCleaner</strong> (free, Xcode-focused)</td>
+                </tr>
+                <tr>
+                    <td>A power user who wants system maintenance</td>
+                    <td><strong>OnyX</strong> (free, system-level)</td>
+                </tr>
+                <tr>
+                    <td>Someone who wants to understand + clean everything</td>
+                    <td><strong>ClearDisk + DaisyDisk</strong> (free + $10)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tip">
+            <strong>Our honest recommendation:</strong> For most developers, start with ClearDisk (free). It'll find 20-100GB of dev caches in seconds. If you also want a visual map of your entire disk, add DaisyDisk ($10). Together they cover everything for $10 total vs CleanMyMac's $40-90/year.
+        </div>
+
+        <div class="cta-box">
+            <h3>Try ClearDisk -- Free, Open Source, No Signups</h3>
+            <p>See exactly how much space your developer caches are using. Xcode, Node.js, Docker, Homebrew, pip, CocoaPods, Cargo, and 10+ more -- all from your menu bar.</p>
+            <p style="margin-top: 15px;">
+                <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+            </p>
+            <p style="margin-top: 10px;">
+                <a href="https://github.com/bysiber/cleardisk">View on GitHub</a> |
+                <a href="https://github.com/bysiber/cleardisk/releases/latest">Download DMG</a>
+            </p>
+        </div>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e5e7;">
+
+        <h2>About This Comparison</h2>
+        <p>This comparison was last updated in January 2025. All prices and features were verified at the time of writing. ClearDisk is our project, so naturally we think it's great for developers -- but we've tried to be fair about the strengths of each alternative. If you think we've gotten something wrong, <a href="https://github.com/bysiber/cleardisk/issues">open an issue on GitHub</a> and we'll fix it.</p>
+
+        <p><strong>Previously recommended FOSS alternative:</strong> CleanMe was a popular free/open-source Mac cleaner recommended in many CleanMyMac comparison threads. It was <a href="https://github.com/Kevin-De-Koninck/Clean-Me">discontinued in January 2022</a>. ClearDisk fills a similar niche with a focus on developer caches specifically.</p>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="docker-disk-space-cleanup-mac.html">Docker Disk Space Guide</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Guide</a> | <a href="clean-node-modules-mac.html">node_modules Guide</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>

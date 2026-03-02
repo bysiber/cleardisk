@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Taking Up Too Much Disk Space on Mac? Complete 2025 Fix Guide</title>
+    <meta name="description" content="Docker Desktop can consume 20-200GB+ on your Mac. Learn how to reclaim disk space with docker system prune, shrink Docker.raw, clean build cache, and automate cleanup.">
+    <meta name="keywords" content="docker disk space mac, docker system prune, docker.raw too big, docker taking up space, clean docker cache mac, docker desktop disk usage, docker build cache, docker images cleanup, reclaim docker disk space, docker for mac storage">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">
+
+    <meta property="og:title" content="Docker Taking Up Too Much Disk Space on Mac? Complete Fix Guide">
+    <meta property="og:description" content="Docker Desktop can consume 20-200GB+ on your Mac. Learn how to reclaim all of it.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Docker Taking Up Too Much Disk Space on Mac? Complete 2025 Fix Guide",
+        "description": "Docker Desktop can consume 20-200GB+ on your Mac. Learn how to reclaim space by cleaning images, containers, build cache, and the Docker.raw disk image.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-20",
+        "dateModified": "2025-01-20",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        h2 { font-size: 1.5em; margin-top: 40px; margin-bottom: 15px; color: #1d1d1f; border-bottom: 2px solid #0071e3; padding-bottom: 5px; display: inline-block; }
+        h3 { font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+        .meta { color: #6e6e73; margin-bottom: 30px; font-size: 0.95em; }
+        p { margin-bottom: 15px; }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 5px; }
+
+        .toc { background: #f5f5f7; padding: 20px 30px; border-radius: 12px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { padding-left: 20px; }
+        .toc a { color: #0071e3; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 18px 22px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 20px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code { background: #f5f5f7; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { background: #f5f5f7; font-weight: 600; }
+
+        .total-box {
+            background: #f5f5f7;
+            padding: 25px;
+            border-radius: 16px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .total-box .number { font-size: 3em; font-weight: 700; color: #0071e3; }
+
+        .cta-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 35px 0;
+            text-align: center;
+        }
+        .cta-box h3 { color: white; margin-top: 0; font-size: 1.4em; }
+        .cta-box a { color: white; }
+        .cta-box code { background: rgba(255,255,255,0.2); color: white; }
+
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: #6e6e73;
+            font-size: 0.9em;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 40px;
+        }
+        footer a { color: #0071e3; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Docker Taking Up Too Much Disk Space on Mac? Complete Fix Guide</h1>
+        <p class="meta">Updated January 2025 -- Covers Docker Desktop 4.x on macOS (Apple Silicon + Intel)</p>
+
+        <div class="total-box">
+            <div class="number">20--200+ GB</div>
+            <p>Typical disk space consumed by Docker Desktop on a developer's Mac</p>
+        </div>
+
+        <p>Docker Desktop on macOS stores everything inside a single disk image file called <code>Docker.raw</code> (or <code>Docker.qcow2</code> on older versions). This file grows as you pull images, run containers, and build projects -- but it <strong>never automatically shrinks</strong>, even after you delete containers and images.</p>
+
+        <p>This guide covers every way to reclaim Docker disk space on your Mac, from quick one-liners to nuclear options.</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#where">Where Docker Stores Data on macOS</a></li>
+                <li><a href="#check">How to Check Docker Disk Usage</a></li>
+                <li><a href="#quick">Quick Cleanup: docker system prune</a></li>
+                <li><a href="#images">Clean Up Docker Images</a></li>
+                <li><a href="#buildcache">Clean Build Cache (The Hidden Space Hog)</a></li>
+                <li><a href="#volumes">Clean Docker Volumes</a></li>
+                <li><a href="#raw">Shrink the Docker.raw File</a></li>
+                <li><a href="#nuclear">Nuclear Option: Full Reset</a></li>
+                <li><a href="#prevent">Prevent Docker From Eating Your Disk</a></li>
+                <li><a href="#automate">Automate Docker Cleanup</a></li>
+                <li><a href="#gui">GUI Alternative: See All Dev Caches at Once</a></li>
+            </ol>
+        </div>
+
+        <h2 id="where">1. Where Docker Stores Data on macOS</h2>
+
+        <p>Unlike Linux where Docker stores files directly in <code>/var/lib/docker</code>, Docker Desktop for Mac uses a Linux VM. All Docker data lives inside a single disk image:</p>
+
+        <pre><code># Docker Desktop 4.x (default location)
+~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
+
+# Older versions may use:
+~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.qcow2
+
+# Check the actual size
+ls -lh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw</code></pre>
+
+        <div class="info">
+            <strong>Why is Docker.raw so big?</strong> Docker Desktop pre-allocates a virtual disk (default: 64GB). Even if your actual Docker data is only 5GB, the sparse file may report a larger size. Use <code>du -h</code> (not <code>ls -lh</code>) to see actual disk usage.
+        </div>
+
+        <p>Other Docker-related locations on macOS:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>What It Contains</th>
+                    <th>Typical Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>~/Library/Containers/com.docker.docker/</code></td>
+                    <td>VM disk image (Docker.raw), logs, configs</td>
+                    <td>10--200+ GB</td>
+                </tr>
+                <tr>
+                    <td><code>~/Library/Group Containers/group.com.docker/</code></td>
+                    <td>Docker Desktop settings, extensions</td>
+                    <td>50--500 MB</td>
+                </tr>
+                <tr>
+                    <td><code>~/.docker/</code></td>
+                    <td>CLI config, auth tokens, plugins</td>
+                    <td>1--50 MB</td>
+                </tr>
+                <tr>
+                    <td><code>/Applications/Docker.app</code></td>
+                    <td>Application binary</td>
+                    <td>~1.5 GB</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="check">2. How to Check Docker Disk Usage</h2>
+
+        <p>Before cleaning, check what's taking space:</p>
+
+        <pre><code># Summary of Docker disk usage
+docker system df
+
+# Detailed breakdown
+docker system df -v</code></pre>
+
+        <p>Example output:</p>
+
+        <pre><code>TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          47        3         18.27GB   15.81GB (86%)
+Containers      5         2         1.43GB    1.12GB (78%)
+Local Volumes   12        2         8.54GB    7.21GB (84%)
+Build Cache     89        0         12.4GB    12.4GB (100%)</code></pre>
+
+        <div class="tip">
+            <strong>Key insight:</strong> Look at the "Reclaimable" column. In this example, <strong>36.54GB</strong> can be safely reclaimed. Build cache is often the biggest surprise -- 100% reclaimable and rarely noticed.
+        </div>
+
+        <p>To check the actual Docker.raw file size on disk:</p>
+
+        <pre><code># Apparent size (what Docker allocated)
+ls -lh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
+
+# Actual disk usage (real space consumed)
+du -h ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw</code></pre>
+
+        <h2 id="quick">3. Quick Cleanup: docker system prune</h2>
+
+        <p>The fastest way to reclaim space with one command:</p>
+
+        <pre><code># Remove stopped containers, unused networks, dangling images, build cache
+docker system prune
+
+# Also remove ALL unused images (not just dangling ones)
+docker system prune -a
+
+# Also remove unused volumes (careful!)
+docker system prune -a --volumes
+
+# Skip the confirmation prompt
+docker system prune -a -f</code></pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> <code>docker system prune -a --volumes</code> removes ALL unused images and volumes. You'll need to re-pull images and recreate volumes. This is safe if you don't have important data in Docker volumes.
+        </div>
+
+        <p>What each flag removes:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Command</th>
+                    <th>Removes</th>
+                    <th>Typical Space Saved</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>docker system prune</code></td>
+                    <td>Stopped containers, unused networks, dangling images, build cache</td>
+                    <td>2--20 GB</td>
+                </tr>
+                <tr>
+                    <td><code>docker system prune -a</code></td>
+                    <td>+ all unused images</td>
+                    <td>5--50 GB</td>
+                </tr>
+                <tr>
+                    <td><code>docker system prune -a --volumes</code></td>
+                    <td>+ unused volumes</td>
+                    <td>10--100+ GB</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="images">4. Clean Up Docker Images</h2>
+
+        <p>Images are usually the biggest space consumer. Most developers accumulate dozens of unused images over time.</p>
+
+        <pre><code># List all images sorted by size
+docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | sort -k3 -h
+
+# List dangling images (untagged, no container using them)
+docker images -f "dangling=true"
+
+# Remove all dangling images
+docker image prune
+
+# Remove ALL unused images (not used by any container)
+docker image prune -a
+
+# Remove a specific image
+docker rmi image_name:tag
+
+# Remove all images matching a pattern
+docker images | grep "myapp" | awk '{print $3}' | xargs docker rmi</code></pre>
+
+        <h3>Common Large Images to Watch For</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Size</th>
+                    <th>Leaner Alternative</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>ubuntu:latest</code></td>
+                    <td>~77 MB</td>
+                    <td><code>alpine:latest</code> (~7 MB)</td>
+                </tr>
+                <tr>
+                    <td><code>node:latest</code></td>
+                    <td>~1.1 GB</td>
+                    <td><code>node:alpine</code> (~180 MB)</td>
+                </tr>
+                <tr>
+                    <td><code>python:latest</code></td>
+                    <td>~1 GB</td>
+                    <td><code>python:slim</code> (~150 MB)</td>
+                </tr>
+                <tr>
+                    <td><code>postgres:latest</code></td>
+                    <td>~430 MB</td>
+                    <td><code>postgres:alpine</code> (~240 MB)</td>
+                </tr>
+                <tr>
+                    <td><code>openjdk:latest</code></td>
+                    <td>~470 MB</td>
+                    <td><code>eclipse-temurin:alpine</code> (~340 MB)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tip">
+            <strong>Tip:</strong> Switch to <code>-alpine</code> or <code>-slim</code> base images in your Dockerfiles. The difference adds up fast -- a project with 10 images could save 8+ GB just by switching bases.
+        </div>
+
+        <h2 id="buildcache">5. Clean Build Cache (The Hidden Space Hog)</h2>
+
+        <p>Docker's build cache (BuildKit) is often the <strong>largest hidden consumer</strong> of disk space. It stores intermediate layers from every <code>docker build</code> you've ever run.</p>
+
+        <pre><code># Check build cache size
+docker buildx du
+
+# Detailed build cache breakdown
+docker buildx du --verbose
+
+# Clear ALL build cache
+docker builder prune -a
+
+# Clear build cache older than 24 hours
+docker builder prune --filter "until=24h"
+
+# Clear build cache older than 7 days
+docker builder prune --filter "until=168h"</code></pre>
+
+        <div class="info">
+            <strong>Why is build cache so large?</strong> Every <code>RUN</code>, <code>COPY</code>, and <code>ADD</code> instruction in your Dockerfile creates a cached layer. If you build 10 different projects with different base images and dependencies, the cache can easily reach 20--50GB.
+        </div>
+
+        <h2 id="volumes">6. Clean Docker Volumes</h2>
+
+        <p>Docker volumes persist data beyond container lifecycle. Old volumes from deleted projects pile up quietly.</p>
+
+        <pre><code># List all volumes with size
+docker system df -v | grep -A 100 "Local Volumes space usage"
+
+# List volumes
+docker volume ls
+
+# Find dangling (unused) volumes
+docker volume ls -f "dangling=true"
+
+# Remove all unused volumes
+docker volume prune
+
+# Remove a specific volume
+docker volume rm volume_name
+
+# Remove all volumes (DESTRUCTIVE -- removes database data etc.)
+docker volume rm $(docker volume ls -q)</code></pre>
+
+        <div class="danger">
+            <strong>Danger:</strong> Volumes may contain database data (Postgres, MySQL, Redis), file uploads, or other persistent state. Always check what a volume contains before deleting: <code>docker volume inspect volume_name</code>
+        </div>
+
+        <h2 id="raw">7. Shrink the Docker.raw File</h2>
+
+        <p>This is the most frustrating part of Docker on macOS. Even after running <code>docker system prune -a --volumes</code>, the <code>Docker.raw</code> file might still be 50GB+. That's because <strong>the virtual disk doesn't automatically shrink</strong> after data is deleted.</p>
+
+        <h3>Method 1: Reduce Virtual Disk Size Limit</h3>
+
+        <ol>
+            <li>Open Docker Desktop</li>
+            <li>Go to Settings (gear icon) -> Resources -> Advanced</li>
+            <li>Reduce "Virtual disk limit" (default is 64GB)</li>
+            <li>Click "Apply & Restart"</li>
+        </ol>
+
+        <div class="warning">
+            <strong>Note:</strong> You can only reduce it to the amount of space currently used. If Docker is using 15GB, you can shrink the limit to 16GB but not lower.
+        </div>
+
+        <h3>Method 2: Factory Reset (Guaranteed Fix)</h3>
+
+        <ol>
+            <li>Open Docker Desktop</li>
+            <li>Click the bug icon (Troubleshoot) in the top right</li>
+            <li>Click "Clean / Purge data"</li>
+            <li>Or click "Reset to factory defaults"</li>
+        </ol>
+
+        <p>This creates a fresh, small Docker.raw file. You'll need to re-pull all images.</p>
+
+        <h3>Method 3: Manual TRIM (Advanced)</h3>
+
+        <p>On Docker Desktop 4.x with VirtioFS, you can try triggering a TRIM/FSTRIM operation:</p>
+
+        <pre><code># Enter the Docker VM
+docker run --rm -it --privileged --pid=host debian nsenter -t 1 -m -u -n -i bash
+
+# Inside the VM, run fstrim
+fstrim -v /var/lib/docker
+
+# Exit
+exit</code></pre>
+
+        <div class="info">
+            <strong>Docker Desktop 4.28+</strong> improved automatic TRIM support with the Apple Virtualization framework. If you're on an older version, updating Docker Desktop alone may shrink the file.
+        </div>
+
+        <h2 id="nuclear">8. Nuclear Option: Full Docker Reset</h2>
+
+        <p>When nothing else works, or when Docker.raw has grown to 100GB+, a complete removal is the most effective approach:</p>
+
+        <pre><code># 1. Quit Docker Desktop completely
+osascript -e 'quit app "Docker"'
+
+# 2. Remove Docker.raw (the big one)
+rm -rf ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
+
+# 3. Optionally remove ALL Docker data
+rm -rf ~/Library/Containers/com.docker.docker
+rm -rf ~/Library/Group\ Containers/group.com.docker
+rm -rf ~/.docker
+
+# 4. Restart Docker Desktop -- it will create a fresh, small Docker.raw
+open -a Docker</code></pre>
+
+        <div class="total-box">
+            <div class="number">3 minutes</div>
+            <p>Time to go from 100GB Docker.raw to a fresh ~1GB one</p>
+        </div>
+
+        <p>After restart, Docker creates a new Docker.raw at minimal size. Re-pull only the images you actually need:</p>
+
+        <pre><code># Only pull what you need for current projects
+docker compose pull   # in your project directory</code></pre>
+
+        <h2 id="prevent">9. Prevent Docker From Eating Your Disk</h2>
+
+        <h3>Set a Disk Size Limit</h3>
+        <p>Docker Desktop -> Settings -> Resources -> Advanced -> Virtual disk limit. Set this to a reasonable value (32GB is fine for most developers).</p>
+
+        <h3>Use Multi-Stage Builds</h3>
+        <pre><code># Bad: Single stage, keeps all build tools in final image
+FROM node:20
+WORKDIR /app
+COPY . .
+RUN npm ci && npm run build
+CMD ["node", "dist/main.js"]
+
+# Good: Multi-stage, final image only has runtime
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+CMD ["node", "dist/main.js"]</code></pre>
+
+        <h3>Add a .dockerignore</h3>
+        <pre><code># .dockerignore
+node_modules
+.git
+.env
+*.md
+dist
+coverage
+.next
+__pycache__</code></pre>
+
+        <h3>Use Alpine Base Images</h3>
+        <p>Switch from <code>node:20</code> (1.1GB) to <code>node:20-alpine</code> (180MB). Same for Python, Ruby, and Java images.</p>
+
+        <h3>Regular Cleanup Schedule</h3>
+        <p>Add this to your shell profile (<code>~/.zshrc</code>):</p>
+
+        <pre><code># Weekly Docker cleanup reminder
+docker_cleanup() {
+    echo "Docker disk usage:"
+    docker system df
+    echo ""
+    echo "Run 'docker system prune -a' to clean up"
+}
+
+# Auto-cleanup containers older than 48 hours
+alias docker-clean='docker system prune -a --filter "until=48h" -f'</code></pre>
+
+        <h2 id="automate">10. Automate Docker Cleanup</h2>
+
+        <h3>Cron Job for Weekly Cleanup</h3>
+
+        <pre><code># Add to crontab (crontab -e)
+# Every Sunday at 3 AM: prune Docker, keep images used in last 7 days
+0 3 * * 0 docker system prune -a --filter "until=168h" -f >> /tmp/docker-prune.log 2>&1</code></pre>
+
+        <h3>Docker Desktop Settings</h3>
+        <p>Docker Desktop 4.30+ includes built-in resource management:</p>
+        <ul>
+            <li>Settings -> Resources -> Advanced -> "Virtual disk limit" -- caps total Docker storage</li>
+            <li>Settings -> General -> "Use containerd" -- better layer sharing, reduces duplicate storage</li>
+        </ul>
+
+        <h3>CI/CD Tip</h3>
+        <p>If you use Docker in CI/CD locally (e.g., testing GitHub Actions with <code>act</code>), CI runners download massive images. Clean up after CI test runs:</p>
+
+        <pre><code># After running local CI tests
+docker system prune -a -f --filter "label=com.github.actions.runner"</code></pre>
+
+        <h2 id="gui">11. Skip the Terminal: See All Dev Caches at Once</h2>
+
+        <p>Docker is just one of many space consumers on a developer Mac. If you also use Xcode, Node.js, Homebrew, pip, CocoaPods, or Cargo, you likely have <strong>50--100GB of caches</strong> spread across 15+ locations.</p>
+
+        <div class="cta-box">
+            <h3>ClearDisk -- See All Developer Caches in One Click</h3>
+            <p>Free, open-source macOS menu bar app that detects Docker cache, Xcode DerivedData, node_modules, Homebrew, pip, CocoaPods, and 10+ more locations. Shows sizes in real-time -- clean what you want, keep what you need.</p>
+            <p style="margin-top: 15px;">
+                <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+            </p>
+            <p style="margin-top: 10px;">
+                <a href="https://github.com/bysiber/cleardisk">View on GitHub</a> |
+                <a href="https://github.com/bysiber/cleardisk/releases/latest">Download DMG</a>
+            </p>
+        </div>
+
+        <p>ClearDisk shows Docker cache alongside all your other developer caches in a single menu bar dropdown, so you can see the full picture without running multiple terminal commands.</p>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e5e7;">
+
+        <h2>Quick Reference</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Command</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Check disk usage</td>
+                    <td><code>docker system df</code></td>
+                </tr>
+                <tr>
+                    <td>Quick cleanup</td>
+                    <td><code>docker system prune</code></td>
+                </tr>
+                <tr>
+                    <td>Deep cleanup</td>
+                    <td><code>docker system prune -a --volumes</code></td>
+                </tr>
+                <tr>
+                    <td>Clean build cache</td>
+                    <td><code>docker builder prune -a</code></td>
+                </tr>
+                <tr>
+                    <td>Remove dangling images</td>
+                    <td><code>docker image prune</code></td>
+                </tr>
+                <tr>
+                    <td>Remove unused volumes</td>
+                    <td><code>docker volume prune</code></td>
+                </tr>
+                <tr>
+                    <td>Check Docker.raw size</td>
+                    <td><code>du -h ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw</code></td>
+                </tr>
+                <tr>
+                    <td>Full reset</td>
+                    <td>Docker Desktop -> Troubleshoot -> Clean / Purge data</td>
+                </tr>
+                <tr>
+                    <td>GUI cleanup (all caches)</td>
+                    <td><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e5e7;">
+
+        <h2>FAQ</h2>
+
+        <h3>Why is Docker.raw so big even after pruning?</h3>
+        <p>The Docker.raw file is a sparse disk image that grows but doesn't shrink automatically. After pruning, the space is freed <em>inside</em> the VM but the file stays the same size on your Mac. Use Docker Desktop's "Clean / Purge data" or manually delete and restart to reclaim the host disk space.</p>
+
+        <h3>Will docker system prune delete my running containers?</h3>
+        <p>No. <code>docker system prune</code> only removes stopped containers, unused networks, dangling images, and build cache. Running containers and their images are never touched.</p>
+
+        <h3>Is it safe to delete Docker.raw directly?</h3>
+        <p>Yes, but quit Docker Desktop first. When you restart Docker, it creates a fresh Docker.raw. You'll lose all images, containers, and volumes -- equivalent to a factory reset.</p>
+
+        <h3>How often should I clean Docker?</h3>
+        <p>Weekly <code>docker system prune</code> is a good habit. Monthly <code>docker system prune -a</code> for deeper cleanup. Or use a cron job to automate it.</p>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Disk Space Guide</a> | <a href="clean-node-modules-mac.html">Clean node_modules</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
