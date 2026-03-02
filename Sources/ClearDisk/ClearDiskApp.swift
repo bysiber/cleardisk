@@ -89,10 +89,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if pct >= 80 && cleanable > 0 {
             let cleanGB = Double(cleanable) / 1_073_741_824
             if cleanGB >= 1.0 {
-                button.title = " \(String(format: "%.0f", cleanGB))GB ♻️"
+                button.title = " \(String(format: "%.0f", cleanGB))GB"
             } else {
                 let cleanMB = Double(cleanable) / 1_048_576
-                button.title = " \(String(format: "%.0f", cleanMB))MB ♻️"
+                button.title = " \(String(format: "%.0f", cleanMB))MB"
             }
         } else {
             let freeGB = diskMonitor.freeSpace / 1_073_741_824
