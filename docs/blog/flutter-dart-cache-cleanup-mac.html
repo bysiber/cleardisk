@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flutter &amp; Dart Cache Cleanup on Mac -- Free 10-30GB of Disk Space | ClearDisk</title>
+    <meta name="description" content="Flutter and Dart SDK caches, pub packages, and build artifacts can consume 10-30GB on macOS. Learn how to find, audit, and clean Flutter caches safely.">
+    <meta name="keywords" content="flutter cache cleanup mac, dart pub cache, flutter sdk disk space, flutter build cleanup, flutter clean mac, dart cache mac, flutter pub cache repair, flutter artifacts size">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/flutter-dart-cache-cleanup-mac.html">
+    <meta property="og:title" content="Flutter &amp; Dart Cache Cleanup on Mac -- Free 10-30GB">
+    <meta property="og:description" content="Flutter SDK, Dart pub cache, and build artifacts eating your disk? Here's how to safely clean up and reclaim 10-30GB on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/flutter-dart-cache-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Flutter &amp; Dart Cache Cleanup on Mac">
+    <meta name="twitter:description" content="Clean Flutter SDK caches, pub packages, and build artifacts. Reclaim 10-30GB on macOS.">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Flutter & Dart Cache Cleanup on Mac -- Free 10-30GB of Disk Space",
+        "description": "Complete guide to finding and cleaning Flutter SDK caches, Dart pub packages, build artifacts, and emulator data on macOS.",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "datePublished": "2025-07-18",
+        "dateModified": "2025-07-18",
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/flutter-dart-cache-cleanup-mac.html",
+        "keywords": ["flutter", "dart", "cache cleanup", "disk space", "macOS", "pub cache"]
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .article-header { background: linear-gradient(135deg, #027DFD 0%, #0256b0 100%); color: white; padding: 60px 20px; text-align: center; }
+        .article-header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; font-weight: 700; }
+        .article-header .subtitle { font-size: 1.15em; opacity: 0.92; max-width: 600px; margin: 0 auto; }
+        .article-meta { text-align: center; padding: 20px; color: #6e6e73; font-size: 0.9em; border-bottom: 1px solid #f0f0f0; }
+        .content { max-width: 780px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #1d1d1f; letter-spacing: -0.02em; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #1d1d1f; }
+        p { margin-bottom: 18px; color: #424245; font-size: 1.05em; }
+        .alert-box { background: linear-gradient(135deg, #fff3cd, #fff8e1); border-left: 4px solid #ffc107; padding: 20px 25px; border-radius: 8px; margin: 25px 0; }
+        .alert-box strong { color: #856404; }
+        .tip-box { background: linear-gradient(135deg, #d4edda, #e8f5e9); border-left: 4px solid #28a745; padding: 20px 25px; border-radius: 8px; margin: 25px 0; }
+        .tip-box strong { color: #155724; }
+        .info-box { background: linear-gradient(135deg, #d1ecf1, #e0f4f7); border-left: 4px solid #17a2b8; padding: 20px 25px; border-radius: 8px; margin: 25px 0; }
+        .info-box strong { color: #0c5460; }
+        pre { background: #1d1d1f; color: #f5f5f7; padding: 20px 25px; border-radius: 12px; overflow-x: auto; margin: 20px 0; font-size: 0.92em; line-height: 1.6; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #e63946; }
+        .size-table { width: 100%; border-collapse: collapse; margin: 25px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .size-table th { background: #027DFD; color: white; padding: 14px 18px; text-align: left; font-weight: 600; }
+        .size-table td { padding: 12px 18px; border-bottom: 1px solid #f0f0f0; }
+        .size-table tr:hover { background: #f8f9ff; }
+        .size-highlight { color: #e63946; font-weight: 700; }
+        ul, ol { margin: 15px 0 20px 25px; color: #424245; }
+        li { margin-bottom: 8px; font-size: 1.02em; }
+        .cta-box { background: linear-gradient(135deg, #027DFD, #0256b0); color: white; padding: 35px; border-radius: 16px; text-align: center; margin: 40px 0; }
+        .cta-box h3 { color: white; margin-bottom: 12px; }
+        .cta-box p { color: rgba(255,255,255,0.92); }
+        .cta-box a { display: inline-block; background: white; color: #027DFD; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 15px; transition: transform 0.2s; }
+        .cta-box a:hover { transform: scale(1.05); }
+        a { color: #027DFD; }
+        .breadcrumb { max-width: 780px; margin: 20px auto 0; padding: 0 20px; font-size: 0.9em; color: #6e6e73; }
+        .breadcrumb a { color: #027DFD; text-decoration: none; }
+        .footer-nav { max-width: 780px; margin: 0 auto; padding: 30px 20px; border-top: 1px solid #e0e0e0; font-size: 0.92em; color: #6e6e73; text-align: center; line-height: 2; }
+        .footer-nav a { color: #027DFD; text-decoration: none; margin: 0 4px; }
+        .footer-nav a:hover { text-decoration: underline; }
+        @media (max-width: 600px) { .article-header h1 { font-size: 1.6em; } .content { padding: 25px 15px; } pre { padding: 15px; font-size: 0.85em; } }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="../">ClearDisk</a> &rsaquo; <a href="./">Blog</a> &rsaquo; Flutter &amp; Dart Cache Cleanup
+    </div>
+
+    <header class="article-header">
+        <h1>Flutter &amp; Dart Cache Cleanup on Mac -- Free 10-30GB of Disk Space</h1>
+        <p class="subtitle">A complete guide to finding and safely cleaning Flutter SDK caches, Dart pub packages, build artifacts, and emulator data on macOS</p>
+    </header>
+
+    <div class="article-meta">
+        Published July 18, 2025 &bull; 12 min read &bull; by <a href="https://github.com/bysiber" style="color:#027DFD">bysiber</a>
+    </div>
+
+    <article class="content">
+        <p>Flutter is an amazing cross-platform framework, but it comes with a significant disk space cost. Between the Flutter SDK itself, Dart pub cache, platform build artifacts, and iOS simulator data, a typical Flutter developer's Mac can have <strong>10-30GB or more</strong> consumed by Flutter-related files alone.</p>
+
+        <p>In this guide, we'll identify every Flutter and Dart cache directory on macOS, measure their sizes, and show you how to clean them safely -- without breaking your development environment.</p>
+
+        <h2>Where Does Flutter Store Data on macOS?</h2>
+
+        <p>Flutter and Dart scatter data across multiple locations. Here's the complete map:</p>
+
+        <table class="size-table">
+            <thead>
+                <tr><th>Directory</th><th>What It Stores</th><th>Typical Size</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="inline-code">~/development/flutter/</span></td><td>Flutter SDK + engine artifacts</td><td class="size-highlight">2-8 GB</td></tr>
+                <tr><td><span class="inline-code">~/.pub-cache/</span></td><td>Downloaded Dart/Flutter packages</td><td class="size-highlight">1-5 GB</td></tr>
+                <tr><td><span class="inline-code">~/.dartServer/</span></td><td>Dart analysis server cache</td><td>100-500 MB</td></tr>
+                <tr><td><span class="inline-code">~/.dart/</span></td><td>Dart tool cache &amp; analytics</td><td>50-200 MB</td></tr>
+                <tr><td><span class="inline-code">~/.dart-tool/</span></td><td>Dart tool configuration</td><td>10-50 MB</td></tr>
+                <tr><td><span class="inline-code">build/</span> (per project)</td><td>Compiled platform artifacts</td><td class="size-highlight">500 MB - 3 GB each</td></tr>
+                <tr><td><span class="inline-code">.dart_tool/</span> (per project)</td><td>Package config &amp; build cache</td><td>50-200 MB each</td></tr>
+                <tr><td><span class="inline-code">ios/Pods/</span> (per project)</td><td>iOS CocoaPods dependencies</td><td class="size-highlight">200 MB - 2 GB each</td></tr>
+                <tr><td><span class="inline-code">~/Library/Developer/CoreSimulator/</span></td><td>iOS simulators (shared with Xcode)</td><td class="size-highlight">5-30 GB</td></tr>
+                <tr><td><span class="inline-code">~/.android/</span></td><td>Android SDK/AVD data</td><td class="size-highlight">5-20 GB</td></tr>
+            </tbody>
+        </table>
+
+        <div class="alert-box">
+            <strong>&#9888; Reality Check:</strong> A Flutter developer working on both iOS and Android targets can easily have 30-50GB consumed by Flutter-related caches and tools. On a 256GB MacBook, that's 12-20% of your total storage.
+        </div>
+
+        <h2>Step 1: Audit Your Flutter Disk Usage</h2>
+
+        <p>Before cleaning anything, let's measure the damage:</p>
+
+        <pre><code># Flutter SDK size
+du -sh $(which flutter | sed 's|/bin/flutter||')
+
+# Pub cache size
+du -sh ~/.pub-cache/
+
+# Dart caches
+du -sh ~/.dartServer/ ~/.dart/ ~/.dart-tool/ 2>/dev/null
+
+# Find ALL build/ directories in Flutter projects
+find ~/Projects -name "build" -path "*/android/*" -prune -o \
+     -name "build" -type d -print 2>/dev/null | \
+     while read d; do du -sh "$d" 2>/dev/null; done | sort -rh | head -20
+
+# Find all .dart_tool directories
+find ~/Projects -name ".dart_tool" -type d -exec du -sh {} + 2>/dev/null | sort -rh
+
+# iOS Pods in Flutter projects
+find ~/Projects -name "Pods" -path "*/ios/*" -exec du -sh {} + 2>/dev/null | sort -rh
+
+# iOS simulators (shared with Xcode)
+du -sh ~/Library/Developer/CoreSimulator/Devices/ 2>/dev/null
+
+# Android AVDs
+du -sh ~/.android/avd/ 2>/dev/null</code></pre>
+
+        <h2>Step 2: Clean Flutter Project Build Artifacts</h2>
+
+        <p>The safest and most impactful cleanup starts with project-level build artifacts:</p>
+
+        <h3>Clean a Single Project</h3>
+
+        <pre><code># Inside your Flutter project directory:
+flutter clean
+
+# This removes:
+# - build/ directory (compiled artifacts)
+# - .dart_tool/ (package resolution cache)
+# - ios/Pods/ (CocoaPods dependencies)
+# - ios/.symlinks/</code></pre>
+
+        <div class="tip-box">
+            <strong>&#10003; Safe Operation:</strong> <span class="inline-code">flutter clean</span> is always safe. Everything it removes will be regenerated automatically on the next <span class="inline-code">flutter pub get</span> and <span class="inline-code">flutter build</span>.
+        </div>
+
+        <h3>Clean ALL Flutter Projects at Once</h3>
+
+        <pre><code># Find and clean all Flutter projects
+find ~ -name "pubspec.yaml" -maxdepth 5 -type f 2>/dev/null | while read f; do
+    dir=$(dirname "$f")
+    if [ -d "$dir/build" ] || [ -d "$dir/.dart_tool" ]; then
+        echo "Cleaning: $dir"
+        (cd "$dir" && flutter clean 2>/dev/null)
+    fi
+done
+
+# Or just remove build directories directly (faster)
+find ~/Projects -name "build" -type d -not -path "*/.*" | while read d; do
+    size=$(du -sh "$d" 2>/dev/null | cut -f1)
+    echo "Removing $d ($size)"
+    rm -rf "$d"
+done</code></pre>
+
+        <h2>Step 3: Clean the Dart Pub Cache</h2>
+
+        <p>The <span class="inline-code">~/.pub-cache/</span> directory stores every version of every package you've ever used. Over time, it accumulates old versions that are no longer needed.</p>
+
+        <pre><code># Check pub cache size
+du -sh ~/.pub-cache/
+
+# See what's inside
+du -sh ~/.pub-cache/hosted/
+du -sh ~/.pub-cache/git/
+du -sh ~/.pub-cache/bin/
+
+# List cached packages
+ls ~/.pub-cache/hosted/pub.dev/ | wc -l
+
+# Clean and repair pub cache (removes and re-downloads)
+flutter pub cache repair
+
+# Nuclear option: wipe entire pub cache
+flutter pub cache clean
+# Or: rm -rf ~/.pub-cache/hosted/</code></pre>
+
+        <div class="info-box">
+            <strong>&#8505; Note:</strong> <span class="inline-code">flutter pub cache repair</span> re-downloads packages, so it won't save much space permanently. Use <span class="inline-code">flutter pub cache clean</span> to actually free space, then <span class="inline-code">flutter pub get</span> in your active projects to re-download only what you need.
+        </div>
+
+        <h2>Step 4: Clean Flutter SDK Artifacts</h2>
+
+        <p>The Flutter SDK itself can grow over time as it downloads engine artifacts for different platforms and versions:</p>
+
+        <pre><code># Check SDK internal cache
+du -sh $(flutter --version 2>/dev/null | head -1 | awk '{print $NF}')/bin/cache/ 2>/dev/null
+
+# Or find it manually
+du -sh ~/development/flutter/bin/cache/
+
+# Breakdown of SDK cache
+du -sh ~/development/flutter/bin/cache/artifacts/
+du -sh ~/development/flutter/bin/cache/dart-sdk/
+du -sh ~/development/flutter/bin/cache/downloads/
+
+# Clean SDK cache (will re-download on next use)
+flutter precache --all-platforms
+# Or selectively:
+flutter precache --ios --macos   # only platforms you need
+
+# Remove artifacts for platforms you don't target
+# (saves 1-3GB per platform)
+rm -rf ~/development/flutter/bin/cache/artifacts/engine/android*
+rm -rf ~/development/flutter/bin/cache/artifacts/engine/linux*
+rm -rf ~/development/flutter/bin/cache/artifacts/engine/windows*</code></pre>
+
+        <div class="alert-box">
+            <strong>&#9888; Be Careful:</strong> Removing platform artifacts means Flutter will need to re-download them if you later build for that platform. Only remove platforms you're sure you don't need.
+        </div>
+
+        <h2>Step 5: Clean Dart Analysis Server Cache</h2>
+
+        <pre><code># The Dart analysis server accumulates cache data
+du -sh ~/.dartServer/ 2>/dev/null
+
+# Safe to delete -- regenerated automatically
+rm -rf ~/.dartServer/
+
+# Also check for Dart tool caches
+du -sh ~/.dart/ 2>/dev/null
+rm -rf ~/.dart/</code></pre>
+
+        <h2>Step 6: Clean iOS Simulator Data (Flutter iOS Development)</h2>
+
+        <p>If you develop Flutter apps for iOS, simulator data is often the single largest cache item:</p>
+
+        <pre><code># Check simulator sizes
+xcrun simctl list devices | grep -c "Booted\|Shutdown"
+du -sh ~/Library/Developer/CoreSimulator/Devices/
+
+# Delete unavailable/broken simulators
+xcrun simctl delete unavailable
+
+# List all simulators with sizes
+xcrun simctl list devices -j | python3 -c "
+import json, sys, os, subprocess
+data = json.load(sys.stdin)
+for runtime, devices in data.get('devices', {}).items():
+    for d in devices:
+        path = os.path.expanduser(f'~/Library/Developer/CoreSimulator/Devices/{d[\"udid\"]}')
+        if os.path.exists(path):
+            size = subprocess.getoutput(f'du -sh \"{path}\" 2>/dev/null').split('\t')[0]
+            print(f'{size}\t{d[\"name\"]} ({d[\"state\"]})')
+" 2>/dev/null | sort -rh | head -15
+
+# Delete specific old simulators
+xcrun simctl delete &lt;UDID&gt;
+
+# Erase all simulator content (keeps simulators, removes app data)
+xcrun simctl erase all</code></pre>
+
+        <h2>Step 7: Clean Android Build Caches (Flutter Android Development)</h2>
+
+        <pre><code># Gradle caches from Android builds
+du -sh ~/.gradle/caches/
+du -sh ~/.gradle/wrapper/
+
+# Android SDK caches
+du -sh ~/.android/ 2>/dev/null
+du -sh ~/Library/Android/sdk/ 2>/dev/null
+
+# Clean Gradle build cache
+cd your_flutter_project/android
+./gradlew cleanBuildCache 2>/dev/null
+./gradlew clean
+
+# Clean Gradle caches older than 30 days
+find ~/.gradle/caches/ -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
+
+# Remove old Gradle wrapper versions
+ls ~/.gradle/wrapper/dists/
+# Keep only the latest version, remove others</code></pre>
+
+        <h2>Step 8: Clean CocoaPods Cache (Flutter iOS Dependencies)</h2>
+
+        <p>Flutter iOS projects use CocoaPods, which maintains its own cache:</p>
+
+        <pre><code># Check CocoaPods cache
+du -sh ~/Library/Caches/CocoaPods/
+
+# Clean CocoaPods cache
+pod cache clean --all
+
+# Remove Pods directories from all Flutter projects
+find ~/Projects -path "*/ios/Pods" -type d -exec rm -rf {} + 2>/dev/null
+
+# After cleaning, regenerate in your project:
+cd your_project/ios && pod install</code></pre>
+
+        <h2>The Complete Flutter Cleanup Script</h2>
+
+        <p>Here's a comprehensive script that audits and optionally cleans everything:</p>
+
+        <pre><code>#!/bin/bash
+echo "=== Flutter &amp; Dart Disk Usage Audit ==="
+echo ""
+
+# SDK
+SDK_PATH=$(dirname $(dirname $(which flutter 2>/dev/null)) 2>/dev/null)
+if [ -n "$SDK_PATH" ] && [ -d "$SDK_PATH" ]; then
+    echo "Flutter SDK: $(du -sh "$SDK_PATH" 2>/dev/null | cut -f1)"
+    echo "  SDK cache: $(du -sh "$SDK_PATH/bin/cache" 2>/dev/null | cut -f1)"
+fi
+
+# Pub cache
+echo "Pub cache: $(du -sh ~/.pub-cache 2>/dev/null | cut -f1)"
+
+# Dart caches
+echo "Dart server: $(du -sh ~/.dartServer 2>/dev/null | cut -f1)"
+echo "Dart config: $(du -sh ~/.dart 2>/dev/null | cut -f1)"
+
+# Project build artifacts
+TOTAL_BUILD=0
+count=0
+find ~/Projects -name "pubspec.yaml" -maxdepth 5 -type f 2>/dev/null | while read f; do
+    dir=$(dirname "$f")
+    if [ -d "$dir/build" ]; then
+        size=$(du -sk "$dir/build" 2>/dev/null | cut -f1)
+        count=$((count + 1))
+        echo "  Build: $dir/build ($(du -sh "$dir/build" 2>/dev/null | cut -f1))"
+    fi
+done
+
+# iOS Simulators
+echo "iOS Simulators: $(du -sh ~/Library/Developer/CoreSimulator 2>/dev/null | cut -f1)"
+
+# Android
+echo "Android SDK: $(du -sh ~/Library/Android/sdk 2>/dev/null | cut -f1)"
+echo "Android AVDs: $(du -sh ~/.android/avd 2>/dev/null | cut -f1)"
+
+# Gradle (from Android builds)
+echo "Gradle cache: $(du -sh ~/.gradle/caches 2>/dev/null | cut -f1)"
+
+# CocoaPods
+echo "CocoaPods cache: $(du -sh ~/Library/Caches/CocoaPods 2>/dev/null | cut -f1)"
+
+echo ""
+echo "=== Recommendations ==="
+echo "1. Run 'flutter clean' in inactive projects"
+echo "2. Run 'flutter pub cache clean' to clear package cache"
+echo "3. Delete unused iOS simulators: xcrun simctl delete unavailable"
+echo "4. Clean Gradle: find ~/.gradle/caches -mtime +30 -delete"
+echo "5. Use ClearDisk for a visual overview: https://github.com/bysiber/cleardisk"</code></pre>
+
+        <div class="cta-box">
+            <h3>Skip the Manual Work -- Use ClearDisk</h3>
+            <p>ClearDisk is a free, open-source macOS menu bar app that automatically finds and measures all your Flutter, Dart, pub cache, build artifacts, iOS simulators, and Android caches in one clean dashboard.</p>
+            <a href="https://github.com/bysiber/cleardisk">Download ClearDisk Free on GitHub</a>
+        </div>
+
+        <h2>How Much Space Can You Recover?</h2>
+
+        <table class="size-table">
+            <thead>
+                <tr><th>Action</th><th>Space Recovered</th><th>Risk Level</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="inline-code">flutter clean</span> on all projects</td><td class="size-highlight">2-15 GB</td><td>None -- safe</td></tr>
+                <tr><td>Clean pub cache</td><td class="size-highlight">1-5 GB</td><td>Low -- re-downloads on demand</td></tr>
+                <tr><td>Delete unused simulators</td><td class="size-highlight">2-10 GB</td><td>Low -- re-download available</td></tr>
+                <tr><td>Clean Gradle cache</td><td class="size-highlight">1-5 GB</td><td>Low -- re-downloads on build</td></tr>
+                <tr><td>Remove unused SDK platform artifacts</td><td class="size-highlight">1-3 GB</td><td>Medium -- re-download needed</td></tr>
+                <tr><td>Clean CocoaPods cache</td><td class="size-highlight">500 MB - 2 GB</td><td>Low -- <span class="inline-code">pod install</span> restores</td></tr>
+                <tr><td>Delete Dart analysis cache</td><td>100-500 MB</td><td>None -- auto-regenerated</td></tr>
+            </tbody>
+        </table>
+
+        <div class="tip-box">
+            <strong>&#10003; Total Potential Savings:</strong> A thorough Flutter cleanup can recover <strong>10-30GB</strong> on a typical developer machine. Running <span class="inline-code">flutter clean</span> across all projects is the single highest-impact action.
+        </div>
+
+        <h2>Preventing Cache Bloat</h2>
+
+        <p>Keep your Flutter disk usage under control going forward:</p>
+
+        <ol>
+            <li><strong>Run <span class="inline-code">flutter clean</span> before committing</strong> -- build artifacts don't belong in git and don't need to persist</li>
+            <li><strong>Only precache platforms you use</strong> -- <span class="inline-code">flutter precache --ios --macos</span> instead of <span class="inline-code">--all-platforms</span></li>
+            <li><strong>Delete old simulators regularly</strong> -- you probably don't need iOS 15 and 16 simulators anymore</li>
+            <li><strong>Use FVM (Flutter Version Management)</strong> -- manages SDK versions efficiently instead of multiple full installs</li>
+            <li><strong>Schedule monthly cleanups</strong> -- or use ClearDisk to monitor and stay on top of cache growth</li>
+        </ol>
+
+        <h2>Flutter Cache vs Other Developer Tools</h2>
+
+        <p>How does Flutter compare to other tools for disk usage?</p>
+
+        <table class="size-table">
+            <thead>
+                <tr><th>Developer Tool</th><th>Typical Cache Size on macOS</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Flutter + Dart (everything)</td><td class="size-highlight">10-30 GB</td></tr>
+                <tr><td>Xcode + DerivedData + Simulators</td><td class="size-highlight">15-50 GB</td></tr>
+                <tr><td>Docker Desktop</td><td class="size-highlight">10-30 GB</td></tr>
+                <tr><td>node_modules (across projects)</td><td class="size-highlight">5-20 GB</td></tr>
+                <tr><td>Homebrew</td><td>2-8 GB</td></tr>
+                <tr><td>Rust (cargo + target/)</td><td class="size-highlight">5-25 GB</td></tr>
+                <tr><td>Go modules</td><td>1-5 GB</td></tr>
+                <tr><td>Python (pip + virtualenvs)</td><td>2-10 GB</td></tr>
+            </tbody>
+        </table>
+
+        <p>Flutter sits in the upper tier of disk-hungry tools, primarily because of the iOS simulator and Android SDK requirements. If you're doing full cross-platform development (iOS, Android, macOS, web), the combined footprint is substantial.</p>
+
+        <h2>Quick Reference: Essential Cleanup Commands</h2>
+
+        <pre><code># Quick wins (safe, high impact)
+flutter clean                          # Clean current project
+flutter pub cache clean                # Clear package cache
+xcrun simctl delete unavailable        # Remove broken simulators
+
+# Medium impact
+rm -rf ~/.dartServer/                  # Dart analysis cache
+pod cache clean --all                  # CocoaPods cache
+
+# Deep clean
+find ~/Projects -name "build" -path "*/flutter*" -exec rm -rf {} +
+find ~/.gradle/caches -mtime +30 -delete
+
+# Audit
+flutter doctor -v                      # Check Flutter health
+du -sh ~/.pub-cache ~/Library/Developer/CoreSimulator ~/.gradle/caches</code></pre>
+
+        <div class="cta-box">
+            <h3>Automate Your Flutter Cache Monitoring</h3>
+            <p>Stop manually running du commands. ClearDisk sits in your menu bar and shows you Flutter caches, pub packages, simulators, and every other developer cache -- all in one click.</p>
+            <a href="https://github.com/bysiber/cleardisk">Get ClearDisk -- Free &amp; Open Source</a>
+        </div>
+    </article>
+
+    <footer class="footer-nav">
+        More guides:
+        <a href="free-disk-space-mac-developer.html">Free 50GB+</a> &middot;
+        <a href="xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> &middot;
+        <a href="xcode-simulators-device-support-cleanup-mac.html">Simulators &amp; DeviceSupport</a> &middot;
+        <a href="clean-node-modules-mac.html">node_modules</a> &middot;
+        <a href="docker-disk-space-cleanup-mac.html">Docker</a> &middot;
+        <a href="homebrew-cleanup-guide-mac.html">Homebrew</a> &middot;
+        <a href="python-pip-cache-cleanup-mac.html">Python &amp; pip</a> &middot;
+        <a href="rust-cargo-cache-cleanup-mac.html">Rust &amp; Cargo</a> &middot;
+        <a href="go-module-cache-cleanup-mac.html">Go Modules</a> &middot;
+        <a href="gradle-cache-cleanup-mac.html">Gradle</a> &middot;
+        <a href="cocoapods-cache-cleanup-mac.html">CocoaPods</a> &middot;
+        <a href="npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm</a> &middot;
+        <a href="maven-sbt-cache-cleanup-mac.html">Maven &amp; sbt</a> &middot;
+        <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a>
+        <br><br>
+        <a href="../">ClearDisk Home</a> &middot; <a href="./">All Blog Posts</a> &middot; <a href="https://github.com/bysiber/cleardisk">GitHub</a>
+    </footer>
+</body>
+</html>
