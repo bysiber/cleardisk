@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>npm, Yarn & pnpm Cache Taking Up Too Much Disk Space on Mac? Complete Cleanup Guide</title>
+    <meta name="description" content="npm cache, Yarn cache, pnpm store, and node_modules can consume 20-80GB on macOS. Learn how to audit, clean, and manage JavaScript package manager caches to reclaim disk space.">
+    <meta name="keywords" content="npm cache cleanup mac, yarn cache clean, pnpm store prune, node_modules disk space, npm cache verify, javascript cache mac, package manager cleanup">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/npm-yarn-pnpm-cache-cleanup-mac.html">
+    <meta property="og:title" content="npm, Yarn & pnpm Cache Cleanup Guide for Mac">
+    <meta property="og:description" content="JavaScript package manager caches eating your disk space? Complete guide to cleaning npm, Yarn, and pnpm caches on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/npm-yarn-pnpm-cache-cleanup-mac.html">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "npm, Yarn & pnpm Cache Taking Up Too Much Disk Space on Mac?",
+        "description": "Complete guide to auditing and cleaning JavaScript package manager caches on macOS -- npm, Yarn, and pnpm.",
+        "author": {"@type": "Person", "name": "bysiber", "url": "https://github.com/bysiber"},
+        "datePublished": "2025-07-25",
+        "publisher": {"@type": "Organization", "name": "ClearDisk", "url": "https://github.com/bysiber/cleardisk"}
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .container { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+        header { background: linear-gradient(135deg, #f7df1e 0%, #c3b100 100%); padding: 60px 0 50px; text-align: center; }
+        header h1 { font-size: 2.2em; font-weight: 700; color: #1d1d1f; margin-bottom: 12px; }
+        header p { font-size: 1.15em; color: #333; max-width: 640px; margin: 0 auto; }
+        .meta { text-align: center; padding: 16px 0; color: #666; font-size: 0.9em; border-bottom: 1px solid #e5e5e5; margin-bottom: 40px; }
+        h2 { font-size: 1.6em; margin: 48px 0 16px; color: #1d1d1f; border-bottom: 2px solid #f7df1e; padding-bottom: 8px; }
+        h3 { font-size: 1.2em; margin: 32px 0 12px; color: #333; }
+        p { margin: 12px 0; }
+        pre { background: #1d1d1f; color: #f5f5f7; padding: 20px; border-radius: 12px; overflow-x: auto; margin: 16px 0; font-size: 0.9em; line-height: 1.6; }
+        code { font-family: 'SF Mono', Menlo, monospace; font-size: 0.9em; }
+        p code, li code { background: #f5f5f7; padding: 2px 8px; border-radius: 4px; color: #1d1d1f; }
+        .warning { background: #fff3cd; border-left: 4px solid #f7df1e; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .danger { background: #f8d7da; border-left: 4px solid #dc3545; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+        th { background: #f5f5f7; font-weight: 600; }
+        .size-badge { display: inline-block; background: #f7df1e; color: #1d1d1f; padding: 2px 10px; border-radius: 12px; font-weight: 600; font-size: 0.85em; }
+        ul, ol { margin: 12px 0 12px 24px; }
+        li { margin: 6px 0; }
+        .cta { background: linear-gradient(135deg, #f7df1e, #c3b100); padding: 30px; border-radius: 16px; text-align: center; margin: 40px 0; }
+        .cta h3 { color: #1d1d1f; margin-top: 0; }
+        .cta a { display: inline-block; background: #1d1d1f; color: #f7df1e; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 12px; }
+        .toc { background: #f5f5f7; padding: 24px; border-radius: 12px; margin: 30px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { margin: 12px 0 0 20px; }
+        .toc a { color: #0066cc; text-decoration: none; }
+        .faq { margin: 30px 0; }
+        .faq details { margin: 12px 0; border: 1px solid #e5e5e5; border-radius: 8px; }
+        .faq summary { padding: 16px; cursor: pointer; font-weight: 600; background: #f5f5f7; border-radius: 8px; }
+        .faq details[open] summary { border-radius: 8px 8px 0 0; }
+        .faq .answer { padding: 16px; }
+        .cheatsheet { background: #1d1d1f; color: #f5f5f7; padding: 30px; border-radius: 16px; margin: 40px 0; }
+        .cheatsheet h3 { color: #f7df1e; margin-top: 0; margin-bottom: 16px; }
+        footer { background: #f5f5f7; padding: 40px 0; margin-top: 60px; text-align: center; }
+        footer a { color: #0066cc; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>npm, Yarn & pnpm Cache Taking Up Too Much Disk Space on Mac?</h1>
+            <p>JavaScript package manager caches and node_modules can consume 20-80GB on macOS. Here's how to find and clean them all.</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="meta">July 2025 -- 9 min read -- Works on macOS Sonoma, Sequoia, Ventura</div>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#audit">Full JavaScript Disk Audit</a></li>
+                <li><a href="#npm-cache">npm Cache Cleanup</a></li>
+                <li><a href="#yarn-cache">Yarn Cache Cleanup (v1 & Berry)</a></li>
+                <li><a href="#pnpm-store">pnpm Store Cleanup</a></li>
+                <li><a href="#node-modules">node_modules Cleanup</a></li>
+                <li><a href="#global-packages">Global Packages</a></li>
+                <li><a href="#nvm-fnm">nvm/fnm Version Management</a></li>
+                <li><a href="#comparison">Package Manager Cache Comparison</a></li>
+                <li><a href="#automation">Automation Scripts</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ol>
+        </div>
+
+        <h2 id="audit">1. Full JavaScript Disk Audit</h2>
+        <p>Before cleaning anything, let's see the full picture of JavaScript-related disk usage on your Mac:</p>
+
+        <pre><code># npm cache
+du -sh ~/.npm/
+
+# Yarn Classic (v1) cache
+du -sh ~/Library/Caches/Yarn/ 2>/dev/null
+
+# Yarn Berry (v2+) global cache
+du -sh ~/.yarn/berry/cache/ 2>/dev/null
+
+# pnpm store
+du -sh $(pnpm store path 2>/dev/null) 2>/dev/null
+
+# All node_modules directories (this takes a moment)
+find ~ -name "node_modules" -type d -maxdepth 5 -not -path "*/node_modules/*/node_modules" 2>/dev/null | \
+  xargs -I{} du -sh {} 2>/dev/null | sort -rh | head -20
+
+# nvm Node.js versions
+du -sh ~/.nvm/versions/node/*/ 2>/dev/null
+
+# fnm Node.js versions
+du -sh ~/Library/Application\ Support/fnm/node-versions/*/ 2>/dev/null
+
+# Global npm packages
+du -sh $(npm root -g) 2>/dev/null
+
+# Total node_modules disk usage
+echo "Total node_modules:"
+find ~ -name "node_modules" -type d -maxdepth 5 -not -path "*/node_modules/*/node_modules" 2>/dev/null | \
+  xargs -I{} du -sk {} 2>/dev/null | awk '{s+=$1} END {printf "%.1f GB\n", s/1048576}'</code></pre>
+
+        <table>
+            <tr><th>Cache Location</th><th>Typical Size</th><th>Safe to Delete?</th></tr>
+            <tr><td><code>~/.npm/</code></td><td><span class="size-badge">1-10 GB</span></td><td>Yes (re-downloads on install)</td></tr>
+            <tr><td><code>~/Library/Caches/Yarn/</code></td><td><span class="size-badge">1-10 GB</span></td><td>Yes (Yarn v1)</td></tr>
+            <tr><td><code>~/.yarn/berry/cache/</code></td><td><span class="size-badge">500 MB-5 GB</span></td><td>Yes (Yarn Berry global)</td></tr>
+            <tr><td>pnpm store</td><td><span class="size-badge">2-15 GB</span></td><td>Yes (re-downloads on install)</td></tr>
+            <tr><td>node_modules/ (all)</td><td><span class="size-badge">5-50 GB</span></td><td>Yes (npm/yarn install recreates)</td></tr>
+            <tr><td>nvm versions</td><td><span class="size-badge">1-5 GB</span></td><td>Old versions only</td></tr>
+        </table>
+
+        <h2 id="npm-cache">2. npm Cache Cleanup</h2>
+
+        <h3>Check npm cache size</h3>
+        <pre><code># Size of npm cache
+du -sh ~/.npm/
+
+# Detailed cache info
+npm cache ls 2>/dev/null | wc -l
+npm cache verify</code></pre>
+
+        <p>The npm cache lives at <code>~/.npm/_cacache/</code> and stores compressed tarballs of every package you've installed. It grows with every different package version you use across all projects.</p>
+
+        <h3>Clean npm cache</h3>
+        <pre><code># Verify cache integrity and remove corrupt entries
+npm cache verify
+
+# Nuclear option -- clear entire npm cache
+npm cache clean --force</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> <code>npm cache verify</code> is usually sufficient -- it removes corrupt and unused entries while keeping valid cached packages. Only use <code>--force</code> if you want a completely fresh start.
+        </div>
+
+        <h3>npm temporary files</h3>
+        <pre><code># Check npm tmp directory
+du -sh /tmp/npm-*/ 2>/dev/null
+ls -la /tmp/npm-* 2>/dev/null
+
+# Clean npm temp files
+rm -rf /tmp/npm-*</code></pre>
+
+        <h2 id="yarn-cache">3. Yarn Cache Cleanup</h2>
+
+        <h3>Yarn Classic (v1)</h3>
+        <pre><code># Check cache location and size
+yarn cache dir
+du -sh $(yarn cache dir)
+
+# List cached packages
+yarn cache list | head -20
+
+# Clean entire Yarn v1 cache
+yarn cache clean</code></pre>
+
+        <p>Yarn Classic stores its cache at <code>~/Library/Caches/Yarn/</code> on macOS. This can grow to 5-10GB if you work on many projects.</p>
+
+        <h3>Yarn Berry (v2, v3, v4)</h3>
+        <pre><code># Yarn Berry uses per-project .yarn/cache by default (PnP mode)
+# Check global cache
+du -sh ~/.yarn/berry/cache/ 2>/dev/null
+
+# Check project-local caches
+find ~/Projects -name ".yarn" -type d -maxdepth 3 2>/dev/null | \
+  while read d; do echo "$(du -sh "$d/cache" 2>/dev/null)"; done
+
+# Clean global Yarn Berry cache
+rm -rf ~/.yarn/berry/cache/</code></pre>
+
+        <div class="warning">
+            <strong>Note:</strong> In Yarn Berry's Plug'n'Play (PnP) mode, the <code>.yarn/cache/</code> folder in your project IS your node_modules equivalent. Don't delete it for active projects without running <code>yarn install</code> after.
+        </div>
+
+        <h2 id="pnpm-store">4. pnpm Store Cleanup</h2>
+
+        <pre><code># Find pnpm store location
+pnpm store path
+
+# Check store size
+du -sh $(pnpm store path)
+
+# Check store status
+pnpm store status</code></pre>
+
+        <p>pnpm uses a content-addressable store (typically at <code>~/Library/pnpm/store/</code> on macOS) that hard-links packages into projects. This is more disk-efficient than npm/yarn, but the store still grows over time.</p>
+
+        <h3>Clean pnpm store</h3>
+        <pre><code># Remove packages not referenced by any project on disk
+pnpm store prune
+
+# Full reset (re-downloads on next install)
+rm -rf $(pnpm store path)</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> <code>pnpm store prune</code> is smart -- it only removes packages that aren't referenced by any project's <code>node_modules</code> on your disk. Run it periodically to keep the store lean.
+        </div>
+
+        <h2 id="node-modules">5. node_modules Cleanup</h2>
+
+        <p>node_modules directories are usually the biggest disk hog for JavaScript developers. A single project can have 200-500MB in node_modules, and if you have dozens of projects...</p>
+
+        <h3>Find all node_modules</h3>
+        <pre><code># Find and sort by size (largest first)
+find ~ -name "node_modules" -type d -maxdepth 5 \
+  -not -path "*/node_modules/*/node_modules" 2>/dev/null | \
+  xargs -I{} du -sh {} 2>/dev/null | sort -rh
+
+# Count total
+find ~ -name "node_modules" -type d -maxdepth 5 \
+  -not -path "*/node_modules/*/node_modules" 2>/dev/null | wc -l</code></pre>
+
+        <h3>Delete old node_modules</h3>
+        <pre><code># Delete node_modules not accessed in 30+ days
+find ~ -name "node_modules" -type d -maxdepth 5 \
+  -not -path "*/node_modules/*/node_modules" \
+  -not -newermt "30 days ago" 2>/dev/null -exec rm -rf {} +
+
+# Or use npkill (interactive TUI)
+npx npkill</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> <code>npkill</code> is an excellent interactive tool that lets you browse all node_modules and selectively delete them. Install with <code>npx npkill</code>.
+        </div>
+
+        <h2 id="global-packages">6. Global Packages</h2>
+
+        <pre><code># List globally installed npm packages
+npm list -g --depth=0
+
+# Size of global packages
+du -sh $(npm root -g)
+
+# Remove a specific global package
+npm uninstall -g package-name
+
+# Yarn global packages
+yarn global list
+du -sh $(yarn global dir)/node_modules/ 2>/dev/null
+
+# pnpm global packages
+pnpm list -g</code></pre>
+
+        <h2 id="nvm-fnm">7. nvm/fnm Version Management</h2>
+
+        <p>Each installed Node.js version takes 80-200MB. If you have many versions installed via nvm or fnm, this adds up:</p>
+
+        <h3>nvm cleanup</h3>
+        <pre><code># List installed versions with sizes
+du -sh ~/.nvm/versions/node/*/
+
+# List all installed versions
+nvm ls
+
+# Remove a specific version
+nvm uninstall v16.20.0
+nvm uninstall v18.19.0
+
+# Keep only your primary version
+# Check current: nvm current
+# Then uninstall others</code></pre>
+
+        <h3>fnm cleanup</h3>
+        <pre><code># List installed versions
+fnm ls
+
+# Check sizes
+du -sh ~/Library/Application\ Support/fnm/node-versions/*/
+
+# Remove a specific version
+fnm uninstall v16.20.0</code></pre>
+
+        <h3>Volta cleanup</h3>
+        <pre><code># Check Volta tool cache
+du -sh ~/.volta/
+
+# List installed tools
+volta list all
+
+# Each tool version cached separately
+du -sh ~/.volta/tools/*/</code></pre>
+
+        <h2 id="comparison">8. Package Manager Cache Comparison</h2>
+
+        <table>
+            <tr><th>Feature</th><th>npm</th><th>Yarn Classic</th><th>Yarn Berry</th><th>pnpm</th></tr>
+            <tr><td>Cache location</td><td><code>~/.npm/</code></td><td><code>~/Library/Caches/Yarn/</code></td><td><code>~/.yarn/berry/cache/</code></td><td><code>~/Library/pnpm/store/</code></td></tr>
+            <tr><td>Typical size</td><td>1-10 GB</td><td>1-10 GB</td><td>500 MB-5 GB</td><td>2-15 GB</td></tr>
+            <tr><td>Cleanup command</td><td><code>npm cache clean --force</code></td><td><code>yarn cache clean</code></td><td>Delete <code>~/.yarn/berry/cache/</code></td><td><code>pnpm store prune</code></td></tr>
+            <tr><td>Auto-cleanup</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+            <tr><td>Dedup strategy</td><td>Flat node_modules</td><td>Flat node_modules</td><td>PnP (no node_modules)</td><td>Content-addressed + hardlinks</td></tr>
+            <tr><td>node_modules size</td><td>Large</td><td>Large</td><td>None (PnP)</td><td>Small (hardlinks)</td></tr>
+        </table>
+
+        <div class="tip">
+            <strong>Disk efficiency ranking:</strong> pnpm > Yarn Berry PnP > Yarn Classic ≈ npm. If disk space is a constant concern, consider switching to pnpm -- its content-addressable store with hardlinks means packages are only stored once globally.
+        </div>
+
+        <h2 id="automation">9. Automation Scripts</h2>
+
+        <h3>Weekly cleanup cron job</h3>
+        <pre><code># Add to crontab: crontab -e
+# Run every Sunday at 3 AM
+0 3 * * 0 ~/.scripts/js-cache-cleanup.sh >> /tmp/js-cleanup.log 2>&1</code></pre>
+
+        <h3>The cleanup script</h3>
+        <pre><code>#!/bin/bash
+# js-cache-cleanup.sh -- JavaScript cache maintenance
+
+echo "=== JS Cache Cleanup $(date) ==="
+
+# npm cache verify (safe -- keeps valid entries)
+echo "npm cache verify..."
+npm cache verify 2>/dev/null
+
+# Yarn cache clean
+if command -v yarn &>/dev/null; then
+    echo "Yarn cache clean..."
+    yarn cache clean 2>/dev/null
+fi
+
+# pnpm store prune
+if command -v pnpm &>/dev/null; then
+    echo "pnpm store prune..."
+    pnpm store prune 2>/dev/null
+fi
+
+# Remove node_modules older than 30 days
+echo "Removing old node_modules..."
+find ~/Projects -name "node_modules" -type d -maxdepth 4 \
+  -not -path "*/node_modules/*/node_modules" \
+  -not -newermt "30 days ago" 2>/dev/null | while read d; do
+    echo "  Removing: $d"
+    rm -rf "$d"
+done
+
+# npm temp files
+rm -rf /tmp/npm-* 2>/dev/null
+
+echo "=== Done ==="</code></pre>
+
+        <h3>Git hook for cleanup</h3>
+        <pre><code># .git/hooks/post-checkout (mark for cleanup after switching branches)
+# This removes stale node_modules when you switch to a branch
+# that has different dependencies
+
+#!/bin/bash
+# Only run if package.json changed
+if git diff --name-only "$1" "$2" | grep -q "package.json"; then
+    echo "package.json changed -- consider running npm install"
+fi</code></pre>
+
+        <div class="cta">
+            <h3>Clean All Developer Caches at Once</h3>
+            <p>npm, Yarn, pnpm, node_modules, Docker, Xcode, Homebrew, Rust, Go, Python, Gradle, CocoaPods -- all in one click.</p>
+            <a href="https://github.com/bysiber/cleardisk">Get ClearDisk (Free & Open Source)</a>
+            <p style="margin-top: 12px; font-size: 0.9em;">macOS native -- no dependencies, no tracking, no subscriptions</p>
+        </div>
+
+        <h2 id="faq">FAQ</h2>
+        <div class="faq">
+            <details>
+                <summary>Is it safe to delete npm/Yarn/pnpm caches?</summary>
+                <div class="answer">
+                    <p>Yes. Package manager caches are just local copies of packages downloaded from the registry. Deleting them means the next <code>npm install</code>, <code>yarn install</code>, or <code>pnpm install</code> will re-download packages from the registry instead of using the local cache. Your projects and their lock files are unaffected.</p>
+                </div>
+            </details>
+            <details>
+                <summary>Will deleting node_modules break my projects?</summary>
+                <div class="answer">
+                    <p>No -- as long as you have a <code>package.json</code> and lock file (<code>package-lock.json</code>, <code>yarn.lock</code>, or <code>pnpm-lock.yaml</code>), running the install command will recreate node_modules identically. This is exactly what happens in CI/CD pipelines.</p>
+                </div>
+            </details>
+            <details>
+                <summary>How much space can I recover?</summary>
+                <div class="answer">
+                    <p>Typically 10-40GB for active JavaScript developers. The biggest savings come from deleting node_modules in projects you haven't worked on recently. A single project's node_modules can be 200MB-1GB+, and most devs have 10-50+ projects on their machine.</p>
+                </div>
+            </details>
+            <details>
+                <summary>Should I switch to pnpm for disk efficiency?</summary>
+                <div class="answer">
+                    <p>If disk space is a major concern, pnpm is the most disk-efficient option. Its content-addressable store means each package version is stored exactly once globally, and projects use hard links. This can reduce total disk usage by 50-70% compared to npm/Yarn with duplicate node_modules.</p>
+                </div>
+            </details>
+            <details>
+                <summary>Does npm cache verify vs npm cache clean --force?</summary>
+                <div class="answer">
+                    <p><code>npm cache verify</code> checks integrity and removes corrupt/unused entries -- it's safe and recommended. <code>npm cache clean --force</code> removes everything, requiring re-downloads. Use verify for maintenance, clean for a fresh start.</p>
+                </div>
+            </details>
+        </div>
+
+        <div class="cheatsheet">
+            <h3>Quick Reference Cheatsheet</h3>
+<pre style="background: transparent; padding: 0; margin: 0;"><code># === AUDIT ===
+du -sh ~/.npm/                           # npm cache
+du -sh ~/Library/Caches/Yarn/            # Yarn Classic
+du -sh $(pnpm store path)               # pnpm store
+find ~ -name node_modules -maxdepth 5 -type d | xargs du -sh | sort -rh | head
+
+# === CLEAN ===
+npm cache clean --force                  # Clear npm cache
+yarn cache clean                         # Clear Yarn cache
+pnpm store prune                         # Prune pnpm store
+npx npkill                               # Interactive node_modules cleaner
+
+# === NVM/FNM ===
+nvm ls && nvm uninstall v16.20.0        # Remove old Node versions
+fnm ls && fnm uninstall v16.20.0
+
+# === PREVENT ===
+# Use pnpm for disk-efficient installs
+# Use .nvmrc to limit Node versions
+# Run `npx npkill` monthly</code></pre>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p><a href="../">ClearDisk</a> -- Free, open-source macOS cache cleaner</p>
+            <p style="margin-top: 8px;">Also read:
+                <a href="free-disk-space-mac-developer.html">Free 50GB+ Guide</a> |
+                <a href="xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> |
+                <a href="clean-node-modules-mac.html">node_modules Guide</a> |
+                <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> |
+                <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a> |
+                <a href="homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> |
+                <a href="python-pip-cache-cleanup-mac.html">Python/pip Guide</a> |
+                <a href="rust-cargo-cache-cleanup-mac.html">Rust/Cargo Guide</a> |
+                <a href="go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> |
+                <a href="gradle-cache-cleanup-mac.html">Gradle Cleanup</a> |
+                <a href="cocoapods-cache-cleanup-mac.html">CocoaPods Cleanup</a>
+            </p>
+            <p style="margin-top: 8px;">&copy; 2025 <a href="https://github.com/bysiber">bysiber</a>. MIT License.</p>
+        </div>
+    </footer>
+</body>
+</html>
