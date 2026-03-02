@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homebrew Taking Up Too Much Space? Complete macOS Cleanup Guide (2025)</title>
+    <meta name="description" content="Homebrew can consume 5-30GB+ on your Mac. Learn how to clean old formula versions, cask downloads, outdated dependencies, and the Homebrew cache with brew cleanup and more.">
+    <meta name="keywords" content="homebrew cleanup, brew cleanup, homebrew cache size, homebrew taking up space mac, brew cleanup --prune, homebrew disk space, clean homebrew cache mac, brew autoremove, homebrew old versions, free disk space homebrew">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">
+
+    <meta property="og:title" content="Homebrew Taking Up Too Much Space? Complete macOS Cleanup Guide">
+    <meta property="og:description" content="Homebrew can consume 5-30GB+ on your Mac. Learn how to reclaim all of it.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Homebrew Taking Up Too Much Space? Complete macOS Cleanup Guide (2025)",
+        "description": "Homebrew can consume 5-30GB+ on your Mac. Clean old versions, cask downloads, outdated dependencies, and the Homebrew cache.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-25",
+        "dateModified": "2025-01-25",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        h2 { font-size: 1.5em; margin-top: 40px; margin-bottom: 15px; color: #1d1d1f; border-bottom: 2px solid #0071e3; padding-bottom: 5px; display: inline-block; }
+        h3 { font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+        .meta { color: #6e6e73; margin-bottom: 30px; font-size: 0.95em; }
+        p { margin-bottom: 15px; }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 5px; }
+
+        .toc { background: #f5f5f7; padding: 20px 30px; border-radius: 12px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { padding-left: 20px; }
+        .toc a { color: #0071e3; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 18px 22px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 20px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code { background: #f5f5f7; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { background: #f5f5f7; font-weight: 600; }
+
+        .total-box {
+            background: #f5f5f7;
+            padding: 25px;
+            border-radius: 16px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .total-box .number { font-size: 3em; font-weight: 700; color: #0071e3; }
+
+        .cta-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 35px 0;
+            text-align: center;
+        }
+        .cta-box h3 { color: white; margin-top: 0; font-size: 1.4em; }
+        .cta-box a { color: white; }
+        .cta-box code { background: rgba(255,255,255,0.2); color: white; }
+
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: #6e6e73;
+            font-size: 0.9em;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 40px;
+        }
+        footer a { color: #0071e3; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Homebrew Taking Up Too Much Space? Complete Cleanup Guide</h1>
+        <p class="meta">Updated January 2025 -- Covers Homebrew 4.x on macOS (Apple Silicon + Intel)</p>
+
+        <div class="total-box">
+            <div class="number">5--30+ GB</div>
+            <p>Typical disk space consumed by Homebrew on a developer Mac</p>
+        </div>
+
+        <p>Homebrew is the most popular package manager for macOS, but it quietly accumulates old formula versions, downloaded packages, cask DMGs, and orphaned dependencies. Most developers never clean it up.</p>
+
+        <p>This guide covers everything: where Homebrew stores data, how to check what's taking space, and how to safely clean it all.</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#where">Where Homebrew Stores Data</a></li>
+                <li><a href="#check">Check Homebrew Disk Usage</a></li>
+                <li><a href="#cleanup">brew cleanup -- The Essential Command</a></li>
+                <li><a href="#autoremove">Remove Orphaned Dependencies</a></li>
+                <li><a href="#cache">Clean the Download Cache</a></li>
+                <li><a href="#old">Remove Old Formula Versions</a></li>
+                <li><a href="#casks">Clean Up Cask Downloads</a></li>
+                <li><a href="#large">Find Your Largest Packages</a></li>
+                <li><a href="#automate">Automate Homebrew Cleanup</a></li>
+                <li><a href="#gui">See All Developer Caches at Once</a></li>
+            </ol>
+        </div>
+
+        <h2 id="where">1. Where Homebrew Stores Data</h2>
+
+        <p>Homebrew stores data in different locations depending on your Mac's architecture:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>Apple Silicon (M1+)</th>
+                    <th>Intel Mac</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Homebrew prefix</strong></td>
+                    <td><code>/opt/homebrew/</code></td>
+                    <td><code>/usr/local/</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Installed formulas</strong></td>
+                    <td><code>/opt/homebrew/Cellar/</code></td>
+                    <td><code>/usr/local/Cellar/</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Installed casks</strong></td>
+                    <td><code>/opt/homebrew/Caskroom/</code></td>
+                    <td><code>/usr/local/Caskroom/</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Download cache</strong></td>
+                    <td colspan="2"><code>~/Library/Caches/Homebrew/</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Logs</strong></td>
+                    <td colspan="2"><code>~/Library/Logs/Homebrew/</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info">
+            <strong>The download cache is the sneaky one.</strong> Every bottle (pre-compiled formula) and cask you've ever installed gets cached at <code>~/Library/Caches/Homebrew/</code>. This includes old versions of Chrome, VS Code, Docker Desktop, and every other cask -- even after you've updated them.
+        </div>
+
+        <h2 id="check">2. Check Homebrew Disk Usage</h2>
+
+        <pre><code># Total Homebrew installation size
+du -sh $(brew --prefix)
+
+# Download cache size (this is usually the biggest)
+du -sh ~/Library/Caches/Homebrew/
+
+# Cellar (installed formulas) size
+du -sh $(brew --cellar)
+
+# Caskroom (installed casks) size
+du -sh $(brew --prefix)/Caskroom/ 2>/dev/null
+
+# Logs
+du -sh ~/Library/Logs/Homebrew/ 2>/dev/null
+
+# All at once
+echo "=== Homebrew Disk Usage ==="
+echo "Prefix:   $(du -sh $(brew --prefix) 2>/dev/null | cut -f1)"
+echo "Cache:    $(du -sh ~/Library/Caches/Homebrew/ 2>/dev/null | cut -f1)"
+echo "Cellar:   $(du -sh $(brew --cellar) 2>/dev/null | cut -f1)"
+echo "Logs:     $(du -sh ~/Library/Logs/Homebrew/ 2>/dev/null | cut -f1)"</code></pre>
+
+        <h2 id="cleanup">3. brew cleanup -- The Essential Command</h2>
+
+        <p>The most important command to know:</p>
+
+        <pre><code># See what would be cleaned (dry run)
+brew cleanup -n
+
+# Actually clean: removes old versions + stale downloads
+brew cleanup
+
+# Aggressive: also remove downloads older than 120 days
+brew cleanup --prune=all</code></pre>
+
+        <p>What <code>brew cleanup</code> removes:</p>
+        <ul>
+            <li>Old versions of installed formulas (keeps only the latest)</li>
+            <li>Outdated cask downloads from the cache</li>
+            <li>Downloads older than 120 days (by default)</li>
+            <li>Old locks and temporary files</li>
+        </ul>
+
+        <div class="tip">
+            <strong>Always run <code>brew cleanup -n</code> first</strong> to see what will be removed. The output might surprise you -- it's not uncommon to see 5-15GB of reclaimable space.
+        </div>
+
+        <h2 id="autoremove">4. Remove Orphaned Dependencies</h2>
+
+        <p>When you uninstall a formula, its dependencies stay behind. Over time, these orphans accumulate:</p>
+
+        <pre><code># List orphaned dependencies (installed as deps but no longer needed)
+brew autoremove --dry-run
+
+# Remove them
+brew autoremove
+
+# Alternative: see what depends on what
+brew deps --installed --tree</code></pre>
+
+        <div class="info">
+            <strong>How this happens:</strong> You install <code>imagemagick</code> (which pulls in libpng, libtiff, freetype, etc.), use it for a project, then uninstall it. The dependencies stay. Do this 20 times over a year and you have dozens of orphaned packages.
+        </div>
+
+        <h2 id="cache">5. Clean the Download Cache</h2>
+
+        <p>The Homebrew download cache often holds gigabytes of old downloads:</p>
+
+        <pre><code># Check cache size
+du -sh ~/Library/Caches/Homebrew/
+
+# List cached downloads sorted by size
+ls -lhS ~/Library/Caches/Homebrew/downloads/ 2>/dev/null | head -20
+
+# Remove all cached downloads
+brew cleanup --prune=all
+
+# Nuclear: delete the entire cache directory
+rm -rf ~/Library/Caches/Homebrew/</code></pre>
+
+        <div class="warning">
+            <strong>Tip:</strong> If you delete the cache, Homebrew will re-download packages the next time you install or upgrade them. This is safe -- it just means slightly slower installs next time.
+        </div>
+
+        <p>Common large items in the cache:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Package</th>
+                    <th>Typical Cache Size</th>
+                    <th>Why</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Google Chrome (cask)</td>
+                    <td>200-400 MB per version</td>
+                    <td>Full DMG cached on every update</td>
+                </tr>
+                <tr>
+                    <td>Docker Desktop (cask)</td>
+                    <td>600 MB-1 GB per version</td>
+                    <td>Large installer cached</td>
+                </tr>
+                <tr>
+                    <td>VS Code (cask)</td>
+                    <td>100-200 MB per version</td>
+                    <td>ZIP cached monthly</td>
+                </tr>
+                <tr>
+                    <td>node (formula)</td>
+                    <td>50-100 MB per version</td>
+                    <td>Frequent updates</td>
+                </tr>
+                <tr>
+                    <td>python (formula)</td>
+                    <td>100-200 MB per version</td>
+                    <td>Major + minor versions</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="old">6. Remove Old Formula Versions</h2>
+
+        <p>Homebrew keeps old versions of formulas in the Cellar even after upgrading:</p>
+
+        <pre><code># Find formulas with multiple versions installed
+brew list --versions | awk 'NF > 2'
+
+# See old versions of a specific formula
+brew list --versions python
+
+# Remove old versions (keeps latest only)
+brew cleanup
+
+# Check the Cellar for large formulas
+du -sm $(brew --cellar)/*/ 2>/dev/null | sort -rn | head -20</code></pre>
+
+        <h3>Common Disk-Heavy Formulas</h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Formula</th>
+                    <th>Typical Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>llvm</code></td>
+                    <td>1.5-2 GB</td>
+                </tr>
+                <tr>
+                    <td><code>qt</code> / <code>qt@5</code></td>
+                    <td>500 MB-1 GB</td>
+                </tr>
+                <tr>
+                    <td><code>gcc</code></td>
+                    <td>500 MB-1 GB</td>
+                </tr>
+                <tr>
+                    <td><code>rust</code></td>
+                    <td>400-800 MB</td>
+                </tr>
+                <tr>
+                    <td><code>python@3.x</code></td>
+                    <td>100-300 MB</td>
+                </tr>
+                <tr>
+                    <td><code>node</code></td>
+                    <td>100-200 MB</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tip">
+            <strong>Pro tip:</strong> If you installed something like <code>llvm</code> for a one-time project, consider uninstalling it: <code>brew uninstall llvm</code>. It'll save 1.5GB and you can always reinstall later.
+        </div>
+
+        <h2 id="casks">7. Clean Up Cask Downloads</h2>
+
+        <p>Cask downloads (DMGs, PKGs, ZIPs) from apps like Chrome, Docker, Slack, etc. are cached separately:</p>
+
+        <pre><code># List installed casks
+brew list --cask
+
+# Check if any casks have outdated versions in Caskroom
+ls $(brew --prefix)/Caskroom/*/
+
+# Clean up outdated cask downloads
+brew cleanup --cask
+
+# List cask cache specifically
+ls -lhS ~/Library/Caches/Homebrew/Cask/ 2>/dev/null</code></pre>
+
+        <h2 id="large">8. Find Your Largest Packages</h2>
+
+        <p>Quick script to find your largest Homebrew packages:</p>
+
+        <pre><code># Top 15 largest formula installs
+echo "=== Largest Formulas ==="
+du -sm $(brew --cellar)/*/ 2>/dev/null | sort -rn | head -15
+
+# Top 10 largest cask installs
+echo "=== Largest Casks ==="
+for cask in $(brew list --cask 2>/dev/null); do
+    size=$(du -sm $(brew --prefix)/Caskroom/$cask/ 2>/dev/null | cut -f1)
+    echo "${size:-0}	$cask"
+done | sort -rn | head -10
+
+# Top 10 largest cache files
+echo "=== Largest Cached Downloads ==="
+du -sm ~/Library/Caches/Homebrew/downloads/* 2>/dev/null | sort -rn | head -10</code></pre>
+
+        <h2 id="automate">9. Automate Homebrew Cleanup</h2>
+
+        <h3>Auto-cleanup on every install</h3>
+        <p>Add this to your <code>~/.zshrc</code> (or <code>~/.bashrc</code>):</p>
+
+        <pre><code># Auto-cleanup after every brew install/upgrade
+export HOMEBREW_CLEANUP_MAX_AGE_DAYS=30
+export HOMEBREW_AUTOREMOVE=1</code></pre>
+
+        <div class="info">
+            <strong>Homebrew 4.x</strong> runs <code>brew cleanup</code> automatically after <code>brew install</code> and <code>brew upgrade</code> by default. But it only removes downloads older than 120 days. Setting <code>HOMEBREW_CLEANUP_MAX_AGE_DAYS=30</code> makes it more aggressive.
+        </div>
+
+        <h3>Cron job for deep cleanup</h3>
+
+        <pre><code># Add to crontab (crontab -e)
+# Every Sunday at 2 AM: full Homebrew cleanup
+0 2 * * 0 /opt/homebrew/bin/brew cleanup --prune=all >> /tmp/brew-cleanup.log 2>&1</code></pre>
+
+        <h3>One-liner for maximum cleanup</h3>
+
+        <pre><code># The ultimate Homebrew cleanup command
+brew update && brew upgrade && brew autoremove && brew cleanup --prune=all && rm -rf ~/Library/Logs/Homebrew/</code></pre>
+
+        <h2 id="gui">10. See All Developer Caches at Once</h2>
+
+        <p>Homebrew is just one piece of the puzzle. On a typical developer Mac, you also have caches from:</p>
+
+        <ul>
+            <li><strong>Xcode DerivedData</strong> -- 5-30GB</li>
+            <li><strong>node_modules</strong> -- 5-50GB across projects</li>
+            <li><strong>Docker</strong> -- 10-200GB</li>
+            <li><strong>pip/Python</strong> -- 1-5GB</li>
+            <li><strong>CocoaPods</strong> -- 1-5GB</li>
+            <li><strong>Cargo/Rust</strong> -- 2-20GB per project</li>
+        </ul>
+
+        <p>Together these can add up to <strong>50-300GB</strong> of reclaimable space.</p>
+
+        <div class="cta-box">
+            <h3>ClearDisk -- See Everything in Your Menu Bar</h3>
+            <p>Free, open-source macOS app that detects Homebrew cache alongside Xcode, node_modules, Docker, pip, CocoaPods, Cargo, and 10+ more locations. Shows real-time sizes -- clean what you want, keep what you need.</p>
+            <p style="margin-top: 15px;">
+                <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+            </p>
+            <p style="margin-top: 10px;">
+                <a href="https://github.com/bysiber/cleardisk">View on GitHub</a> |
+                <a href="https://github.com/bysiber/cleardisk/releases/latest">Download DMG</a>
+            </p>
+        </div>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e5e7;">
+
+        <h2>Quick Reference</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Command</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Preview cleanup</td>
+                    <td><code>brew cleanup -n</code></td>
+                </tr>
+                <tr>
+                    <td>Basic cleanup</td>
+                    <td><code>brew cleanup</code></td>
+                </tr>
+                <tr>
+                    <td>Aggressive cleanup</td>
+                    <td><code>brew cleanup --prune=all</code></td>
+                </tr>
+                <tr>
+                    <td>Remove orphan deps</td>
+                    <td><code>brew autoremove</code></td>
+                </tr>
+                <tr>
+                    <td>Check cache size</td>
+                    <td><code>du -sh ~/Library/Caches/Homebrew/</code></td>
+                </tr>
+                <tr>
+                    <td>Delete entire cache</td>
+                    <td><code>rm -rf ~/Library/Caches/Homebrew/</code></td>
+                </tr>
+                <tr>
+                    <td>Find large packages</td>
+                    <td><code>du -sm $(brew --cellar)/*/ | sort -rn | head -15</code></td>
+                </tr>
+                <tr>
+                    <td>Full cleanup</td>
+                    <td><code>brew update && brew upgrade && brew autoremove && brew cleanup --prune=all</code></td>
+                </tr>
+                <tr>
+                    <td>GUI cleanup (all caches)</td>
+                    <td><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Guide</a> | <a href="clean-node-modules-mac.html">node_modules Guide</a> | <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
