@@ -18,6 +18,7 @@ struct MainView: View {
     @State private var showCleanSelectedCachesConfirm = false
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
+    @State private var isExpanded = false
     
     enum Tab: String, CaseIterable {
         case developer = "Developer"
@@ -59,7 +60,7 @@ struct MainView: View {
                 mainScreen
             }
         }
-        .frame(width: 380, height: 540)
+        .frame(width: 380, height: 700)
         .alert("Clean Cache", isPresented: $showCleanConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
@@ -156,49 +157,130 @@ struct MainView: View {
     // MARK: - Main Screen
     var mainScreen: some View {
         ZStack {
-            VStack(spacing: 0) {
-                // Header
-                headerView
-                
-                Divider()
-                
-                // Permission warnings (if any)
-                if diskMonitor.notificationPermission == .denied {
-                    permissionBanner
-                    Divider()
-                }
-                
-                // Cleanable summary card (only when there's stuff to clean)
-                let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
-                if diskMonitor.safeCleanable > 10_485_760 || diskMonitor.riskyCleanable > 10_485_760 || artifactTotal > 10_485_760 {
-                    cleanableSummary
-                    Divider()
-                }
-                
-                // Tab bar
-                tabBar
-                
-                Divider()
-                
-                // Content
-                ScrollView {
-                    switch selectedTab {
-                    case .overview:
-                        overviewContent
-                    case .developer:
-                        developerContent
-                    case .projects:
-                        projectsContent
-                    case .largeFiles:
-                        largeFilesContent
+            if isExpanded {
+                // Expanded view: full-height content with back button
+                VStack(spacing: 0) {
+                    HStack {
+                        Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isExpanded = false } }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 11))
+                                Text("Back")
+                                    .font(.system(size: 12))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.blue)
+                        
+                        Spacer()
+                        
+                        Text(selectedTab.rawValue)
+                            .font(.system(size: 13, weight: .semibold))
+                        
+                        Spacer()
+                        
+                        if diskMonitor.isScanning {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+                        Button(action: { diskMonitor.scan() }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Refresh")
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    
+                    Divider()
+                    
+                    ScrollView {
+                        switch selectedTab {
+                        case .overview:
+                            overviewContent
+                        case .developer:
+                            developerContent
+                        case .projects:
+                            projectsContent
+                        case .largeFiles:
+                            largeFilesContent
+                        }
+                    }
+                    .frame(maxHeight: .infinity)
+                    
+                    Divider()
+                    
+                    footerView
                 }
-                .frame(maxHeight: .infinity)
-                
-                Divider()
-                
-                // Footer
-                footerView
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .bottom).combined(with: .opacity)
+                ))
+            } else {
+                // Normal view
+                VStack(spacing: 0) {
+                    // Header
+                    headerView
+                    
+                    Divider()
+                    
+                    // Permission warnings (if any)
+                    if diskMonitor.notificationPermission == .denied {
+                        permissionBanner
+                        Divider()
+                    }
+                    
+                    // Cleanable summary card (only when there's stuff to clean)
+                    let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+                    if diskMonitor.safeCleanable > 10_485_760 || diskMonitor.riskyCleanable > 10_485_760 || artifactTotal > 10_485_760 {
+                        cleanableSummary
+                        Divider()
+                    }
+                    
+                    // Tab bar with expand button
+                    HStack(spacing: 0) {
+                        tabBar
+                        
+                        Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isExpanded = true } }) {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .frame(width: 32, height: 28)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    Divider()
+                    
+                    // Content
+                    ScrollView {
+                        switch selectedTab {
+                        case .overview:
+                            overviewContent
+                        case .developer:
+                            developerContent
+                        case .projects:
+                            projectsContent
+                        case .largeFiles:
+                            largeFilesContent
+                        }
+                    }
+                    .frame(maxHeight: .infinity)
+                    
+                    Divider()
+                    
+                    // Footer
+                    footerView
+                }
+                .transition(.asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
             }
             
             // Onboarding overlay (first launch)
