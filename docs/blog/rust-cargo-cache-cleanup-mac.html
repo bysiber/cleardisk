@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust target/ and Cargo Cache Taking Up Too Much Space? Complete Cleanup Guide (2025)</title>
+    <meta name="description" content="Rust's target/ directory and Cargo cache can consume 10-100GB+ on your Mac. Learn how to find, audit, and clean Cargo build artifacts, registry cache, and old target directories safely.">
+    <meta name="keywords" content="rust target directory size, cargo cache cleanup, cargo clean, rust disk space, cargo cache size mac, clean rust build artifacts, cargo sweep, rust target too large, cargo registry cleanup, free disk space rust">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">
+
+    <meta property="og:title" content="Rust target/ and Cargo Cache Taking Up Too Much Space? Complete Cleanup Guide">
+    <meta property="og:description" content="Rust's target/ directory and Cargo cache can consume 10-100GB+ on your Mac. Learn how to reclaim all of it.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Rust target/ and Cargo Cache Taking Up Too Much Space? Complete Cleanup Guide (2025)",
+        "description": "Rust's target/ directory and Cargo cache can consume 10-100GB+ on your Mac. Clean everything safely.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-26",
+        "dateModified": "2025-01-26",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>Rust target/ and Cargo Cache Taking Up Too Much Space? Complete Cleanup Guide</h1>
+        <p class="meta">Updated January 2025 -- Covers target/, Cargo registry, cargo-sweep, cargo-cache, and sccache</p>
+
+        <p>Rust developers know the pain: a single project's <code class="inline-code">target/</code> directory can easily reach <strong>5-20GB</strong>. With multiple projects, the Cargo registry cache, and downloaded crate sources, it's common for Rust to consume <strong>10-100GB+</strong> of disk space on your Mac.</p>
+
+        <p>This happens because Rust compiles everything from source (including dependencies), keeps both debug and release artifacts, caches the entire dependency tree, and stores downloaded crate sources in <code class="inline-code">~/.cargo/registry/</code>.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit -- Where is All the Space Going?</a>
+            <a href="#target">2. target/ Directories (5-20GB per project)</a>
+            <a href="#cargo-registry">3. Cargo Registry Cache (1-10GB)</a>
+            <a href="#cargo-sweep">4. Smart Cleanup with cargo-sweep</a>
+            <a href="#cargo-cache-tool">5. cargo-cache -- Detailed Cache Management</a>
+            <a href="#sccache">6. sccache -- Share Build Cache Across Projects</a>
+            <a href="#multi-project">7. Clean All Projects at Once</a>
+            <a href="#automation">8. Automate Rust Cleanup</a>
+            <a href="#prevention">9. Prevention -- Reduce Disk Usage</a>
+            <a href="#cheatsheet">10. Quick Reference Cheatsheet</a>
+        </div>
+
+        <h2 id="audit">1. Quick Audit -- Where is All the Space Going?</h2>
+
+        <p>Before cleaning anything, let's see the full picture:</p>
+
+<pre># Find all Rust target/ directories
+find ~/Projects ~/Developer ~/Code ~/Documents -maxdepth 4 \
+    -type d -name "target" -exec test -f "{}/../Cargo.toml" \; \
+    -exec du -sh {} \; 2>/dev/null | sort -rh
+
+# Check Cargo home directory
+du -sh ~/.cargo/
+
+# Detailed breakdown of Cargo home
+du -sh ~/.cargo/registry/
+du -sh ~/.cargo/registry/src/
+du -sh ~/.cargo/registry/cache/
+du -sh ~/.cargo/git/
+du -sh ~/.cargo/bin/</pre>
+
+        <p>Typical disk usage from Rust:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>Typical Size</th>
+                    <th>What It Contains</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>target/ (per project)</td>
+                    <td><span class="size-badge">5-20 GB</span></td>
+                    <td>Compiled artifacts, deps, build cache</td>
+                </tr>
+                <tr>
+                    <td>~/.cargo/registry/src/</td>
+                    <td><span class="size-badge">1-5 GB</span></td>
+                    <td>Extracted crate source code</td>
+                </tr>
+                <tr>
+                    <td>~/.cargo/registry/cache/</td>
+                    <td><span class="size-badge">500 MB - 3 GB</span></td>
+                    <td>Downloaded .crate files</td>
+                </tr>
+                <tr>
+                    <td>~/.cargo/git/</td>
+                    <td>200 MB - 2 GB</td>
+                    <td>Git dependency checkouts</td>
+                </tr>
+                <tr>
+                    <td>~/.cargo/bin/</td>
+                    <td>50-500 MB</td>
+                    <td>Installed binaries</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2 id="target">2. target/ Directories <span class="size-badge">5-20 GB each</span></h2>
+
+        <p>The <code class="inline-code">target/</code> directory is the single biggest space consumer. It contains compiled dependencies, intermediate build artifacts, and both debug/release binaries.</p>
+
+        <h3>Clean a Single Project</h3>
+
+<pre># Inside your project directory
+cargo clean
+
+# Check how much space was freed
+du -sh target/ 2>/dev/null || echo "target/ removed"</pre>
+
+        <h3>Clean Only Debug or Release</h3>
+
+<pre># Remove only debug artifacts (keep release builds)
+cargo clean --release  # this is counter-intuitive -- it cleans RELEASE
+rm -rf target/debug/    # to clean debug only
+
+# Or be selective
+rm -rf target/debug/deps/
+rm -rf target/debug/build/
+rm -rf target/debug/incremental/</pre>
+
+        <h3>What's Inside target/?</h3>
+
+<pre>target/
+  debug/                  # Debug build artifacts
+    deps/                 # Compiled dependencies
+    build/                # Build script outputs
+    incremental/          # Incremental compilation cache
+    .fingerprint/         # Dependency tracking
+    [your-binary]         # Your compiled binary
+  release/                # Release build artifacts (same structure)
+  doc/                    # Generated documentation
+  package/                # cargo package output</pre>
+
+        <div class="tip">
+            <strong>Safe to clean?</strong> Yes -- <code class="inline-code">cargo clean</code> only removes built artifacts. Source code, Cargo.toml, and Cargo.lock are untouched. Your next <code class="inline-code">cargo build</code> will simply recompile everything (which may take a few minutes for large projects).
+        </div>
+
+        <h2 id="cargo-registry">3. Cargo Registry Cache <span class="size-badge">1-10 GB</span></h2>
+
+        <p>Every crate you've ever used is cached in <code class="inline-code">~/.cargo/registry/</code>. This includes both compressed <code class="inline-code">.crate</code> files and extracted source code.</p>
+
+<pre># Check total registry size
+du -sh ~/.cargo/registry/
+
+# Compressed crate downloads
+du -sh ~/.cargo/registry/cache/
+
+# Extracted source (usually larger)
+du -sh ~/.cargo/registry/src/
+
+# Git-based dependencies
+du -sh ~/.cargo/git/</pre>
+
+        <h3>Clean the Registry</h3>
+
+<pre># Remove extracted source (will be re-extracted on next build)
+rm -rf ~/.cargo/registry/src/
+
+# Remove downloaded .crate files (will be re-downloaded)
+rm -rf ~/.cargo/registry/cache/
+
+# Remove git checkouts
+rm -rf ~/.cargo/git/checkouts/
+
+# Nuclear: remove everything (keeps installed binaries)
+rm -rf ~/.cargo/registry/
+rm -rf ~/.cargo/git/</pre>
+
+        <div class="warning">
+            <strong>Don't delete:</strong> <code class="inline-code">~/.cargo/bin/</code> (your installed tools like cargo-edit, cargo-watch) or <code class="inline-code">~/.cargo/config.toml</code> (your Cargo configuration).
+        </div>
+
+        <h2 id="cargo-sweep">4. Smart Cleanup with cargo-sweep</h2>
+
+        <p><a href="https://github.com/holmgr/cargo-sweep">cargo-sweep</a> is the best way to clean Rust build artifacts intelligently. It removes only the artifacts that haven't been used recently, keeping what you're actively developing.</p>
+
+<pre># Install cargo-sweep
+cargo install cargo-sweep
+
+# Remove artifacts older than 30 days
+cargo sweep --time 30
+
+# Remove artifacts older than 7 days (more aggressive)
+cargo sweep --time 7
+
+# Preview what would be removed (dry run)
+cargo sweep --time 30 --dry-run
+
+# Clean ALL target directories recursively from current dir
+cargo sweep --recursive --time 30</pre>
+
+        <h3>Install Toolchain Tracking</h3>
+
+        <p>cargo-sweep can also track which toolchain was used and clean artifacts from old toolchains:</p>
+
+<pre># Start tracking the current toolchain
+cargo sweep --stamp
+
+# Later, remove artifacts not built by the current toolchain
+cargo sweep --installed</pre>
+
+        <h2 id="cargo-cache-tool">5. cargo-cache -- Detailed Cache Management</h2>
+
+        <p><a href="https://github.com/matthiaskrgr/cargo-cache">cargo-cache</a> gives you a detailed breakdown of Cargo's cache directories and lets you clean selectively.</p>
+
+<pre># Install
+cargo install cargo-cache
+
+# Show detailed cache breakdown
+cargo cache
+
+# Typical output:
+# Cargo cache '/Users/you/.cargo':
+#   Total:                          3.42 GB
+#     107 installed binaries:       458.22 MB
+#     Registry:                     2.18 GB
+#       Registry index:             371.41 MB
+#       2847 crate archives:        692.58 MB
+#       2847 crate source checkouts:1.13 GB
+#     Git db:                       302.41 MB
+#       47 bare repos:              220.80 MB
+#       65 repo checkouts:          81.61 MB
+
+# Clean with different strategies
+cargo cache --autoclean          # smart cleanup
+cargo cache --remove-dir=all     # remove everything
+cargo cache --gc                 # garbage collect</pre>
+
+        <h2 id="sccache">6. sccache -- Share Build Cache Across Projects</h2>
+
+        <p>If you're rebuilding the same dependencies across multiple projects, <a href="https://github.com/mozilla/sccache">sccache</a> can share compiled artifacts between projects, reducing total disk usage and build times.</p>
+
+<pre># Install sccache
+brew install sccache
+# or
+cargo install sccache
+
+# Configure Cargo to use sccache
+# Add to ~/.cargo/config.toml:
+# [build]
+# rustc-wrapper = "sccache"
+
+# Or set environment variable
+export RUSTC_WRAPPER=sccache
+
+# Check sccache stats
+sccache --show-stats
+
+# Clean sccache cache
+sccache --stop-server
+rm -rf ~/Library/Caches/Mozilla.sccache/</pre>
+
+        <h2 id="multi-project">7. Clean All Projects at Once</h2>
+
+        <p>The most impactful cleanup: find and clean all target/ directories across your machine.</p>
+
+<pre># Find all Rust projects and their target/ sizes
+find ~/Projects ~/Developer ~/Code -maxdepth 4 \
+    -name "Cargo.toml" -exec dirname {} \; 2>/dev/null | while read dir; do
+    if [[ -d "$dir/target" ]]; then
+        size=$(du -sh "$dir/target" | cut -f1)
+        echo "$size  $dir"
+    fi
+done | sort -rh
+
+# Clean ALL target/ directories (aggressive!)
+find ~/Projects ~/Developer ~/Code -maxdepth 4 \
+    -name "Cargo.toml" -exec dirname {} \; 2>/dev/null | while read dir; do
+    if [[ -d "$dir/target" ]]; then
+        echo "Cleaning $dir/target..."
+        rm -rf "$dir/target"
+    fi
+done
+
+# Or use cargo-sweep recursively (smarter -- keeps recent artifacts)
+cd ~/Projects && cargo sweep --recursive --time 14</pre>
+
+        <h2 id="automation">8. Automate Rust Cleanup</h2>
+
+        <h3>Shell Alias</h3>
+
+<pre># Add to ~/.zshrc
+alias rustclean='echo "Cleaning Cargo registry..." && \
+    rm -rf ~/.cargo/registry/src/ && \
+    rm -rf ~/.cargo/registry/cache/ && \
+    echo "Sweeping old build artifacts..." && \
+    cd ~/Projects && cargo sweep --recursive --time 14 2>/dev/null; \
+    echo "Rust cleanup complete!"'</pre>
+
+        <h3>Weekly Cron Job</h3>
+
+<pre># crontab -e
+# Clean Rust artifacts older than 14 days every Sunday at 4am
+0 4 * * 0 find ~/Projects -maxdepth 4 -name "Cargo.toml" -exec dirname {} \; | xargs -I{} sh -c 'cd {} && cargo sweep --time 14' 2>/dev/null
+0 4 * * 0 rm -rf ~/.cargo/registry/src/ 2>/dev/null</pre>
+
+        <h3>GUI Alternative -- ClearDisk</h3>
+
+        <p>If you prefer a visual approach, <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free, open-source macOS menu bar app that detects Cargo target/ directories alongside 14+ other developer caches (Xcode, node_modules, Docker, Homebrew, pip) and shows you how much space each uses.</p>
+
+<pre># Install with Homebrew
+brew tap bysiber/cleardisk && brew install --cask cleardisk</pre>
+
+        <h2 id="prevention">9. Prevention -- Reduce Disk Usage</h2>
+
+        <h3>Use a Shared Target Directory</h3>
+
+        <p>Instead of each project having its own <code class="inline-code">target/</code>, share one directory for all projects:</p>
+
+<pre># Add to ~/.cargo/config.toml
+[build]
+target-dir = "/Users/you/.cargo/target"
+
+# Or set per-session
+export CARGO_TARGET_DIR="$HOME/.cargo/shared-target"</pre>
+
+        <div class="warning">
+            <strong>Trade-off:</strong> Shared target dirs save disk space by reusing compiled deps, but can cause more recompilation if projects use different feature flags for the same crate.
+        </div>
+
+        <h3>Optimize Build Profiles</h3>
+
+<pre># In Cargo.toml -- reduce debug info size
+[profile.dev]
+debug = 1        # reduced debug info (instead of default 2)
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 2    # optimize deps even in debug mode</pre>
+
+        <h3>Use Thin LTO for Smaller Release Binaries</h3>
+
+<pre>[profile.release]
+lto = "thin"
+strip = true     # strip debug symbols
+codegen-units = 1</pre>
+
+        <h2 id="cheatsheet">10. Quick Reference Cheatsheet</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Command</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Clean current project</td>
+                    <td><code>cargo clean</code></td>
+                </tr>
+                <tr>
+                    <td>Check target/ size</td>
+                    <td><code>du -sh target/</code></td>
+                </tr>
+                <tr>
+                    <td>Check Cargo cache</td>
+                    <td><code>du -sh ~/.cargo/registry/</code></td>
+                </tr>
+                <tr>
+                    <td>Clean registry source</td>
+                    <td><code>rm -rf ~/.cargo/registry/src/</code></td>
+                </tr>
+                <tr>
+                    <td>Smart sweep (30 days)</td>
+                    <td><code>cargo sweep --time 30</code></td>
+                </tr>
+                <tr>
+                    <td>Recursive sweep</td>
+                    <td><code>cargo sweep --recursive --time 14</code></td>
+                </tr>
+                <tr>
+                    <td>Detailed cache stats</td>
+                    <td><code>cargo cache</code></td>
+                </tr>
+                <tr>
+                    <td>Auto-clean cache</td>
+                    <td><code>cargo cache --autoclean</code></td>
+                </tr>
+                <tr>
+                    <td>Find all target/ dirs</td>
+                    <td><code>find ~ -name "Cargo.toml" -exec dirname {} \;</code></td>
+                </tr>
+                <tr>
+                    <td>GUI cleanup (all caches)</td>
+                    <td><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> | <a href="python-pip-cache-cleanup-mac.html">Python/pip Guide</a> | <a href="clean-node-modules-mac.html">node_modules Guide</a> | <a href="homebrew-cleanup-guide-mac.html">Homebrew Guide</a> | <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
