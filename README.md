@@ -78,6 +78,15 @@ ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar
    ```
 4. Open ClearDisk from Applications
 
+### Homebrew
+
+```bash
+brew tap bysiber/cleardisk
+brew install --cask cleardisk
+```
+
+That's it. Homebrew handles everything, including the quarantine flag.
+
 ### Build from Source
 
 ```bash
@@ -91,9 +100,7 @@ open /Applications/ClearDisk.app
 
 That's it. Click the disk icon in your menu bar.
 
-> **Why `xattr -cr`?** ClearDisk is not code-signed ($99/yr Apple Developer fee). This removes the macOS Gatekeeper quarantine flag. You can verify every line of source code yourself — it's fully open.
-> 
-> Homebrew Cask install coming soon: `brew install --cask cleardisk`
+> **Why `xattr -cr`?** ClearDisk is not code-signed ($99/yr Apple Developer fee). This removes the macOS Gatekeeper quarantine flag. You can verify every line of source code yourself -- it's fully open.
 
 Requires macOS 14+ (Apple Silicon). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
 
