@@ -12,6 +12,9 @@ A free, open-source macOS menu bar app that monitors and cleans developer caches
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ![Size](https://img.shields.io/badge/Size-590%20KB-brightgreen)
+[![GitHub stars](https://img.shields.io/github/stars/bysiber/cleardisk?style=social)](https://github.com/bysiber/cleardisk/stargazers)
+[![GitHub release](https://img.shields.io/github/v/release/bysiber/cleardisk)](https://github.com/bysiber/cleardisk/releases/latest)
+[![Homebrew](https://img.shields.io/badge/Homebrew-tap-brown)](https://github.com/bysiber/homebrew-cleardisk)
 
 <p align="center">
   <img src="assets/showcase.png" alt="ClearDisk Screenshots — Caches, Projects, Clean Projects, Clean Caches, Large Files, Overview" width="100%">
