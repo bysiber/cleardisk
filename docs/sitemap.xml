@@ -18,4 +18,10 @@
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
     </url>
+    <url>
+        <loc>https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html</loc>
+        <lastmod>2025-03-02</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
 </urlset>

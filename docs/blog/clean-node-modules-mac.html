@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to Find and Delete All node_modules on Your Mac (2025 Guide)</title>
+    <meta name="description" content="Find every node_modules folder on your Mac, see how much space they use, and delete them safely. Terminal commands + free GUI tools for cleaning npm/yarn/pnpm caches.">
+    <meta name="keywords" content="delete node_modules, find node_modules mac, clean npm cache, node_modules disk space, free disk space node, remove old node_modules, npm cache clean, yarn cache clean, pnpm store clean">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">
+    
+    <meta property="og:title" content="How to Find and Delete All node_modules on Your Mac">
+    <meta property="og:description" content="Find every node_modules folder on your Mac, see sizes, and delete them safely.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "How to Find and Delete All node_modules on Your Mac (2025 Guide)",
+        "description": "Find every node_modules folder, see sizes, and safely delete them on macOS.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-01-15",
+        "dateModified": "2025-01-15",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        h2 { font-size: 1.5em; margin-top: 40px; margin-bottom: 15px; color: #1d1d1f; border-bottom: 2px solid #0071e3; padding-bottom: 5px; display: inline-block; }
+        h3 { font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+        .meta { color: #6e6e73; margin-bottom: 30px; font-size: 0.95em; }
+        p { margin-bottom: 15px; }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 5px; }
+
+        .toc { background: #f5f5f7; padding: 20px 30px; border-radius: 12px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { padding-left: 20px; }
+        .toc a { color: #0071e3; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 18px 22px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 20px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code { background: #f5f5f7; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 20px 0;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { background: #f5f5f7; font-weight: 600; }
+
+        .total-box {
+            background: #f5f5f7;
+            padding: 25px;
+            border-radius: 16px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .total-box .number { font-size: 3em; font-weight: 700; color: #0071e3; }
+
+        .cta-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 35px 0;
+            text-align: center;
+        }
+        .cta-box h3 { color: white; margin-top: 0; font-size: 1.4em; }
+        .cta-box p { color: rgba(255,255,255,0.9); }
+        .cta-box a {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: transform 0.2s;
+        }
+        .cta-box a:hover { transform: scale(1.05); }
+
+        .breadcrumb { font-size: 0.85em; color: #6e6e73; margin-bottom: 20px; }
+        .breadcrumb a { color: #0071e3; text-decoration: none; }
+
+        footer { text-align: center; padding: 40px 20px; color: #6e6e73; font-size: 0.85em; border-top: 1px solid #e5e5e7; margin-top: 50px; }
+        footer a { color: #0071e3; text-decoration: none; }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.6em; }
+            .container { padding: 20px 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="../">ClearDisk</a> / <a href="free-disk-space-mac-developer.html">Blog</a> / Clean node_modules
+        </div>
+
+        <h1>How to Find and Delete All node_modules on Your Mac (2025 Guide)</h1>
+        <p class="meta">Updated January 2025 -- 6 min read</p>
+
+        <p>If you work with Node.js, React, Vue, Next.js, or any npm-based project, your Mac is probably hiding gigabytes of <code>node_modules</code> folders. Each project gets its own copy of every dependency, and they accumulate fast.</p>
+
+        <div class="total-box">
+            <div class="number">5-30GB</div>
+            <p>Typical node_modules disk usage across all projects on a developer's Mac</p>
+        </div>
+
+        <p>This guide covers how to find them all, see how much space they use, and safely delete the ones you don't need.</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#why-so-big">Why node_modules Gets So Big</a></li>
+                <li><a href="#find-all">Find All node_modules Folders</a></li>
+                <li><a href="#check-sizes">Check Sizes Before Deleting</a></li>
+                <li><a href="#delete-all">Delete All node_modules at Once</a></li>
+                <li><a href="#delete-selective">Delete Selectively (Safer)</a></li>
+                <li><a href="#npm-cache">Clean npm/yarn/pnpm Caches</a></li>
+                <li><a href="#gui-tools">GUI Tools (No Terminal Needed)</a></li>
+                <li><a href="#prevent">Prevent Future Bloat</a></li>
+            </ol>
+        </div>
+
+        <!-- ======================== -->
+
+        <h2 id="why-so-big">1. Why node_modules Gets So Big</h2>
+
+        <p>A typical React project can have a <code>node_modules</code> folder of 200-500MB. Here's why:</p>
+
+        <ul>
+            <li><strong>Nested dependencies</strong> -- Your 20 direct dependencies each have their own dependencies, which have dependencies... A small project can easily pull in 1,000+ packages.</li>
+            <li><strong>Multiple copies</strong> -- Different packages may require different versions of the same dependency, leading to duplication.</li>
+            <li><strong>Platform-specific binaries</strong> -- Packages like <code>esbuild</code>, <code>swc</code>, and <code>sharp</code> include native binaries for each platform.</li>
+            <li><strong>TypeScript definitions</strong> -- <code>@types/*</code> packages add up, especially in larger projects.</li>
+        </ul>
+
+        <p>Multiply that by 10-20 projects on your Mac, and you're looking at 5-30GB of node_modules.</p>
+
+        <!-- ======================== -->
+
+        <h2 id="find-all">2. Find All node_modules Folders</h2>
+
+        <h3>Basic Find</h3>
+        <pre><code># Find all node_modules directories
+find ~ -name "node_modules" -type d -prune 2>/dev/null</code></pre>
+
+        <div class="info">
+            <strong>What does <code>-prune</code> do?</strong> It prevents <code>find</code> from descending into node_modules directories (which contain nested node_modules). Without it, the command would be extremely slow and return duplicates.
+        </div>
+
+        <h3>Search a Specific Directory</h3>
+        <pre><code># Only search in your projects folder
+find ~/Projects -name "node_modules" -type d -prune 2>/dev/null
+
+# Or your Desktop/Documents
+find ~/Documents -name "node_modules" -type d -prune 2>/dev/null</code></pre>
+
+        <h3>Count How Many You Have</h3>
+        <pre><code># Count node_modules directories
+find ~ -name "node_modules" -type d -prune 2>/dev/null | wc -l</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="check-sizes">3. Check Sizes Before Deleting</h2>
+
+        <pre><code># Find all node_modules and show their sizes
+find ~ -name "node_modules" -type d -prune -exec du -sh {} \; 2>/dev/null</code></pre>
+
+        <p>Example output:</p>
+        <pre><code>412M    /Users/you/Projects/old-react-app/node_modules
+287M    /Users/you/Projects/portfolio-site/node_modules
+1.2G    /Users/you/Projects/work/monorepo/node_modules
+156M    /Users/you/Desktop/tutorial-project/node_modules
+843M    /Users/you/Projects/nextjs-blog/node_modules</code></pre>
+
+        <h3>Sort by Size (Largest First)</h3>
+        <pre><code># Show sizes sorted from largest to smallest
+find ~ -name "node_modules" -type d -prune -exec du -sm {} \; 2>/dev/null | sort -rn</code></pre>
+
+        <h3>Get Total Size</h3>
+        <pre><code># Total disk usage of ALL node_modules
+find ~ -name "node_modules" -type d -prune -exec du -sm {} \; 2>/dev/null | awk '{total += $1} END {print total "MB"}'</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="delete-all">4. Delete All node_modules at Once</h2>
+
+        <div class="warning">
+            <strong>Before you delete:</strong> This is safe for projects you're not actively working on. For active projects, you can always restore with <code>npm install</code> (or <code>yarn</code> / <code>pnpm install</code>). It just takes a minute.
+        </div>
+
+        <pre><code># Delete ALL node_modules on your Mac
+find ~ -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null</code></pre>
+
+        <h3>Delete Only in a Specific Directory</h3>
+        <pre><code># Delete node_modules only in ~/Projects
+find ~/Projects -name "node_modules" -type d -prune -exec rm -rf {} + 2>/dev/null</code></pre>
+
+        <h3>Delete Only "Old" node_modules (Not Modified Recently)</h3>
+        <pre><code># Delete node_modules not modified in the last 30 days
+find ~ -name "node_modules" -type d -prune -mtime +30 -exec rm -rf {} + 2>/dev/null
+
+# Not modified in the last 90 days
+find ~ -name "node_modules" -type d -prune -mtime +90 -exec rm -rf {} + 2>/dev/null</code></pre>
+
+        <div class="tip">
+            <strong>Pro tip:</strong> The 90-day filter is the sweet spot. If you haven't touched a project in 3 months, you probably don't need its node_modules. You can always <code>npm install</code> again.
+        </div>
+
+        <!-- ======================== -->
+
+        <h2 id="delete-selective">5. Delete Selectively (Safer Approach)</h2>
+
+        <p>If you want to review before deleting, use an interactive approach:</p>
+
+        <h3>Using npkill (Interactive CLI)</h3>
+        <pre><code># Install and run npkill
+npx npkill</code></pre>
+
+        <p><code>npkill</code> shows all node_modules with their sizes and lets you select which ones to delete using arrow keys + space. It's the safest option.</p>
+
+        <h3>Two-Step Approach (List, Then Delete)</h3>
+        <pre><code># Step 1: List all node_modules to a file
+find ~ -name "node_modules" -type d -prune -exec du -sh {} \; 2>/dev/null > ~/node_modules_list.txt
+
+# Step 2: Review the file, then delete specific ones
+cat ~/node_modules_list.txt  # review
+rm -rf /path/to/specific/project/node_modules</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="npm-cache">6. Clean npm/yarn/pnpm Caches</h2>
+
+        <p>Besides project-level node_modules, package managers maintain global caches:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Package Manager</th>
+                    <th>Cache Location</th>
+                    <th>Typical Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>npm</strong></td>
+                    <td>~/.npm/_cacache</td>
+                    <td>500MB-5GB</td>
+                </tr>
+                <tr>
+                    <td><strong>yarn v1</strong></td>
+                    <td>~/Library/Caches/Yarn</td>
+                    <td>500MB-3GB</td>
+                </tr>
+                <tr>
+                    <td><strong>yarn v2+</strong></td>
+                    <td>.yarn/cache (per project)</td>
+                    <td>100-500MB each</td>
+                </tr>
+                <tr>
+                    <td><strong>pnpm</strong></td>
+                    <td>~/Library/pnpm/store</td>
+                    <td>500MB-5GB</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Clean All Package Manager Caches</h3>
+        <pre><code># npm cache
+npm cache clean --force
+# Check npm cache size
+npm cache ls 2>/dev/null | wc -l
+
+# yarn v1 cache
+yarn cache clean
+
+# pnpm store
+pnpm store prune
+
+# Check sizes
+du -sh ~/.npm
+du -sh ~/Library/Caches/Yarn 2>/dev/null
+du -sh ~/Library/pnpm/store 2>/dev/null</code></pre>
+
+        <div class="tip">
+            <strong>Is it safe?</strong> Yes. Package manager caches just speed up installs. Cleaning them means <code>npm install</code> will download packages from the registry instead of using the cache. Slightly slower installs, but no functionality impact.
+        </div>
+
+        <!-- ======================== -->
+
+        <h2 id="gui-tools">7. GUI Tools (No Terminal Needed)</h2>
+
+        <p>If you'd rather not use the terminal, there are tools that provide a visual interface:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Tool</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>node_modules Cleanup</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong><a href="https://github.com/bysiber/cleardisk">ClearDisk</a></strong></td>
+                    <td>macOS menu bar app</td>
+                    <td>Free (open source)</td>
+                    <td>Yes + 15 other dev caches</td>
+                </tr>
+                <tr>
+                    <td><strong>npkill</strong></td>
+                    <td>CLI (interactive)</td>
+                    <td>Free (open source)</td>
+                    <td>Yes (node_modules only)</td>
+                </tr>
+                <tr>
+                    <td><strong>DaisyDisk</strong></td>
+                    <td>macOS app</td>
+                    <td>$9.99</td>
+                    <td>Manual (shows all files)</td>
+                </tr>
+                <tr>
+                    <td><strong>CleanMyMac</strong></td>
+                    <td>macOS app</td>
+                    <td>$39-90/year</td>
+                    <td>Partial (system caches)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="cta-box">
+            <h3>Clean node_modules + 15 Other Dev Caches</h3>
+            <p>ClearDisk detects node_modules, npm cache, Xcode DerivedData, Docker, Homebrew, pip, CocoaPods, and more. One click to see sizes, one click to clean.</p>
+            <a href="https://github.com/bysiber/cleardisk">View on GitHub</a>
+        </div>
+
+        <pre><code># Install ClearDisk via Homebrew
+brew tap bysiber/cleardisk && brew install --cask cleardisk</code></pre>
+
+        <!-- ======================== -->
+
+        <h2 id="prevent">8. Prevent Future Bloat</h2>
+
+        <h3>Use pnpm Instead of npm</h3>
+        <p>pnpm uses a global content-addressable store and creates hard links into project node_modules. This means packages are stored once on disk, regardless of how many projects use them.</p>
+
+        <pre><code># Install pnpm
+npm install -g pnpm
+
+# Use pnpm in your projects
+pnpm install</code></pre>
+
+        <p>Typical savings: 50-70% less disk usage compared to npm.</p>
+
+        <h3>Set Up a Cleanup Schedule</h3>
+        <p>Add this to your shell profile (~/.zshrc) as a quick alias:</p>
+
+        <pre><code># Add to ~/.zshrc
+alias clean-nm='find ~/Projects -name "node_modules" -type d -prune -mtime +90 -exec rm -rf {} + 2>/dev/null && echo "Cleaned old node_modules!"'</code></pre>
+
+        <p>Then just run <code>clean-nm</code> whenever you want to clean up.</p>
+
+        <h3>Use .gitignore Properly</h3>
+        <p>Make sure every project has <code>node_modules/</code> in its .gitignore. This doesn't save disk space directly, but prevents node_modules from being tracked by git (which would double the storage with git objects).</p>
+
+        <hr style="margin: 40px 0; border: none; border-top: 1px solid #e5e5e7;">
+
+        <h2>Quick Reference</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Command</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Find all node_modules</td>
+                    <td><code>find ~ -name "node_modules" -type d -prune</code></td>
+                </tr>
+                <tr>
+                    <td>Check total size</td>
+                    <td><code>find ~ -name "node_modules" -type d -prune -exec du -sm {} \; | awk '{t+=$1}END{print t"MB"}'</code></td>
+                </tr>
+                <tr>
+                    <td>Delete all</td>
+                    <td><code>find ~ -name "node_modules" -type d -prune -exec rm -rf {} +</code></td>
+                </tr>
+                <tr>
+                    <td>Delete old (90+ days)</td>
+                    <td><code>find ~ -name "node_modules" -type d -prune -mtime +90 -exec rm -rf {} +</code></td>
+                </tr>
+                <tr>
+                    <td>Clean npm cache</td>
+                    <td><code>npm cache clean --force</code></td>
+                </tr>
+                <tr>
+                    <td>Interactive cleanup</td>
+                    <td><code>npx npkill</code></td>
+                </tr>
+                <tr>
+                    <td>GUI cleanup</td>
+                    <td><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Disk Space Guide</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
