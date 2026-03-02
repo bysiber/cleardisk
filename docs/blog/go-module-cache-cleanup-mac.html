@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go GOPATH and Module Cache Taking Up Too Much Disk Space on Mac? Complete Cleanup Guide</title>
+    <meta name="description" content="Go module cache, GOPATH, and build cache can eat 10-30GB on macOS. Learn how to audit, clean go/pkg/mod, GOCACHE, old Go versions, and automate cleanup.">
+    <meta name="keywords" content="go module cache cleanup, GOPATH disk space, go clean -cache, GOCACHE size, go mod cache clean, golang disk usage mac, go build cache mac">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html">
+    <meta property="og:title" content="Go GOPATH & Module Cache Cleanup Guide for macOS">
+    <meta property="og:description" content="Go module cache and build cache can silently consume 10-30GB. Complete guide to audit and clean Go caches on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Go Module Cache & GOPATH Cleanup Guide for macOS">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Go GOPATH and Module Cache Taking Up Too Much Disk Space on Mac?",
+        "description": "Complete guide to cleaning Go module cache, GOPATH, build cache, and old Go versions on macOS",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "datePublished": "2025-07-25",
+        "dateModified": "2025-07-25",
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html"
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .header { background: linear-gradient(135deg, #00ADD8 0%, #00899B 100%); color: white; padding: 60px 20px; text-align: center; }
+        .header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; }
+        .header p { font-size: 1.1em; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .content { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #00ADD8; border-bottom: 2px solid #00ADD8; padding-bottom: 8px; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #333; }
+        p { margin: 15px 0; }
+        pre { background: #1a1a2e; color: #e0e0e0; padding: 20px; border-radius: 10px; overflow-x: auto; margin: 20px 0; font-size: 0.9em; line-height: 1.5; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #00899B; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .danger { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #00ADD8; }
+        tr:hover { background: #f8f9fa; }
+        .cta { background: linear-gradient(135deg, #00ADD8 0%, #00899B 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 40px 0; }
+        .cta a { color: white; font-weight: 600; text-decoration: underline; }
+        .toc { background: #f8f9fa; padding: 25px; border-radius: 10px; margin: 30px 0; }
+        .toc ul { list-style: none; padding-left: 0; }
+        .toc li { padding: 5px 0; }
+        .toc a { color: #00ADD8; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .breadcrumb { padding: 15px 20px; background: #f8f9fa; font-size: 0.9em; }
+        .breadcrumb a { color: #00ADD8; text-decoration: none; }
+        .cheatsheet { background: #1a1a2e; color: #e0e0e0; padding: 25px; border-radius: 12px; margin: 30px 0; }
+        .cheatsheet h3 { color: #00ADD8; margin-top: 0; }
+        .footer { text-align: center; padding: 40px 20px; background: #f8f9fa; margin-top: 60px; }
+        .footer a { color: #00ADD8; text-decoration: none; margin: 0 10px; }
+        .size-chart { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .size-item { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .size-item .size { font-size: 1.8em; font-weight: 700; color: #00ADD8; }
+        .size-item .label { font-size: 0.85em; color: #666; margin-top: 5px; }
+        @media (max-width: 600px) { .header h1 { font-size: 1.6em; } .size-chart { grid-template-columns: 1fr; } pre { font-size: 0.8em; padding: 15px; } }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="https://bysiber.github.io/cleardisk/">ClearDisk</a> &rsaquo;
+        <a href="https://bysiber.github.io/cleardisk/blog/">Blog</a> &rsaquo;
+        Go Module Cache Cleanup
+    </div>
+
+    <div class="header">
+        <h1>Go GOPATH & Module Cache Taking Up Too Much Disk Space on Mac?</h1>
+        <p>Your Go module cache, build cache, and old toolchains could be eating 10-30GB. Here is exactly how to find and clean them.</p>
+    </div>
+
+    <div class="content">
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <ul>
+                <li><a href="#audit">1. Full Go Disk Space Audit</a></li>
+                <li><a href="#module-cache">2. Go Module Cache (go/pkg/mod)</a></li>
+                <li><a href="#build-cache">3. Go Build Cache (GOCACHE)</a></li>
+                <li><a href="#gopath">4. GOPATH Cleanup (Legacy)</a></li>
+                <li><a href="#toolchains">5. Go Toolchains & Versions</a></li>
+                <li><a href="#test-cache">6. Test Cache & Fuzzing Data</a></li>
+                <li><a href="#bin">7. GOBIN -- Installed Binaries</a></li>
+                <li><a href="#multi-project">8. Multi-Project Cleanup</a></li>
+                <li><a href="#automation">9. Automated Cleanup Script</a></li>
+                <li><a href="#prevention">10. Prevention & Best Practices</a></li>
+                <li><a href="#cheatsheet">11. Quick Reference Cheatsheet</a></li>
+            </ul>
+        </div>
+
+        <h2 id="audit">1. Full Go Disk Space Audit</h2>
+        <p>Before cleaning anything, run this complete audit to see where your Go disk space is going:</p>
+        <pre><code><span style="color:#6bb3e0;"># Go environment paths</span>
+go env GOPATH GOMODCACHE GOCACHE GOROOT
+
+<span style="color:#6bb3e0;"># Module cache (downloaded dependencies)</span>
+du -sh $(go env GOMODCACHE) 2>/dev/null
+
+<span style="color:#6bb3e0;"># Build cache (compiled objects)</span>
+du -sh $(go env GOCACHE) 2>/dev/null
+
+<span style="color:#6bb3e0;"># GOPATH (legacy workspace + installed binaries)</span>
+du -sh $(go env GOPATH) 2>/dev/null
+
+<span style="color:#6bb3e0;"># Go installation itself</span>
+du -sh $(go env GOROOT) 2>/dev/null
+
+<span style="color:#6bb3e0;"># Old Go versions (if using Homebrew)</span>
+du -sh /opt/homebrew/Cellar/go* 2>/dev/null
+du -sh /usr/local/Cellar/go* 2>/dev/null
+
+<span style="color:#6bb3e0;"># Homebrew Go version manager (goenv) if applicable</span>
+du -sh ~/.goenv/versions 2>/dev/null
+
+<span style="color:#6bb3e0;"># Total estimate</span>
+echo "=== TOTAL GO DISK USAGE ==="
+du -sh $(go env GOPATH) 2>/dev/null</code></pre>
+
+        <div class="size-chart">
+            <div class="size-item">
+                <div class="size">3-15 GB</div>
+                <div class="label">Module Cache (go/pkg/mod)</div>
+            </div>
+            <div class="size-item">
+                <div class="size">1-8 GB</div>
+                <div class="label">Build Cache (GOCACHE)</div>
+            </div>
+            <div class="size-item">
+                <div class="size">0.5-3 GB</div>
+                <div class="label">Installed Go Versions</div>
+            </div>
+            <div class="size-item">
+                <div class="size">0.2-2 GB</div>
+                <div class="label">Installed Binaries (GOBIN)</div>
+            </div>
+        </div>
+
+        <h2 id="module-cache">2. Go Module Cache (go/pkg/mod)</h2>
+        <p>The module cache at <span class="inline-code">~/go/pkg/mod</span> stores downloaded source code for every dependency version your projects have ever used. This is usually the biggest Go cache.</p>
+
+        <h3>Audit module cache</h3>
+        <pre><code><span style="color:#6bb3e0;"># Total module cache size</span>
+du -sh $(go env GOMODCACHE)
+
+<span style="color:#6bb3e0;"># Top 20 biggest modules</span>
+du -sh $(go env GOMODCACHE)/*/* 2>/dev/null | sort -rh | head -20
+
+<span style="color:#6bb3e0;"># Count unique modules</span>
+ls $(go env GOMODCACHE) 2>/dev/null | wc -l
+
+<span style="color:#6bb3e0;"># Find modules with multiple cached versions</span>
+ls $(go env GOMODCACHE)/*/ 2>/dev/null | \
+  sed 's/@.*//' | sort | uniq -c | sort -rn | head -20</code></pre>
+
+        <h3>Clean module cache</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove entire module cache (safe -- re-downloaded on next build)</span>
+go clean -modcache
+
+<span style="color:#6bb3e0;"># Verify it is gone</span>
+du -sh $(go env GOMODCACHE) 2>/dev/null</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> <span class="inline-code">go clean -modcache</span> is safe. Go will re-download only the modules your current projects need on the next <span class="inline-code">go build</span> or <span class="inline-code">go mod download</span>. Old unused versions will not come back.
+        </div>
+
+        <h2 id="build-cache">3. Go Build Cache (GOCACHE)</h2>
+        <p>The build cache at <span class="inline-code">~/Library/Caches/go-build</span> (macOS default) stores compiled package objects to speed up rebuilds. It grows without bound.</p>
+
+        <h3>Audit build cache</h3>
+        <pre><code><span style="color:#6bb3e0;"># Check build cache location and size</span>
+echo "Location: $(go env GOCACHE)"
+du -sh $(go env GOCACHE)
+
+<span style="color:#6bb3e0;"># Number of cached objects</span>
+find $(go env GOCACHE) -type f 2>/dev/null | wc -l
+
+<span style="color:#6bb3e0;"># Oldest cached files</span>
+find $(go env GOCACHE) -type f -printf '%T+ %p\n' 2>/dev/null | sort | head -5</code></pre>
+
+        <h3>Clean build cache</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove all build cache (rebuilds take longer once)</span>
+go clean -cache
+
+<span style="color:#6bb3e0;"># Check result</span>
+du -sh $(go env GOCACHE)</code></pre>
+
+        <div class="warning">
+            <strong>Performance note:</strong> After cleaning build cache, your first <span class="inline-code">go build</span> will be slower (full recompilation). Subsequent builds rebuild the cache quickly.
+        </div>
+
+        <h2 id="gopath">4. GOPATH Cleanup (Legacy)</h2>
+        <p>If you started using Go before modules (Go 1.11), your <span class="inline-code">GOPATH</span> may contain legacy <span class="inline-code">src/</span> directory with old vendored code.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Check GOPATH structure</span>
+ls -la $(go env GOPATH)/
+du -sh $(go env GOPATH)/src 2>/dev/null
+du -sh $(go env GOPATH)/pkg 2>/dev/null
+du -sh $(go env GOPATH)/bin 2>/dev/null
+
+<span style="color:#6bb3e0;"># Legacy src/ is safe to remove if all projects use go.mod</span>
+<span style="color:#6bb3e0;"># Check first: do any of your projects lack go.mod?</span>
+find $(go env GOPATH)/src -name "go.mod" -maxdepth 3 2>/dev/null
+
+<span style="color:#6bb3e0;"># If all projects have go.mod, legacy src/ is unused</span>
+rm -rf $(go env GOPATH)/src</code></pre>
+
+        <div class="danger">
+            <strong>Caution:</strong> Only remove <span class="inline-code">GOPATH/src</span> if all your projects use Go modules (<span class="inline-code">go.mod</span>). If you have legacy non-module projects, they depend on this directory.
+        </div>
+
+        <h2 id="toolchains">5. Go Toolchains & Versions</h2>
+        <p>Multiple Go versions can accumulate, especially with Homebrew or version managers.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Current Go version</span>
+go version
+
+<span style="color:#6bb3e0;"># Go installed via Homebrew</span>
+brew list --versions go 2>/dev/null
+du -sh /opt/homebrew/Cellar/go* 2>/dev/null
+
+<span style="color:#6bb3e0;"># Go managed toolchains (Go 1.21+)</span>
+ls -la ~/sdk/ 2>/dev/null
+du -sh ~/sdk/go* 2>/dev/null
+
+<span style="color:#6bb3e0;"># Extra Go versions installed via go install golang.org/dl/goX.Y</span>
+ls ~/sdk/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># Clean old Go SDK downloads</span>
+rm -rf ~/sdk/go1.21*  # example: remove old 1.21 toolchains
+
+<span style="color:#6bb3e0;"># Homebrew: remove old versions</span>
+brew cleanup go 2>/dev/null</code></pre>
+
+        <h2 id="test-cache">6. Test Cache & Fuzzing Data</h2>
+        <p>The test cache is part of GOCACHE, but fuzzing corpus data is stored separately and can grow significantly.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Clear test results cache</span>
+go clean -testcache
+
+<span style="color:#6bb3e0;"># Find fuzzing corpus data across projects</span>
+find ~/Projects -path "*/testdata/fuzz" -type d 2>/dev/null | xargs du -sh
+
+<span style="color:#6bb3e0;"># Clear fuzzing cache</span>
+go clean -fuzzcache
+
+<span style="color:#6bb3e0;"># Verify</span>
+du -sh $(go env GOCACHE)</code></pre>
+
+        <h2 id="bin">7. GOBIN -- Installed Binaries</h2>
+        <p>Tools installed with <span class="inline-code">go install</span> accumulate in <span class="inline-code">GOPATH/bin</span>. Old binaries you no longer use still take up space.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># List installed Go binaries by size</span>
+ls -lhS $(go env GOPATH)/bin/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># Total size</span>
+du -sh $(go env GOPATH)/bin/
+
+<span style="color:#6bb3e0;"># Find binaries not accessed in 90 days</span>
+find $(go env GOPATH)/bin -type f -atime +90 2>/dev/null
+
+<span style="color:#6bb3e0;"># Remove specific unused tools</span>
+rm $(go env GOPATH)/bin/unused-tool-name</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> Common Go tools like <span class="inline-code">gopls</span>, <span class="inline-code">dlv</span>, <span class="inline-code">staticcheck</span>, and <span class="inline-code">golangci-lint</span> update frequently. After updating, old versions are replaced automatically, but the module cache retains their old source code.
+        </div>
+
+        <h2 id="multi-project">8. Multi-Project Cleanup</h2>
+        <p>If you work on multiple Go projects, each has its own <span class="inline-code">vendor/</span> directory (if vendoring) and contributes to the shared module cache.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Find all Go vendor directories</span>
+find ~/Projects -name "vendor" -type d -maxdepth 3 2>/dev/null | \
+  while read d; do
+    if [ -f "$(dirname "$d")/go.mod" ]; then
+      echo "$(du -sh "$d" 2>/dev/null)"
+    fi
+  done | sort -rh | head -20
+
+<span style="color:#6bb3e0;"># Total vendor disk usage</span>
+find ~/Projects -name "vendor" -type d -maxdepth 3 2>/dev/null | \
+  xargs du -sh 2>/dev/null | awk '{sum+=$1} END {print sum" total"}'
+
+<span style="color:#6bb3e0;"># Remove vendor dirs (go mod vendor regenerates them)</span>
+find ~/Projects -name "vendor" -type d -maxdepth 3 -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#6bb3e0;"># Find go binary build outputs</span>
+find ~/Projects -name "*.test" -type f 2>/dev/null | xargs du -sh | sort -rh</code></pre>
+
+        <h2 id="automation">9. Automated Cleanup Script</h2>
+        <p>Set up a weekly cron job or launchd agent to keep Go caches in check:</p>
+
+        <pre><code><span style="color:#6bb3e0;">#!/bin/bash</span>
+<span style="color:#6bb3e0;"># go-cleanup.sh -- Weekly Go cache maintenance for macOS</span>
+
+echo "=== Go Disk Usage Before Cleanup ==="
+echo "Module cache: $(du -sh $(go env GOMODCACHE) 2>/dev/null | cut -f1)"
+echo "Build cache:  $(du -sh $(go env GOCACHE) 2>/dev/null | cut -f1)"
+echo "GOPATH total: $(du -sh $(go env GOPATH) 2>/dev/null | cut -f1)"
+
+<span style="color:#6bb3e0;"># Clean build cache (safe, rebuilt automatically)</span>
+go clean -cache
+
+<span style="color:#6bb3e0;"># Clean test cache</span>
+go clean -testcache
+
+<span style="color:#6bb3e0;"># Clean fuzzing cache</span>
+go clean -fuzzcache
+
+<span style="color:#6bb3e0;"># Optional: clean module cache (uncomment if you want aggressive cleanup)</span>
+<span style="color:#6bb3e0;"># go clean -modcache</span>
+
+echo ""
+echo "=== Go Disk Usage After Cleanup ==="
+echo "Module cache: $(du -sh $(go env GOMODCACHE) 2>/dev/null | cut -f1)"
+echo "Build cache:  $(du -sh $(go env GOCACHE) 2>/dev/null | cut -f1)"
+echo "GOPATH total: $(du -sh $(go env GOPATH) 2>/dev/null | cut -f1)"</code></pre>
+
+        <p>Add to crontab:</p>
+        <pre><code><span style="color:#6bb3e0;"># Run every Sunday at 3am</span>
+crontab -e
+0 3 * * 0 /path/to/go-cleanup.sh >> /tmp/go-cleanup.log 2>&1</code></pre>
+
+        <h2 id="prevention">10. Prevention & Best Practices</h2>
+
+        <h3>Set GOMODCACHE wisely</h3>
+        <pre><code><span style="color:#6bb3e0;"># Check current location (default: ~/go/pkg/mod)</span>
+go env GOMODCACHE
+
+<span style="color:#6bb3e0;"># Move to a dedicated location if you want easy cleanup</span>
+go env -w GOMODCACHE=/path/to/custom/gomod</code></pre>
+
+        <h3>Use Go workspace mode for multi-module projects</h3>
+        <pre><code><span style="color:#6bb3e0;"># go.work reduces duplicate module downloads</span>
+go work init ./module1 ./module2 ./module3</code></pre>
+
+        <h3>Keep Homebrew Go tidy</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove old Go versions from Homebrew</span>
+brew cleanup go
+brew autoremove</code></pre>
+
+        <h3>GOFLAGS for disk-conscious builds</h3>
+        <pre><code><span style="color:#6bb3e0;"># Disable CGO if not needed (smaller binaries, less cache)</span>
+export CGO_ENABLED=0
+
+<span style="color:#6bb3e0;"># Use -trimpath to reduce build cache variability</span>
+go build -trimpath ./...</code></pre>
+
+        <div class="cta">
+            <h3>Clean All Developer Caches at Once</h3>
+            <p>Go is just one piece of the puzzle. <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> scans Go caches alongside Docker, Xcode, Homebrew, node_modules, pip, Cargo, and more -- all from your Mac menu bar. Free and open-source.</p>
+            <p style="margin-top:15px;"><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></p>
+        </div>
+
+        <h2 id="cheatsheet">11. Quick Reference Cheatsheet</h2>
+        <div class="cheatsheet">
+            <h3>Go Cache Cleanup Cheatsheet</h3>
+            <pre><code style="color:#e0e0e0;"><span style="color:#6bb3e0;"># === AUDIT ===</span>
+du -sh $(go env GOMODCACHE)    <span style="color:#6bb3e0;"># module cache</span>
+du -sh $(go env GOCACHE)       <span style="color:#6bb3e0;"># build cache</span>
+du -sh $(go env GOPATH)        <span style="color:#6bb3e0;"># total GOPATH</span>
+du -sh $(go env GOPATH)/bin    <span style="color:#6bb3e0;"># installed tools</span>
+du -sh ~/sdk/go*               <span style="color:#6bb3e0;"># extra toolchains</span>
+
+<span style="color:#6bb3e0;"># === SAFE CLEANUP ===</span>
+go clean -cache                <span style="color:#6bb3e0;"># clear build cache</span>
+go clean -testcache            <span style="color:#6bb3e0;"># clear test results</span>
+go clean -fuzzcache            <span style="color:#6bb3e0;"># clear fuzz data</span>
+
+<span style="color:#6bb3e0;"># === AGGRESSIVE CLEANUP ===</span>
+go clean -modcache             <span style="color:#6bb3e0;"># remove ALL modules</span>
+go clean -cache -modcache      <span style="color:#6bb3e0;"># remove everything</span>
+
+<span style="color:#6bb3e0;"># === NUCLEAR ===</span>
+go clean -cache -modcache -testcache -fuzzcache
+
+<span style="color:#6bb3e0;"># === ALSO CHECK ===</span>
+brew cleanup go                <span style="color:#6bb3e0;"># old Homebrew versions</span>
+rm -rf ~/sdk/go1.21*           <span style="color:#6bb3e0;"># old SDK toolchains</span></code></pre>
+        </div>
+
+        <h2>Frequently Asked Questions</h2>
+
+        <h3>How much space can I recover from Go caches?</h3>
+        <p>Typically <strong>5-25GB</strong> depending on how many projects you work on and how long you have been using Go. The module cache grows with every new dependency version, and the build cache grows with every compilation.</p>
+
+        <h3>Is it safe to run go clean -modcache?</h3>
+        <p>Yes. The module cache is a download cache. Running <span class="inline-code">go clean -modcache</span> removes it entirely, and Go re-downloads only the modules you actually need on the next build. Unused old versions will not come back.</p>
+
+        <h3>Will cleaning the build cache break my projects?</h3>
+        <p>No. The build cache only stores compiled object files to speed up rebuilds. After cleaning, your first <span class="inline-code">go build</span> will do a full compilation (slower), but everything works correctly.</p>
+
+        <h3>What about the go/pkg/mod/cache/download directory?</h3>
+        <p>This is where Go stores downloaded .zip files and .info files for modules. It is included when you run <span class="inline-code">go clean -modcache</span>. You can also check its size separately:</p>
+        <pre><code>du -sh $(go env GOMODCACHE)/cache/download</code></pre>
+
+        <h3>How do I prevent the cache from growing so large?</h3>
+        <p>Regular cleanup (monthly <span class="inline-code">go clean -cache</span>) plus judicious use of Go workspaces (<span class="inline-code">go.work</span>) for multi-module projects helps. There is no built-in TTL yet, but it has been discussed in the Go community.</p>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://bysiber.github.io/cleardisk/">ClearDisk Home</a></p>
+        <p style="margin-top: 15px;">
+            <a href="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer.html">Free 50GB+ Guide</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">node_modules Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">Docker Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">ClearDisk vs Others</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">Rust/Cargo Cleanup</a> |
+            <strong>Go/GOPATH Cleanup</strong>
+        </p>
+        <p style="margin-top: 15px; color: #999;">
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a> |
+            Published July 2025
+        </p>
+    </div>
+</body>
+</html>
