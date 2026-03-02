@@ -71,7 +71,16 @@ ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar
 
 ## Installation
 
-### Download DMG (Easiest)
+### Homebrew (Easiest)
+
+```bash
+brew tap bysiber/cleardisk
+brew install --cask cleardisk
+```
+
+That's it. Homebrew handles everything, including the quarantine flag.
+
+### Download DMG
 
 1. Download the latest DMG from [**Releases**](https://github.com/bysiber/cleardisk/releases/latest)
 2. Open the DMG and drag ClearDisk to Applications
@@ -80,15 +89,6 @@ ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar
    xattr -cr /Applications/ClearDisk.app
    ```
 4. Open ClearDisk from Applications
-
-### Homebrew
-
-```bash
-brew tap bysiber/cleardisk
-brew install --cask cleardisk
-```
-
-That's it. Homebrew handles everything, including the quarantine flag.
 
 ### Build from Source
 
