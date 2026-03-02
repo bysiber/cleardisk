@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mac Developer Disk Space Calculator - How Much Can You Recover?</title>
+    <meta name="description" content="Calculate how much disk space developer caches are using on your Mac. Check which tools you use and see estimated recoverable space from Xcode, Node.js, Docker, Homebrew, and more.">
+    <meta name="keywords" content="mac disk space calculator, developer cache size, xcode disk usage, node_modules size, docker disk space mac, how much space can I recover">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/calculator.html">
+
+    <meta property="og:title" content="Mac Developer Disk Space Calculator">
+    <meta property="og:description" content="Calculate how much disk space developer caches are using on your Mac.">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/calculator.html">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.6;
+            color: #1d1d1f;
+            background: #f5f5f7;
+        }
+        .container { max-width: 700px; margin: 0 auto; padding: 40px 20px; }
+
+        h1 { font-size: 2em; margin-bottom: 8px; text-align: center; }
+        .subtitle { text-align: center; color: #6e6e73; margin-bottom: 35px; }
+
+        .result-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            position: sticky;
+            top: 10px;
+            z-index: 10;
+            box-shadow: 0 4px 20px rgba(102,126,234,0.4);
+        }
+        .result-box .number {
+            font-size: 3.5em;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+        .result-box .label { font-size: 1em; opacity: 0.9; margin-top: 5px; }
+        .result-box .sub { font-size: 0.85em; opacity: 0.7; margin-top: 8px; }
+
+        .category {
+            background: white;
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .category-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+        .category h2 { font-size: 1.1em; }
+        .category-total {
+            font-weight: 600;
+            color: #0071e3;
+        }
+
+        .tools { margin-top: 12px; }
+        .tool {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f2;
+        }
+        .tool:last-child { border-bottom: none; }
+        .tool-left { display: flex; align-items: center; gap: 10px; }
+        .tool-name { font-weight: 500; }
+        .tool-size { color: #6e6e73; font-size: 0.9em; min-width: 70px; text-align: right; }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #d1d1d6;
+            border-radius: 24px;
+            transition: .3s;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 2px;
+            bottom: 2px;
+            background: white;
+            border-radius: 50%;
+            transition: .3s;
+        }
+        .toggle input:checked + .toggle-slider {
+            background: #0071e3;
+        }
+        .toggle input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .cta-box {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            text-align: center;
+            margin-top: 25px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .cta-box h3 { margin-bottom: 8px; }
+        .cta-box p { color: #6e6e73; margin-bottom: 15px; font-size: 0.95em; }
+        .cta-btn {
+            display: inline-block;
+            background: #0071e3;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .cta-btn:hover { background: #0077ed; }
+        .cta-code {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            margin-top: 12px;
+            display: inline-block;
+            font-family: monospace;
+        }
+
+        .breadcrumb { font-size: 0.85em; color: #6e6e73; margin-bottom: 25px; }
+        .breadcrumb a { color: #0071e3; text-decoration: none; }
+
+        footer { text-align: center; padding: 30px 20px; color: #6e6e73; font-size: 0.85em; }
+        footer a { color: #0071e3; text-decoration: none; }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.5em; }
+            .result-box .number { font-size: 2.5em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="./">ClearDisk</a> / Disk Space Calculator
+        </div>
+
+        <h1>Mac Developer Disk Space Calculator</h1>
+        <p class="subtitle">Toggle the tools you use to estimate recoverable disk space</p>
+
+        <div class="result-box">
+            <div class="number" id="totalSize">0 GB</div>
+            <div class="label">Estimated Recoverable Space</div>
+            <div class="sub" id="resultSub">Toggle the tools you use below</div>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <h2>Apple / Xcode Development</h2>
+                <span class="category-total" id="cat-xcode">0 GB</span>
+            </div>
+            <div class="tools">
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="5" data-max="50" data-cat="xcode" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Xcode DerivedData</span>
+                    </div>
+                    <span class="tool-size">5-50 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="2" data-max="20" data-cat="xcode" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">iOS Device Support</span>
+                    </div>
+                    <span class="tool-size">2-20 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="5" data-max="30" data-cat="xcode" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">iOS Simulator Runtimes</span>
+                    </div>
+                    <span class="tool-size">5-30 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="10" data-cat="xcode" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Xcode Archives</span>
+                    </div>
+                    <span class="tool-size">1-10 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="xcode" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Swift Package Manager Cache</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="xcode" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">CocoaPods Cache</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <h2>JavaScript / Node.js</h2>
+                <span class="category-total" id="cat-node">0 GB</span>
+            </div>
+            <div class="tools">
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="5" data-max="30" data-cat="node" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">node_modules (all projects)</span>
+                    </div>
+                    <span class="tool-size">5-30 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="0.5" data-max="5" data-cat="node" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">npm Cache</span>
+                    </div>
+                    <span class="tool-size">0.5-5 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="0.5" data-max="3" data-cat="node" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Yarn Cache</span>
+                    </div>
+                    <span class="tool-size">0.5-3 GB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <h2>Containers</h2>
+                <span class="category-total" id="cat-docker">0 GB</span>
+            </div>
+            <div class="tools">
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="10" data-max="60" data-cat="docker" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Docker Desktop (images + cache)</span>
+                    </div>
+                    <span class="tool-size">10-60 GB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <h2>Package Managers</h2>
+                <span class="category-total" id="cat-pkg">0 GB</span>
+            </div>
+            <div class="tools">
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="10" data-cat="pkg" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Homebrew Cache</span>
+                    </div>
+                    <span class="tool-size">1-10 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="pkg" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">pip Cache (Python)</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="pkg" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Conda Environments</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="category">
+            <div class="category-header">
+                <h2>Build Systems & Languages</h2>
+                <span class="category-total" id="cat-build">0 GB</span>
+            </div>
+            <div class="tools">
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="10" data-cat="build" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Rust Cargo (target + registry)</span>
+                    </div>
+                    <span class="tool-size">1-10 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="2" data-max="10" data-cat="build" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Gradle Cache (Android/Java)</span>
+                    </div>
+                    <span class="tool-size">2-10 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="build" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Maven Cache (.m2)</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="build" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Go Module Cache</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+                <div class="tool">
+                    <div class="tool-left">
+                        <label class="toggle">
+                            <input type="checkbox" data-min="1" data-max="5" data-cat="build" onchange="calculate()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="tool-name">Flutter/Pub Cache</span>
+                    </div>
+                    <span class="tool-size">1-5 GB</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="cta-box">
+            <h3>Clean All These Caches in One Click</h3>
+            <p>ClearDisk detects and cleans all the caches above automatically. Free, open-source macOS menu bar app.</p>
+            <a href="https://github.com/bysiber/cleardisk" class="cta-btn">Get ClearDisk on GitHub</a>
+            <div class="cta-code">brew tap bysiber/cleardisk && brew install --cask cleardisk</div>
+        </div>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;"><a href="./">Home</a> | <a href="blog/">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+
+    <script>
+        function calculate() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            let totalMin = 0, totalMax = 0;
+            const cats = {};
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    const min = parseFloat(cb.dataset.min);
+                    const max = parseFloat(cb.dataset.max);
+                    const cat = cb.dataset.cat;
+                    totalMin += min;
+                    totalMax += max;
+                    if (!cats[cat]) cats[cat] = { min: 0, max: 0 };
+                    cats[cat].min += min;
+                    cats[cat].max += max;
+                }
+            });
+
+            const avg = (totalMin + totalMax) / 2;
+            const el = document.getElementById('totalSize');
+            const sub = document.getElementById('resultSub');
+
+            if (avg === 0) {
+                el.textContent = '0 GB';
+                sub.textContent = 'Toggle the tools you use below';
+            } else {
+                el.textContent = Math.round(avg) + ' GB';
+                sub.textContent = `Range: ${Math.round(totalMin)}-${Math.round(totalMax)} GB recoverable`;
+            }
+
+            // Update category totals
+            ['xcode', 'node', 'docker', 'pkg', 'build'].forEach(cat => {
+                const catEl = document.getElementById('cat-' + cat);
+                if (catEl) {
+                    if (cats[cat]) {
+                        const catAvg = Math.round((cats[cat].min + cats[cat].max) / 2);
+                        catEl.textContent = catAvg + ' GB';
+                    } else {
+                        catEl.textContent = '0 GB';
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
