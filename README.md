@@ -32,11 +32,11 @@ Your Mac's SSD is full of developer caches you forgot about. Xcode DerivedData a
 - **CleanMyMac** ($40/yr) — bloated, expensive, trust issues
 - **SquirrelDisk** — dead (3 years, no updates)
 
-ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
+ClearDisk scans **32 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
 
 ## Features
 
-- **28 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm, Bun, pip, Conda, Gradle, Maven, Docker, Composer, Go, Rust Cargo, Flutter/Pub, JetBrains, Ruby Gems, Android Emulators
+- **32 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm, Bun, pip, Conda, Gradle, Maven, Docker, Composer, Go, Rust Cargo, Flutter/Pub, JetBrains, Ruby (Gems, rbenv, mise, RVM, Bundler), Android Emulators
 - **Project Artifact Scanner** — Finds stale `node_modules`, `target/`, `.build/`, `build/`, `vendor/` in your project folders. Detects 11 project types (Node.js, Rust, Swift, Go, Gradle, Maven, PHP, Ruby, Flutter, CMake)
 - **Cache Descriptions** — Every cache shows a human-readable explanation ("Downloaded Swift packages. Re-downloads on next build.") so you know exactly what you're deleting
 - **DerivedData Project Breakdown** — Shows which projects live inside DerivedData (e.g. "MyApp: 2.3 GB, OtherApp: 1.1 GB") by reading `info.plist`
@@ -65,7 +65,7 @@ ClearDisk scans **28 developer cache paths** in one tool. Lives in your menu bar
 | Cache descriptions | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Storage forecast | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Safe delete (Trash) | ✅ | ❌ `removeItem` | ❌ `rm -rf` | ❌ `rm -rf` | ❌ `rm -rf` | N/A | ❌ |
-| Total cache paths | 28 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
+| Total cache paths | 32 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
 | Price | Free | Free | Free | Free | Free | $10 | $40/yr |
 | Open source | ✅ MIT | ✅ GPL-3 | ✅ MIT | ✅ MIT | ✅ Apache-2 | ❌ | ❌ |
 

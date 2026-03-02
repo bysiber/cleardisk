@@ -2,6 +2,15 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.6.2] - 2026-03-02
+### Added
+- **Ruby ecosystem cache support** - rbenv versions, mise rubies, RVM, Bundler cache (PR #6 by @benoittgt)
+- **Expand/collapse view** - expand button next to tab bar hides header and summary card for full-height content list (Issue #8)
+- Total cache paths increased from 28 to 32
+
+### Changed
+- Popover height increased from 540 to 700px for better content visibility
+
 ## [1.6.1] - 2026-03-02
 ### Added
 - **Premium dark app icon** — Custom-designed icon with dark gradient, disk symbol, emerald progress arc, and sparkle effect
