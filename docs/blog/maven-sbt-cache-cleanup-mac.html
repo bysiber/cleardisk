@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maven .m2 Repository Taking Up Too Much Disk Space on Mac? Complete Cleanup Guide</title>
+    <meta name="description" content="Maven's ~/.m2/repository can silently consume 5-30GB on macOS. Learn how to audit Maven local repository, clean old snapshots, sbt caches, and automate JVM build tool cleanup.">
+    <meta name="keywords" content="maven cache cleanup mac, maven disk space, m2 repository size, maven local repository cleanup, sbt cache cleanup mac, maven clean old snapshots, jvm disk space macos, maven repository maintenance">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/maven-sbt-cache-cleanup-mac.html">
+    <meta property="og:title" content="Maven & sbt Cache Cleanup Guide for macOS">
+    <meta property="og:description" content="Maven's ~/.m2/repository and sbt caches can quietly consume 5-30GB. Complete guide to audit and clean JVM build tool caches on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/maven-sbt-cache-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Maven & sbt Cache Cleanup Guide for macOS">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Maven .m2 Repository Taking Up Too Much Disk Space on Mac?",
+        "description": "Complete guide to cleaning Maven local repository, sbt caches, Ivy cache, and JVM build tool artifacts on macOS",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "datePublished": "2025-07-26",
+        "dateModified": "2025-07-26",
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/maven-sbt-cache-cleanup-mac.html"
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .header { background: linear-gradient(135deg, #C71A36 0%, #5B2B82 100%); color: white; padding: 60px 20px; text-align: center; }
+        .header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; }
+        .header p { font-size: 1.1em; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .content { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #5B2B82; border-bottom: 2px solid #C71A36; padding-bottom: 8px; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #333; }
+        p { margin: 15px 0; }
+        pre { background: #1a1a2e; color: #e0e0e0; padding: 20px; border-radius: 10px; overflow-x: auto; margin: 20px 0; font-size: 0.9em; line-height: 1.5; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #5B2B82; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .danger { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #5B2B82; }
+        tr:hover { background: #f8f9fa; }
+        .cta { background: linear-gradient(135deg, #C71A36 0%, #5B2B82 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 40px 0; }
+        .cta a { color: white; font-weight: 600; text-decoration: underline; }
+        .size-chart { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        .size-item { background: #f8f9fa; padding: 20px; border-radius: 10px; text-align: center; }
+        .size-item .size { font-size: 2em; font-weight: 700; color: #C71A36; }
+        .size-item .label { color: #666; margin-top: 5px; }
+        .footer { text-align: center; padding: 40px 20px; background: #f8f9fa; margin-top: 60px; }
+        .footer a { color: #5B2B82; text-decoration: none; margin: 0 8px; }
+        @media (max-width: 600px) { .header h1 { font-size: 1.6em; } h2 { font-size: 1.3em; } .size-chart { grid-template-columns: 1fr 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Maven .m2 Repository Taking Up Too Much Disk Space on Mac?</h1>
+        <p>How ~/.m2/repository, sbt caches, and Ivy quietly consume 5-30GB -- and how to clean them safely</p>
+    </div>
+
+    <div class="content">
+        <p>If you develop Java, Scala, or Kotlin on macOS, you've likely never thought about the <span class="inline-code">~/.m2/repository</span> directory. That's by design -- Maven downloads dependencies silently and stores them forever. After a year or two of active JVM development, this directory alone can consume <strong>5-30GB</strong> of your SSD.</p>
+
+        <p>Add sbt's Ivy cache, Coursier cache, and build output directories, and JVM development can easily eat 40-60GB of disk space across all your projects. This guide covers how to find, audit, and safely clean every JVM build tool cache on macOS.</p>
+
+        <div class="size-chart">
+            <div class="size-item">
+                <div class="size">5-20GB</div>
+                <div class="label">~/.m2/repository</div>
+            </div>
+            <div class="size-item">
+                <div class="size">3-10GB</div>
+                <div class="label">~/.sbt + ~/.ivy2</div>
+            </div>
+            <div class="size-item">
+                <div class="size">2-8GB</div>
+                <div class="label">~/.cache/coursier</div>
+            </div>
+            <div class="size-item">
+                <div class="size">5-30GB</div>
+                <div class="label">target/ directories</div>
+            </div>
+        </div>
+
+        <h2>Where Maven Stores Everything on macOS</h2>
+
+        <p>Maven's local repository is a directory tree mirroring the Maven Central coordinates (groupId/artifactId/version). Every dependency you've ever used gets cached here permanently:</p>
+
+        <table>
+            <tr><th>Location</th><th>What's Inside</th><th>Typical Size</th></tr>
+            <tr><td><span class="inline-code">~/.m2/repository</span></td><td>All downloaded JARs, POMs, sources, javadocs</td><td>5-20GB</td></tr>
+            <tr><td><span class="inline-code">~/.m2/repository/.cache</span></td><td>Maven resolver metadata cache</td><td>100-500MB</td></tr>
+            <tr><td><span class="inline-code">~/.m2/wrapper</span></td><td>Maven wrapper distributions</td><td>200-800MB</td></tr>
+            <tr><td><span class="inline-code">~/.m2/settings.xml</span></td><td>Configuration (keep this!)</td><td>Tiny</td></tr>
+            <tr><td><span class="inline-code">project/target/</span></td><td>Build outputs per project</td><td>500MB-3GB each</td></tr>
+        </table>
+
+        <h2>Quick Audit: How Much Space Are You Losing?</h2>
+
+        <p>Run this to get the full picture of JVM cache usage on your Mac:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Maven local repository</span>
+du -sh ~/.m2/repository 2>/dev/null
+
+<span style="color:#6bb3e0;"># Maven wrapper distributions</span>
+du -sh ~/.m2/wrapper/dists 2>/dev/null
+
+<span style="color:#6bb3e0;"># sbt caches</span>
+du -sh ~/.sbt 2>/dev/null
+du -sh ~/.ivy2 2>/dev/null
+
+<span style="color:#6bb3e0;"># Coursier cache (used by sbt, scala-cli, cs)</span>
+du -sh ~/.cache/coursier 2>/dev/null
+du -sh ~/Library/Caches/Coursier 2>/dev/null
+
+<span style="color:#6bb3e0;"># Scala/Metals/Bloop caches</span>
+du -sh ~/.bloop 2>/dev/null
+du -sh ~/.cache/metals 2>/dev/null
+
+<span style="color:#6bb3e0;"># Kotlin daemon &amp; caches</span>
+du -sh ~/.kotlin/daemon 2>/dev/null
+
+<span style="color:#6bb3e0;"># Find ALL target/ dirs across projects</span>
+find ~/Projects -name "target" -type d -maxdepth 4 -exec du -sh {} + 2>/dev/null | sort -rh | head -20
+
+<span style="color:#6bb3e0;"># TOTAL snapshot of all JVM caches</span>
+echo "=== JVM Build Tool Disk Usage ==="
+for dir in ~/.m2 ~/.sbt ~/.ivy2 ~/.cache/coursier ~/Library/Caches/Coursier ~/.bloop ~/.cache/metals ~/.kotlin; do
+    [ -d "$dir" ] && echo "$(du -sh "$dir" 2>/dev/null)"
+done</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> The <span class="inline-code">target/</span> directories across all your Maven and sbt projects often dwarf the shared cache. A single Spring Boot project can produce a 500MB+ target/ directory.
+        </div>
+
+        <h2>Cleaning Maven's Local Repository</h2>
+
+        <h3>1. Remove Old SNAPSHOT Versions</h3>
+
+        <p>SNAPSHOT dependencies are development versions that change frequently. Old snapshots are never cleaned automatically:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Find all SNAPSHOT directories</span>
+find ~/.m2/repository -type d -name "*SNAPSHOT*" -exec du -sh {} + 2>/dev/null | sort -rh
+
+<span style="color:#6bb3e0;"># Remove all SNAPSHOTs (safe -- they'll re-download)</span>
+find ~/.m2/repository -type d -name "*SNAPSHOT*" -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#6bb3e0;"># Remove SNAPSHOT JARs older than 60 days</span>
+find ~/.m2/repository -path "*SNAPSHOT*" -name "*.jar" -mtime +60 -delete</code></pre>
+
+        <h3>2. Remove Old Versions of Dependencies</h3>
+
+        <p>When dependencies get updated, the old version stays in .m2 forever. You can clean versions you haven't used recently:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Find JARs not accessed in 90+ days</span>
+find ~/.m2/repository -name "*.jar" -atime +90 -exec du -sh {} + 2>/dev/null | sort -rh | head -30
+
+<span style="color:#6bb3e0;"># Remove dependency files not accessed in 6 months</span>
+find ~/.m2/repository -name "*.jar" -atime +180 -delete
+find ~/.m2/repository -name "*.pom" -atime +180 -delete
+
+<span style="color:#6bb3e0;"># Clean up empty directories afterward</span>
+find ~/.m2/repository -type d -empty -delete</code></pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> Access time tracking must be enabled on your filesystem for <span class="inline-code">-atime</span> to work reliably on macOS. If unsure, use <span class="inline-code">-mtime</span> (modification time) instead.
+        </div>
+
+        <h3>3. Maven Dependency Purge Plugin</h3>
+
+        <p>Maven has a built-in plugin for cleaning the local repository intelligently:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Purge all SNAPSHOTs from local repo</span>
+mvn dependency:purge-local-repository -DsnapshotsOnly=true
+
+<span style="color:#6bb3e0;"># Re-resolve and download fresh copies</span>
+mvn dependency:purge-local-repository -DreResolve=true
+
+<span style="color:#6bb3e0;"># Purge specific groups</span>
+mvn dependency:purge-local-repository \
+    -DmanualInclude=com.example:my-lib
+
+<span style="color:#6bb3e0;"># List what would be purged (dry run)</span>
+mvn dependency:purge-local-repository -DactTransitively=false -Dverbose=true</code></pre>
+
+        <h3>4. Clean Maven Wrapper Distributions</h3>
+
+<pre><code><span style="color:#6bb3e0;"># Check wrapper distributions</span>
+du -sh ~/.m2/wrapper/dists/*
+
+<span style="color:#6bb3e0;"># Remove all but keep settings.xml</span>
+rm -rf ~/.m2/wrapper/dists/*
+
+<span style="color:#6bb3e0;"># Remove metadata cache</span>
+rm -rf ~/.m2/repository/.cache</code></pre>
+
+        <h2>Cleaning sbt Caches (Scala Developers)</h2>
+
+        <p>sbt uses Ivy for dependency resolution (sbt 0.x/1.x) and Coursier (sbt 1.3+). Both download dependencies independently of Maven:</p>
+
+        <table>
+            <tr><th>Location</th><th>What's Inside</th><th>Safe to Delete?</th></tr>
+            <tr><td><span class="inline-code">~/.sbt</span></td><td>sbt boot, plugins, global settings</td><td>Caches yes, settings no</td></tr>
+            <tr><td><span class="inline-code">~/.ivy2/cache</span></td><td>Ivy-resolved dependency JARs</td><td>Yes (re-downloads)</td></tr>
+            <tr><td><span class="inline-code">~/.ivy2/local</span></td><td>Locally published artifacts</td><td>Maybe (check first)</td></tr>
+            <tr><td><span class="inline-code">~/.cache/coursier</span></td><td>Coursier dependency cache</td><td>Yes (re-downloads)</td></tr>
+            <tr><td><span class="inline-code">~/Library/Caches/Coursier</span></td><td>Coursier macOS cache</td><td>Yes (re-downloads)</td></tr>
+            <tr><td><span class="inline-code">~/.bloop</span></td><td>Bloop build server cache</td><td>Yes (regenerates)</td></tr>
+            <tr><td><span class="inline-code">~/.cache/metals</span></td><td>Metals LSP cache (IntelliJ/VSCode)</td><td>Yes (re-indexes)</td></tr>
+        </table>
+
+<pre><code><span style="color:#6bb3e0;"># Clean sbt boot &amp; plugin caches</span>
+rm -rf ~/.sbt/boot
+rm -rf ~/.sbt/1.0/plugins/target
+rm -rf ~/.sbt/1.0/target
+
+<span style="color:#6bb3e0;"># Clean Ivy cache</span>
+rm -rf ~/.ivy2/cache
+rm -rf ~/.ivy2/local   <span style="color:#6bb3e0;"># Only if you don't publishLocal</span>
+
+<span style="color:#6bb3e0;"># Clean Coursier cache</span>
+rm -rf ~/.cache/coursier/v1
+rm -rf ~/Library/Caches/Coursier/v1
+
+<span style="color:#6bb3e0;"># Clean Bloop &amp; Metals</span>
+rm -rf ~/.bloop
+rm -rf ~/.cache/metals
+
+<span style="color:#6bb3e0;"># Using coursier CLI</span>
+cs cleanup   <span style="color:#6bb3e0;"># if cs is installed</span></code></pre>
+
+        <h2>Cleaning Kotlin &amp; Build Server Caches</h2>
+
+<pre><code><span style="color:#6bb3e0;"># Kotlin daemon files</span>
+du -sh ~/.kotlin/daemon 2>/dev/null
+rm -rf ~/.kotlin/daemon
+
+<span style="color:#6bb3e0;"># Kotlin/Native cache</span>
+du -sh ~/.konan 2>/dev/null
+rm -rf ~/.konan/cache
+rm -rf ~/.konan/dependencies
+
+<span style="color:#6bb3e0;"># IntelliJ caches (from JVM development)</span>
+du -sh ~/Library/Caches/JetBrains/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># IntelliJ local history &amp; index</span>
+du -sh ~/Library/Caches/JetBrains/IntelliJIdea*/caches 2>/dev/null</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> Kotlin/Native's <span class="inline-code">~/.konan</span> directory can reach 2-5GB on its own. It stores prebuilt binaries for all target platforms even if you only target one.
+        </div>
+
+        <h2>Bulk Cleaning target/ Directories</h2>
+
+        <p>Every Maven and sbt project creates a <span class="inline-code">target/</span> directory for compiled classes, packaged JARs, and intermediate build outputs. These add up fast:</p>
+
+<pre><code><span style="color:#6bb3e0;"># Find all JVM target/ directories, sorted by size</span>
+find ~/Projects -name "target" -type d \
+    \( -path "*/src/*" -prune -o -print \) \
+    -exec du -sh {} + 2>/dev/null | sort -rh | head -20
+
+<span style="color:#6bb3e0;"># Delete target/ in projects not touched in 30+ days</span>
+find ~/Projects -name "target" -type d -maxdepth 4 -mtime +30 \
+    -exec echo "Removing: {}" \; -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#6bb3e0;"># Maven multi-module: clean all sub-modules</span>
+cd ~/Projects/my-project && mvn clean
+
+<span style="color:#6bb3e0;"># sbt equivalent</span>
+cd ~/Projects/my-scala-project && sbt clean</code></pre>
+
+        <h2>Using ClearDisk to Monitor JVM Caches</h2>
+
+        <div class="cta">
+            <h3>ClearDisk -- Free, Open-Source Cache Monitor for macOS</h3>
+            <p style="margin: 15px 0;">Instead of running audit commands manually, <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> sits in your menu bar and monitors all JVM caches alongside other developer tool caches:</p>
+            <ul style="text-align: left; max-width: 500px; margin: 15px auto; list-style: none;">
+                <li>Maven ~/.m2/repository</li>
+                <li>Gradle ~/.gradle/caches</li>
+                <li>sbt/Ivy/Coursier caches</li>
+                <li>Kotlin/Native ~/.konan</li>
+                <li>Plus: Xcode DerivedData, node_modules, Docker, Rust, Go, pip, Homebrew</li>
+            </ul>
+            <p style="margin-top: 15px;"><a href="https://github.com/bysiber/cleardisk">View on GitHub</a> -- MIT License, Swift/SwiftUI, macOS 14+</p>
+            <p style="margin-top: 10px;">Install: <code style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 6px;">brew tap bysiber/cleardisk && brew install --cask cleardisk</code></p>
+        </div>
+
+        <h2 id="automation">Automated Monthly Cleanup Script</h2>
+
+        <p>Save this as <span class="inline-code">~/.local/bin/jvm-cache-cleanup.sh</span> and run it monthly:</p>
+
+<pre><code>#!/bin/bash
+<span style="color:#6bb3e0;"># JVM Build Tool Cache Cleanup Script for macOS</span>
+<span style="color:#6bb3e0;"># Safely cleans Maven, sbt, Coursier, and build outputs</span>
+
+set -euo pipefail
+
+echo "=== JVM Cache Audit ==="
+
+<span style="color:#6bb3e0;"># Pre-cleanup sizes</span>
+echo "--- Current Sizes ---"
+for dir in ~/.m2/repository ~/.sbt ~/.ivy2 ~/.cache/coursier ~/Library/Caches/Coursier ~/.bloop ~/.cache/metals ~/.konan ~/.kotlin; do
+    [ -d "$dir" ] && echo "$(du -sh "$dir" 2>/dev/null)"
+done
+
+TOTAL_BEFORE=$(du -shc ~/.m2/repository ~/.sbt ~/.ivy2 ~/.cache/coursier ~/Library/Caches/Coursier ~/.bloop ~/.cache/metals ~/.konan ~/.kotlin 2>/dev/null | tail -1 | cut -f1)
+echo "Total before: $TOTAL_BEFORE"
+
+<span style="color:#6bb3e0;"># 1. Remove SNAPSHOTs older than 30 days</span>
+echo -e "\n--- Cleaning old SNAPSHOTs ---"
+find ~/.m2/repository -path "*SNAPSHOT*" -name "*.jar" -mtime +30 -delete 2>/dev/null
+find ~/.m2/repository -type d -name "*SNAPSHOT*" -empty -delete 2>/dev/null
+
+<span style="color:#6bb3e0;"># 2. Remove Maven metadata cache</span>
+rm -rf ~/.m2/repository/.cache 2>/dev/null
+
+<span style="color:#6bb3e0;"># 3. Clean Ivy cache (sbt re-downloads via Coursier)</span>
+rm -rf ~/.ivy2/cache 2>/dev/null
+
+<span style="color:#6bb3e0;"># 4. Clean Coursier cache entries older than 60 days</span>
+find ~/.cache/coursier -type f -mtime +60 -delete 2>/dev/null
+find ~/Library/Caches/Coursier -type f -mtime +60 -delete 2>/dev/null
+
+<span style="color:#6bb3e0;"># 5. Clean Bloop &amp; Metals</span>
+rm -rf ~/.bloop 2>/dev/null
+rm -rf ~/.cache/metals 2>/dev/null
+
+<span style="color:#6bb3e0;"># 6. Clean Kotlin daemon</span>
+rm -rf ~/.kotlin/daemon 2>/dev/null
+
+<span style="color:#6bb3e0;"># 7. Clean stale target/ directories (30+ days old)</span>
+echo -e "\n--- Cleaning stale target/ dirs ---"
+find ~/Projects -name "target" -type d -maxdepth 4 -mtime +30 \
+    -exec echo "  Removed: {}" \; -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#6bb3e0;"># Post-cleanup sizes</span>
+echo -e "\n--- After Cleanup ---"
+for dir in ~/.m2/repository ~/.sbt ~/.ivy2 ~/.cache/coursier ~/Library/Caches/Coursier ~/.bloop ~/.cache/metals ~/.konan ~/.kotlin; do
+    [ -d "$dir" ] && echo "$(du -sh "$dir" 2>/dev/null)"
+done
+
+TOTAL_AFTER=$(du -shc ~/.m2/repository ~/.sbt ~/.ivy2 ~/.cache/coursier ~/Library/Caches/Coursier ~/.bloop ~/.cache/metals ~/.konan ~/.kotlin 2>/dev/null | tail -1 | cut -f1)
+echo -e "\nTotal after: $TOTAL_AFTER (was: $TOTAL_BEFORE)"
+echo "Done! JVM caches cleaned."</code></pre>
+
+        <h2>How Maven .m2 Grows Over Time</h2>
+
+        <p>Maven's local repository grows because:</p>
+        <ul style="margin: 15px 0 15px 30px;">
+            <li><strong>Every version is kept:</strong> When a dependency updates from 2.3.1 to 2.3.2, the old version stays forever</li>
+            <li><strong>Transitive dependencies:</strong> A single dependency can pull in dozens of transitive dependencies, each cached</li>
+            <li><strong>Multiple classifiers:</strong> JARs, source JARs, javadoc JARs, test JARs -- all cached separately</li>
+            <li><strong>SNAPSHOTs multiply:</strong> Each SNAPSHOT build gets timestamped copies that never expire</li>
+            <li><strong>Cross-tool overlap:</strong> Maven, Gradle, sbt may each cache the same dependency independently</li>
+        </ul>
+
+        <p>A typical Spring Boot project can add <strong>300-500MB</strong> to .m2 from dependencies alone. After working on 10+ projects over a year, 10GB+ is common.</p>
+
+        <h2>The Cross-Tool Duplication Problem</h2>
+
+        <p>The worst part of JVM build tool caches is duplication. If you use multiple build tools, the same JARs get cached multiple times:</p>
+
+        <table>
+            <tr><th>Dependency</th><th>Maven Location</th><th>Gradle Location</th><th>Coursier Location</th></tr>
+            <tr><td>guava-32.1.jar</td><td>~/.m2/repository/com/google/guava/</td><td>~/.gradle/caches/modules-2/</td><td>~/.cache/coursier/v1/</td></tr>
+            <tr><td>jackson-core-2.15.jar</td><td>~/.m2/repository/com/fasterxml/</td><td>~/.gradle/caches/modules-2/</td><td>~/.cache/coursier/v1/</td></tr>
+            <tr><td>slf4j-api-2.0.jar</td><td>~/.m2/repository/org/slf4j/</td><td>~/.gradle/caches/modules-2/</td><td>~/.cache/coursier/v1/</td></tr>
+        </table>
+
+        <p>Each popular library gets stored 2-3 times across different cache directories. There's no deduplication between Maven, Gradle, and Coursier.</p>
+
+        <div class="warning">
+            <strong>Note:</strong> Gradle can use <span class="inline-code">mavenLocal()</span> to read from ~/.m2/repository, but it still copies artifacts to its own cache. This doesn't save space -- it doubles it.
+        </div>
+
+        <h2>IntelliJ IDEA Cache Cleanup</h2>
+
+        <p>If you use IntelliJ for JVM development, its caches compound the problem:</p>
+
+<pre><code><span style="color:#6bb3e0;"># IntelliJ caches</span>
+du -sh ~/Library/Caches/JetBrains/IntelliJIdea* 2>/dev/null
+du -sh ~/Library/Caches/JetBrains/IdeaIC* 2>/dev/null
+
+<span style="color:#6bb3e0;"># IntelliJ local index (can be huge)</span>
+du -sh ~/Library/Caches/JetBrains/IntelliJIdea*/caches 2>/dev/null
+
+<span style="color:#6bb3e0;"># IntelliJ system (logs, plugins)</span>
+du -sh ~/Library/Application\ Support/JetBrains/ 2>/dev/null
+
+<span style="color:#6bb3e0;"># Safe to clean: invalidate caches from within IntelliJ</span>
+<span style="color:#6bb3e0;"># File -> Invalidate Caches -> Invalidate and Restart</span>
+
+<span style="color:#6bb3e0;"># Or manually remove old version caches</span>
+<span style="color:#6bb3e0;"># (keep only the latest version directory)</span>
+ls -la ~/Library/Caches/JetBrains/</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> IntelliJ keeps caches for every version you've ever installed. After upgrading, old version caches remain. Check for directories like <span class="inline-code">IntelliJIdea2023.3</span> when you're running 2025.x.
+        </div>
+
+        <h2>Quick Reference Cheatsheet</h2>
+
+        <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; margin: 20px 0;">
+<pre><code><span style="color:#6bb3e0;"># === MAVEN ===</span>
+du -sh ~/.m2/repository                <span style="color:#6bb3e0;"># check size</span>
+rm -rf ~/.m2/repository/.cache         <span style="color:#6bb3e0;"># metadata cache</span>
+mvn dependency:purge-local-repository  <span style="color:#6bb3e0;"># smart purge</span>
+find ~/.m2 -name "*SNAPSHOT*" -type d -exec rm -rf {} + <span style="color:#6bb3e0;"># old snapshots</span>
+
+<span style="color:#6bb3e0;"># === SBT ===</span>
+rm -rf ~/.ivy2/cache                   <span style="color:#6bb3e0;"># Ivy cache</span>
+rm -rf ~/.sbt/boot                     <span style="color:#6bb3e0;"># sbt boot files</span>
+rm -rf ~/.cache/coursier/v1            <span style="color:#6bb3e0;"># Coursier cache</span>
+rm -rf ~/Library/Caches/Coursier/v1    <span style="color:#6bb3e0;"># macOS Coursier</span>
+
+<span style="color:#6bb3e0;"># === KOTLIN ===</span>
+rm -rf ~/.kotlin/daemon                <span style="color:#6bb3e0;"># daemon files</span>
+rm -rf ~/.konan/cache                  <span style="color:#6bb3e0;"># K/N cache</span>
+
+<span style="color:#6bb3e0;"># === BUILD SERVERS ===</span>
+rm -rf ~/.bloop                        <span style="color:#6bb3e0;"># Bloop cache</span>
+rm -rf ~/.cache/metals                 <span style="color:#6bb3e0;"># Metals cache</span>
+
+<span style="color:#6bb3e0;"># === BUILD OUTPUTS ===</span>
+find ~/Projects -name "target" -type d -maxdepth 4 -exec du -sh {} + 2>/dev/null | sort -rh
+
+<span style="color:#6bb3e0;"># === NUCLEAR (ALL JVM CACHES) ===</span>
+rm -rf ~/.m2/repository ~/.ivy2/cache ~/.cache/coursier ~/Library/Caches/Coursier ~/.bloop ~/.cache/metals ~/.kotlin/daemon ~/.konan/cache</code></pre>
+        </div>
+
+        <h2>Frequently Asked Questions</h2>
+
+        <h3>How much space can I recover from Maven caches?</h3>
+        <p>Typically <strong>5-20GB</strong> from ~/.m2/repository alone. If you add sbt/Coursier/Kotlin caches and target/ directories, total recovery can reach 30-50GB for active JVM developers.</p>
+
+        <h3>Is it safe to delete ~/.m2/repository?</h3>
+        <p>Yes. It only contains downloaded dependencies. Maven re-downloads everything on the next build. Your first build will be slower, but nothing breaks permanently. Keep <span class="inline-code">~/.m2/settings.xml</span> intact -- it holds your configuration.</p>
+
+        <h3>Will cleaning .m2 affect Gradle?</h3>
+        <p>Only if your Gradle builds use <span class="inline-code">mavenLocal()</span>. Gradle has its own cache at <span class="inline-code">~/.gradle/caches/</span>. See our <a href="gradle-cache-cleanup-mac.html">Gradle Cleanup Guide</a> for that.</p>
+
+        <h3>How do I prevent .m2 from growing so large?</h3>
+        <p>Unfortunately, Maven has no built-in cache eviction. The best approach is periodic cleanup -- monthly for SNAPSHOTs, quarterly for the full repository. The <span class="inline-code">dependency:purge-local-repository</span> plugin helps but only works within a single project context.</p>
+
+        <h3>What's the difference between .ivy2 and .cache/coursier?</h3>
+        <p>Ivy is the older resolution engine used by sbt 1.2 and below. Coursier is the modern replacement used by sbt 1.3+. If you've upgraded sbt, the .ivy2 cache is likely stale and can be safely deleted.</p>
+
+        <h3>Does ClearDisk handle all these caches?</h3>
+        <p>ClearDisk monitors the common JVM cache locations (~/.m2, ~/.gradle, target/ directories) along with 15+ other developer tool caches. It's a free, open-source macOS menu bar app. <a href="https://github.com/bysiber/cleardisk">Get it on GitHub</a>.</p>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://bysiber.github.io/cleardisk/">ClearDisk Home</a></p>
+        <p style="margin-top: 15px;">
+            <a href="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer.html">Free 50GB+ Guide</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">node_modules Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">Docker Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">ClearDisk vs Others</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">Rust/Cargo Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/gradle-cache-cleanup-mac.html">Gradle Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/cocoapods-cache-cleanup-mac.html">CocoaPods Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm Cleanup</a> |
+            <strong>Maven/sbt Cleanup</strong>
+        </p>
+        <p style="margin-top: 15px; color: #999;">
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a> |
+            Published July 2025
+        </p>
+    </div>
+</body>
+</html>
