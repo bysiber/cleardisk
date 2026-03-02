@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gradle Cache Taking Up Too Much Disk Space on Mac? Complete Cleanup Guide</title>
+    <meta name="description" content="Gradle caches, wrapper distributions, and build outputs can consume 10-50GB on macOS. Learn how to audit ~/.gradle, clean daemon data, and automate Gradle disk cleanup.">
+    <meta name="keywords" content="gradle cache cleanup mac, gradle disk space, gradle clean cache, gradle wrapper disk usage, ~/.gradle size, gradle daemon cleanup, android studio cache mac, gradle build cache">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/gradle-cache-cleanup-mac.html">
+    <meta property="og:title" content="Gradle Cache Cleanup Guide for macOS">
+    <meta property="og:description" content="Gradle caches and wrapper distributions can silently consume 10-50GB. Complete guide to audit and clean Gradle caches on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/gradle-cache-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Gradle Cache & Build Output Cleanup Guide for macOS">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Gradle Cache Taking Up Too Much Disk Space on Mac?",
+        "description": "Complete guide to cleaning Gradle caches, wrapper distributions, daemon logs, and build outputs on macOS",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "datePublished": "2025-07-25",
+        "dateModified": "2025-07-25",
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/gradle-cache-cleanup-mac.html"
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .header { background: linear-gradient(135deg, #02303A 0%, #1B9E5A 100%); color: white; padding: 60px 20px; text-align: center; }
+        .header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; }
+        .header p { font-size: 1.1em; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .content { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #02303A; border-bottom: 2px solid #1B9E5A; padding-bottom: 8px; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #333; }
+        p { margin: 15px 0; }
+        pre { background: #1a1a2e; color: #e0e0e0; padding: 20px; border-radius: 10px; overflow-x: auto; margin: 20px 0; font-size: 0.9em; line-height: 1.5; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #02303A; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .danger { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #02303A; }
+        tr:hover { background: #f8f9fa; }
+        .cta { background: linear-gradient(135deg, #02303A 0%, #1B9E5A 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 40px 0; }
+        .cta a { color: white; font-weight: 600; text-decoration: underline; }
+        .toc { background: #f8f9fa; padding: 25px; border-radius: 10px; margin: 30px 0; }
+        .toc ul { list-style: none; padding-left: 0; }
+        .toc li { padding: 5px 0; }
+        .toc a { color: #1B9E5A; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .breadcrumb { padding: 15px 20px; background: #f8f9fa; font-size: 0.9em; }
+        .breadcrumb a { color: #1B9E5A; text-decoration: none; }
+        .cheatsheet { background: #1a1a2e; color: #e0e0e0; padding: 25px; border-radius: 12px; margin: 30px 0; }
+        .cheatsheet h3 { color: #1B9E5A; margin-top: 0; }
+        .footer { text-align: center; padding: 40px 20px; background: #f8f9fa; margin-top: 60px; }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="https://bysiber.github.io/cleardisk/">ClearDisk</a> &raquo;
+        <a href="https://bysiber.github.io/cleardisk/blog/">Blog</a> &raquo;
+        Gradle Cache Cleanup
+    </div>
+
+    <div class="header">
+        <h1>Gradle Cache Taking Up Too Much Disk Space on Mac?</h1>
+        <p>How to find and clean Gradle caches, wrapper distributions, daemon files, and build outputs on macOS -- reclaim 10-50GB</p>
+    </div>
+
+    <div class="content">
+        <p>If you develop Android apps, Spring Boot projects, or any JVM-based application using Gradle, your <span class="inline-code">~/.gradle</span> directory is silently growing every day. Between cached dependencies, wrapper distributions, daemon logs, and build cache entries, Gradle can easily consume <strong>10-50GB</strong> of your Mac's SSD.</p>
+
+        <p>This guide covers every location where Gradle stores data on macOS and shows you exactly how to reclaim that space safely.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <ul>
+                <li><a href="#audit">1. Audit Your Gradle Disk Usage</a></li>
+                <li><a href="#caches">2. Clean the Dependency Cache</a></li>
+                <li><a href="#wrapper">3. Remove Old Wrapper Distributions</a></li>
+                <li><a href="#build-cache">4. Clear the Gradle Build Cache</a></li>
+                <li><a href="#daemon">5. Clean Daemon Logs and Data</a></li>
+                <li><a href="#android">6. Android Studio Specific Cleanup</a></li>
+                <li><a href="#build-dirs">7. Find build/ Directories Across Projects</a></li>
+                <li><a href="#configuration-cache">8. Configuration Cache</a></li>
+                <li><a href="#automation">9. Automate Gradle Cleanup</a></li>
+                <li><a href="#prevention">10. Prevent Cache Bloat</a></li>
+                <li><a href="#cheatsheet">Complete Cheatsheet</a></li>
+            </ul>
+        </div>
+
+        <h2 id="audit">1. Audit Your Gradle Disk Usage</h2>
+
+        <p>Before cleaning anything, see where your space is going:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Total ~/.gradle size</span>
+du -sh ~/.gradle
+
+<span style="color:#6bb3e0;"># Breakdown by subdirectory</span>
+du -sh ~/.gradle/* 2>/dev/null | sort -hr
+
+<span style="color:#6bb3e0;"># Top-level summary</span>
+du -sh ~/.gradle/caches
+du -sh ~/.gradle/wrapper
+du -sh ~/.gradle/daemon
+du -sh ~/.gradle/build-scan-data
+du -sh ~/.gradle/configuration-cache</code></pre>
+
+        <p>Typical output on a developer machine:</p>
+
+        <table>
+            <tr><th>Directory</th><th>Typical Size</th><th>What It Contains</th></tr>
+            <tr><td><span class="inline-code">~/.gradle/caches</span></td><td>5-30GB</td><td>Downloaded JARs, metadata, transforms</td></tr>
+            <tr><td><span class="inline-code">~/.gradle/wrapper/dists</span></td><td>1-5GB</td><td>Full Gradle distributions (one per version)</td></tr>
+            <tr><td><span class="inline-code">~/.gradle/daemon</span></td><td>500MB-2GB</td><td>Daemon logs, registry files</td></tr>
+            <tr><td><span class="inline-code">~/.gradle/build-scan-data</span></td><td>100MB-1GB</td><td>Build scan upload data</td></tr>
+            <tr><td><span class="inline-code">~/.gradle/configuration-cache</span></td><td>100MB-500MB</td><td>Configuration cache entries</td></tr>
+            <tr><td>Project <span class="inline-code">build/</span> dirs</td><td>2-20GB each</td><td>Compiled output, APKs, test reports</td></tr>
+        </table>
+
+        <div class="warning">
+            <strong>Why so large?</strong> Gradle downloads and caches every JAR dependency version separately. If you work on multiple Android projects, each with hundreds of dependencies across different versions, the cache grows fast.
+        </div>
+
+        <h2 id="caches">2. Clean the Dependency Cache</h2>
+
+        <p>The <span class="inline-code">~/.gradle/caches</span> directory is usually the biggest culprit. It contains:</p>
+        <ul style="margin: 15px 0; padding-left: 25px;">
+            <li><strong>modules-2/files-2.1/</strong> -- actual downloaded JAR files organized by group/artifact/version</li>
+            <li><strong>transforms-*/</strong> -- transformed artifacts (dexing, desugaring for Android)</li>
+            <li><strong>jars-*/</strong> -- processed JAR metadata</li>
+            <li><strong>journal-1/</strong> -- cache bookkeeping</li>
+        </ul>
+
+        <h3>Safe: Use Gradle's built-in cleanup</h3>
+        <pre><code><span style="color:#6bb3e0;"># Stop all running Gradle daemons first</span>
+./gradlew --stop
+
+<span style="color:#6bb3e0;"># Or stop all Gradle processes</span>
+pkill -f "GradleDaemon"
+
+<span style="color:#6bb3e0;"># Clean the project build directory</span>
+./gradlew clean</code></pre>
+
+        <h3>Moderate: Remove old cache entries</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove caches older than 30 days</span>
+find ~/.gradle/caches -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
+
+<span style="color:#6bb3e0;"># Remove old transform caches</span>
+rm -rf ~/.gradle/caches/transforms-*
+
+<span style="color:#6bb3e0;"># Remove file-lock leftover files</span>
+find ~/.gradle/caches -name "*.lock" -delete</code></pre>
+
+        <h3>Aggressive: Nuclear the entire cache</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove all cached dependencies (they will re-download on next build)</span>
+rm -rf ~/.gradle/caches</code></pre>
+
+        <div class="tip">
+            <strong>Is it safe to delete ~/.gradle/caches?</strong> Yes. Gradle re-downloads everything on the next build. Your first build will be slower (it downloads all dependencies again), but nothing breaks.
+        </div>
+
+        <h2 id="wrapper">3. Remove Old Wrapper Distributions</h2>
+
+        <p>Each project can specify a different Gradle version in <span class="inline-code">gradle-wrapper.properties</span>. Gradle downloads the full distribution (~130MB each) and keeps every version forever.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># See all downloaded Gradle versions</span>
+ls -la ~/.gradle/wrapper/dists/
+
+<span style="color:#6bb3e0;"># Check total wrapper size</span>
+du -sh ~/.gradle/wrapper/dists/*
+
+<span style="color:#6bb3e0;"># Example output:</span>
+<span style="color:#6bb3e0;"># 135M  gradle-7.6.3-bin</span>
+<span style="color:#6bb3e0;"># 285M  gradle-8.0-all</span>
+<span style="color:#6bb3e0;"># 135M  gradle-8.5-bin</span>
+<span style="color:#6bb3e0;"># 285M  gradle-8.7-all</span>
+<span style="color:#6bb3e0;"># 135M  gradle-8.9-bin</span>
+<span style="color:#6bb3e0;"># 285M  gradle-8.12-all</span></code></pre>
+
+        <p>If you have 10+ versions, that is <strong>1.5-3GB</strong> just in wrapper distributions.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Remove all old wrapper distributions</span>
+rm -rf ~/.gradle/wrapper/dists
+
+<span style="color:#6bb3e0;"># Or keep only the latest -- remove specific old versions</span>
+rm -rf ~/.gradle/wrapper/dists/gradle-7.*
+rm -rf ~/.gradle/wrapper/dists/gradle-8.0*
+rm -rf ~/.gradle/wrapper/dists/gradle-8.1*</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> Use <span class="inline-code">-bin</span> instead of <span class="inline-code">-all</span> distributions by editing <span class="inline-code">gradle-wrapper.properties</span>. The <span class="inline-code">-all</span> distribution includes source code and docs (doubles the size).
+        </div>
+
+        <h2 id="build-cache">4. Clear the Gradle Build Cache</h2>
+
+        <p>Gradle's build cache stores task output to avoid re-running unchanged tasks. It grows with every project variation.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Check build cache size</span>
+du -sh ~/.gradle/caches/build-cache-1
+
+<span style="color:#6bb3e0;"># Clear the build cache via Gradle</span>
+./gradlew --build-cache clean
+
+<span style="color:#6bb3e0;"># Or delete it directly</span>
+rm -rf ~/.gradle/caches/build-cache-1</code></pre>
+
+        <h3>Shared build cache (CI scenarios)</h3>
+        <p>If you set up a shared build cache, also check:</p>
+        <pre><code><span style="color:#6bb3e0;"># Gradle's local build cache (default location)</span>
+du -sh ~/.gradle/caches/build-cache-*
+
+<span style="color:#6bb3e0;"># If using Gradle Enterprise / Develocity cache</span>
+du -sh ~/.gradle/build-scan-data</code></pre>
+
+        <h2 id="daemon">5. Clean Daemon Logs and Data</h2>
+
+        <p>Gradle runs a background daemon for faster builds. Each Gradle version maintains its own daemon data:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Check daemon directories</span>
+du -sh ~/.gradle/daemon/*
+
+<span style="color:#6bb3e0;"># Example output: one directory per Gradle version</span>
+<span style="color:#6bb3e0;"># 250M  ~/.gradle/daemon/7.6.3</span>
+<span style="color:#6bb3e0;"># 300M  ~/.gradle/daemon/8.5</span>
+<span style="color:#6bb3e0;"># 350M  ~/.gradle/daemon/8.9</span>
+
+<span style="color:#6bb3e0;"># Stop all daemons</span>
+./gradlew --stop
+
+<span style="color:#6bb3e0;"># Remove old daemon data</span>
+rm -rf ~/.gradle/daemon
+
+<span style="color:#6bb3e0;"># Or just remove old version daemons</span>
+find ~/.gradle/daemon -maxdepth 1 -type d -name "7.*" -exec rm -rf {} +</code></pre>
+
+        <div class="warning">
+            <strong>Note:</strong> Always run <span class="inline-code">./gradlew --stop</span> or <span class="inline-code">pkill -f GradleDaemon</span> before deleting daemon directories, or you may see file-lock errors.
+        </div>
+
+        <h2 id="android">6. Android Studio Specific Cleanup</h2>
+
+        <p>Android development with Gradle creates additional caches beyond <span class="inline-code">~/.gradle</span>:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Android SDK build tools</span>
+du -sh ~/Library/Android/sdk/build-tools/*
+
+<span style="color:#6bb3e0;"># Android emulators</span>
+du -sh ~/.android/avd/*
+
+<span style="color:#6bb3e0;"># Android Studio caches</span>
+du -sh ~/Library/Caches/Google/AndroidStudio*
+
+<span style="color:#6bb3e0;"># Kotlin compiler daemon and caches</span>
+du -sh ~/.kotlin
+
+<span style="color:#6bb3e0;"># Maven local cache (Gradle also uses this)</span>
+du -sh ~/.m2/repository</code></pre>
+
+        <h3>Clean Android-specific caches</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove old Android Gradle Plugin caches</span>
+rm -rf ~/.android/.gradle
+
+<span style="color:#6bb3e0;"># Remove Android Studio caches</span>
+rm -rf ~/Library/Caches/Google/AndroidStudio*
+
+<span style="color:#6bb3e0;"># Remove old build tool versions (keep latest)</span>
+ls ~/Library/Android/sdk/build-tools/
+<span style="color:#6bb3e0;"># Then remove old ones via Android Studio SDK Manager</span>
+
+<span style="color:#6bb3e0;"># Clean Kotlin daemon cache</span>
+rm -rf ~/.kotlin/daemon
+
+<span style="color:#6bb3e0;"># Clean Maven local repository</span>
+rm -rf ~/.m2/repository</code></pre>
+
+        <div class="danger">
+            <strong>Warning:</strong> Do not delete <span class="inline-code">~/Library/Android/sdk</span> entirely -- that removes your entire Android SDK. Use the SDK Manager in Android Studio to uninstall unused SDK versions and build tools instead.
+        </div>
+
+        <h2 id="build-dirs">7. Find build/ Directories Across Projects</h2>
+
+        <p>Every Gradle project has a <span class="inline-code">build/</span> directory with compiled output. In multi-module projects, each submodule has its own <span class="inline-code">build/</span> directory.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Find all Gradle build directories in your projects folder</span>
+find ~/Projects -name "build" -type d -prune 2>/dev/null | head -20
+
+<span style="color:#6bb3e0;"># Check total size of all build dirs</span>
+find ~/Projects -name "build" -type d -prune -exec du -sh {} + 2>/dev/null | sort -hr | head -20
+
+<span style="color:#6bb3e0;"># One-liner: find and display total</span>
+find ~/Projects -name "build" -type d -prune -exec du -sk {} + 2>/dev/null | awk '{sum+=$1} END{printf "Total: %.1f GB\n", sum/1048576}'</code></pre>
+
+        <p>For Android projects specifically, APK and AAB outputs can be surprisingly large:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Find APK files</span>
+find ~/Projects -name "*.apk" -exec du -sh {} + 2>/dev/null | sort -hr
+
+<span style="color:#6bb3e0;"># Find AAB files</span>
+find ~/Projects -name "*.aab" -exec du -sh {} + 2>/dev/null | sort -hr</code></pre>
+
+        <h3>Clean all build directories at once</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove all build/ directories under Projects (careful!)</span>
+find ~/Projects -name "build" -type d -prune -exec rm -rf {} +
+
+<span style="color:#6bb3e0;"># Or clean via Gradle for each project</span>
+for dir in ~/Projects/*/; do
+    if [ -f "$dir/gradlew" ]; then
+        echo "Cleaning $dir..."
+        (cd "$dir" && ./gradlew clean 2>/dev/null)
+    fi
+done</code></pre>
+
+        <h2 id="configuration-cache">8. Configuration Cache</h2>
+
+        <p>Gradle 8+ introduced the configuration cache, which stores serialized task configurations. It lives at:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Global configuration cache</span>
+du -sh ~/.gradle/configuration-cache
+
+<span style="color:#6bb3e0;"># Per-project configuration cache</span>
+du -sh ~/Projects/*/.gradle/configuration-cache 2>/dev/null
+
+<span style="color:#6bb3e0;"># Clean global configuration cache</span>
+rm -rf ~/.gradle/configuration-cache
+
+<span style="color:#6bb3e0;"># Clean per-project caches</span>
+find ~/Projects -path "*/.gradle/configuration-cache" -type d -exec rm -rf {} + 2>/dev/null</code></pre>
+
+        <div class="tip">
+            <strong>Also check per-project .gradle directories:</strong> Each project has a <span class="inline-code">.gradle/</span> directory (note the dot) that stores project-specific cache data. These can grow to several hundred MB per project.
+        </div>
+
+        <pre><code><span style="color:#6bb3e0;"># Find and size all per-project .gradle dirs</span>
+find ~/Projects -maxdepth 2 -name ".gradle" -type d -exec du -sh {} + 2>/dev/null | sort -hr</code></pre>
+
+        <h2 id="automation">9. Automate Gradle Cleanup</h2>
+
+        <p>Gradle 8+ includes automatic cache cleanup, but you can also set up your own schedule:</p>
+
+        <h3>Configure Gradle's built-in cleanup</h3>
+        <p>Add to <span class="inline-code">~/.gradle/init.d/cache-settings.gradle</span>:</p>
+
+        <pre><code><span style="color:#6bb3e0;">// Reduce cache retention from default 30 days</span>
+beforeSettings {
+    caches {
+        releasedWrappers { removeUnusedEntriesAfterDays = 14 }
+        snapshotWrappers { removeUnusedEntriesAfterDays = 7 }
+        downloadedResources { removeUnusedEntriesAfterDays = 14 }
+        createdResources { removeUnusedEntriesAfterDays = 14 }
+    }
+}</code></pre>
+
+        <h3>Create a cleanup script</h3>
+        <pre><code><span style="color:#6bb3e0;">#!/bin/bash</span>
+<span style="color:#6bb3e0;"># gradle-cleanup.sh -- Safe Gradle cache cleanup</span>
+
+echo "=== Stopping Gradle daemons ==="
+pkill -f GradleDaemon 2>/dev/null
+sleep 2
+
+BEFORE=$(du -sk ~/.gradle 2>/dev/null | awk '{print $1}')
+
+echo "=== Cleaning old wrapper distributions ==="
+find ~/.gradle/wrapper/dists -maxdepth 1 -type d -mtime +60 -exec rm -rf {} + 2>/dev/null
+
+echo "=== Cleaning old caches ==="
+rm -rf ~/.gradle/caches/transforms-* 2>/dev/null
+rm -rf ~/.gradle/caches/build-cache-* 2>/dev/null
+find ~/.gradle/caches -name "*.lock" -delete 2>/dev/null
+
+echo "=== Cleaning daemon data ==="
+find ~/.gradle/daemon -maxdepth 1 -type d -mtime +30 -exec rm -rf {} + 2>/dev/null
+
+echo "=== Cleaning build scan data ==="
+rm -rf ~/.gradle/build-scan-data 2>/dev/null
+
+echo "=== Cleaning configuration cache ==="
+rm -rf ~/.gradle/configuration-cache 2>/dev/null
+
+AFTER=$(du -sk ~/.gradle 2>/dev/null | awk '{print $1}')
+SAVED=$(( (BEFORE - AFTER) / 1024 ))
+echo "=== Done! Freed ${SAVED}MB ==="</code></pre>
+
+        <h3>Automate with cron or launchd</h3>
+        <pre><code><span style="color:#6bb3e0;"># Run cleanup every Sunday at 3am</span>
+echo "0 3 * * 0 /bin/bash ~/scripts/gradle-cleanup.sh >> ~/gradle-cleanup.log 2>&1" | crontab -</code></pre>
+
+        <div class="cta">
+            <strong>Skip the manual work.</strong>
+            <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> automatically finds and cleans Gradle caches, Xcode DerivedData, node_modules, Docker images, and 15+ other developer cache types from your Mac's menu bar -- free and open source.
+            <br><br>
+            <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+        </div>
+
+        <h2 id="prevention">10. Prevent Cache Bloat</h2>
+
+        <h3>Use -bin instead of -all distributions</h3>
+        <p>In each project's <span class="inline-code">gradle/wrapper/gradle-wrapper.properties</span>, change:</p>
+        <pre><code><span style="color:#6bb3e0;"># BEFORE (includes source + docs, ~285MB)</span>
+distributionUrl=https\://...gradle-8.12-all.zip
+
+<span style="color:#6bb3e0;"># AFTER (binary only, ~135MB)</span>
+distributionUrl=https\://...gradle-8.12-bin.zip</code></pre>
+
+        <h3>Standardize Gradle versions across projects</h3>
+        <p>Using 5 different Gradle versions means 5 separate wrapper downloads and 5 daemon processes. Update older projects to use the same recent Gradle version where possible.</p>
+
+        <h3>Keep only needed SDK versions</h3>
+        <p>In Android Studio, go to <strong>Settings > Android SDK > SDK Platforms</strong> and uninstall old API levels you no longer target. Same for <strong>SDK Tools</strong> -- remove old build tool versions.</p>
+
+        <h3>Use Gradle's --no-build-cache flag for CI</h3>
+        <pre><code><span style="color:#6bb3e0;"># Disable build cache to keep local disk clean</span>
+./gradlew build --no-build-cache
+
+<span style="color:#6bb3e0;"># Or in gradle.properties</span>
+org.gradle.caching=false</code></pre>
+
+        <div class="cheatsheet">
+            <h3>Complete Gradle Disk Cleanup Cheatsheet</h3>
+<pre><code><span style="color:#6bb3e0;"># === AUDIT ===</span>
+du -sh ~/.gradle                       <span style="color:#6bb3e0;"># total Gradle home</span>
+du -sh ~/.gradle/* 2>/dev/null | sort -hr  <span style="color:#6bb3e0;"># breakdown</span>
+du -sh ~/.gradle/caches                <span style="color:#6bb3e0;"># dependency cache</span>
+du -sh ~/.gradle/wrapper/dists         <span style="color:#6bb3e0;"># wrapper downloads</span>
+du -sh ~/.gradle/daemon                <span style="color:#6bb3e0;"># daemon data</span>
+du -sh ~/.m2/repository                <span style="color:#6bb3e0;"># Maven local repo</span>
+
+<span style="color:#6bb3e0;"># === STOP DAEMONS FIRST ===</span>
+./gradlew --stop
+pkill -f GradleDaemon
+
+<span style="color:#6bb3e0;"># === SAFE CLEANUP ===</span>
+./gradlew clean                        <span style="color:#6bb3e0;"># clean project build/</span>
+rm -rf ~/.gradle/caches/build-cache-*  <span style="color:#6bb3e0;"># clear build cache</span>
+rm -rf ~/.gradle/caches/transforms-*   <span style="color:#6bb3e0;"># clear transforms</span>
+rm -rf ~/.gradle/build-scan-data       <span style="color:#6bb3e0;"># clear scan data</span>
+
+<span style="color:#6bb3e0;"># === MODERATE ===</span>
+rm -rf ~/.gradle/daemon                <span style="color:#6bb3e0;"># clear daemon data</span>
+rm -rf ~/.gradle/configuration-cache   <span style="color:#6bb3e0;"># clear config cache</span>
+rm -rf ~/.gradle/wrapper/dists/gradle-7.* <span style="color:#6bb3e0;"># old wrappers</span>
+
+<span style="color:#6bb3e0;"># === AGGRESSIVE ===</span>
+rm -rf ~/.gradle/caches                <span style="color:#6bb3e0;"># remove ALL caches</span>
+rm -rf ~/.gradle/wrapper/dists         <span style="color:#6bb3e0;"># remove ALL wrappers</span>
+
+<span style="color:#6bb3e0;"># === NUCLEAR ===</span>
+rm -rf ~/.gradle                       <span style="color:#6bb3e0;"># remove everything</span>
+
+<span style="color:#6bb3e0;"># === ANDROID EXTRAS ===</span>
+rm -rf ~/Library/Caches/Google/AndroidStudio*
+rm -rf ~/.android/.gradle
+rm -rf ~/.kotlin/daemon
+rm -rf ~/.m2/repository
+
+<span style="color:#6bb3e0;"># === FIND ALL build/ DIRS ===</span>
+find ~/Projects -name "build" -type d -prune -exec du -sh {} + 2>/dev/null | sort -hr</code></pre>
+        </div>
+
+        <h2>Frequently Asked Questions</h2>
+
+        <h3>How much space can I recover from Gradle caches?</h3>
+        <p>Typically <strong>10-50GB</strong> depending on the number of projects and Gradle versions used. Android developers tend to see the largest caches because of the additional transforms, SDK tools, and emulator images.</p>
+
+        <h3>Is it safe to delete ~/.gradle/caches?</h3>
+        <p>Yes. The caches directory contains only downloaded dependencies and derived data. Gradle re-downloads everything on the next build. Your first build will take longer as it re-downloads all JARs, but nothing breaks permanently.</p>
+
+        <h3>Why does Gradle keep so many versions?</h3>
+        <p>Each project can specify its own Gradle version via the wrapper. Gradle never deletes old versions automatically (prior to version 8). If you work on 10 projects, you may end up with 10 different Gradle distributions cached.</p>
+
+        <h3>What about ~/.m2/repository?</h3>
+        <p>The Maven local repository at <span class="inline-code">~/.m2/repository</span> is shared between Gradle and Maven. If you only use Gradle, you can safely delete it. Gradle may have published some local artifacts there via <span class="inline-code">mavenLocal()</span>, so check your build scripts first.</p>
+
+        <h3>Does Gradle 8 clean up automatically?</h3>
+        <p>Yes, Gradle 8+ includes automatic cache cleanup that removes unused entries after 30 days. However, this only applies to the version of Gradle currently running. Caches from older Gradle versions still accumulate. You can customize the retention period via the init script shown in the <a href="#automation">automation section</a>.</p>
+
+        <h3>How often should I clean?</h3>
+        <p>A monthly cleanup of transforms and build cache is a good baseline. For the full dependency cache, quarterly cleanup is sufficient since re-downloading everything takes time. Or use ClearDisk to automate it with one click.</p>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://bysiber.github.io/cleardisk/">ClearDisk Home</a></p>
+        <p style="margin-top: 15px;">
+            <a href="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer.html">Free 50GB+ Guide</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">node_modules Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">Docker Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">ClearDisk vs Others</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">Rust/Cargo Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> |
+            <strong>Gradle Cleanup</strong>
+        </p>
+        <p style="margin-top: 15px; color: #999;">
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a> |
+            Published July 2025
+        </p>
+    </div>
+</body>
+</html>
