@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClearDisk -- Free macOS Developer Cache Cleaner</title>
+    <meta name="description" content="Free, open-source macOS menu bar app to visualize and clean developer caches. Reclaim 50-500GB of disk space from Xcode, npm, Docker, pip, Cargo, and more.">
+    <meta name="keywords" content="macOS, disk cleaner, developer tools, cache cleaner, Xcode, DerivedData, node_modules, Docker, pip, Cargo, open source, free, menu bar app, SwiftUI">
+    <meta property="og:title" content="ClearDisk -- Free macOS Developer Cache Cleaner">
+    <meta property="og:description" content="Reclaim 50-500GB of disk space. Free, open-source macOS menu bar app.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="https://raw.githubusercontent.com/bysiber/cleardisk/main/ClearDisk/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" type="image/png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #f0f6fc;
+            line-height: 1.6;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 0 40px;
+        }
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #58a6ff, #f778ba);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero .tagline {
+            font-size: 1.4rem;
+            color: #8b949e;
+            margin-bottom: 32px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .hero .highlight {
+            color: #58a6ff;
+            font-weight: 600;
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 48px;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #238636;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #2ea043; }
+        .btn-secondary {
+            background: #21262d;
+            color: #f0f6fc;
+            border: 1px solid #30363d;
+        }
+        .btn-secondary:hover { background: #30363d; }
+
+        /* Install */
+        .install-box {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 48px;
+            text-align: center;
+        }
+        .install-box h3 {
+            color: #8b949e;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        .install-cmd {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 1rem;
+            color: #58a6ff;
+            background: #0d1117;
+            padding: 12px 20px;
+            border-radius: 6px;
+            display: inline-block;
+            user-select: all;
+        }
+
+        /* Screenshot */
+        .screenshot {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+        .screenshot img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 64px;
+        }
+        .feature {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 28px;
+        }
+        .feature .icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+        .feature h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+        .feature p {
+            color: #8b949e;
+            font-size: 0.95rem;
+        }
+
+        /* Cache Types */
+        .cache-types {
+            margin-bottom: 64px;
+            text-align: center;
+        }
+        .cache-types h2 {
+            font-size: 2rem;
+            margin-bottom: 24px;
+        }
+        .cache-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .cache-tag {
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            color: #58a6ff;
+        }
+
+        /* Stats */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            margin-bottom: 64px;
+            flex-wrap: wrap;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat .number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #58a6ff;
+        }
+        .stat .label {
+            color: #8b949e;
+            font-size: 0.9rem;
+        }
+
+        /* Comparison */
+        .comparison {
+            margin-bottom: 64px;
+        }
+        .comparison h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .comparison table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #161b22;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .comparison th, .comparison td {
+            padding: 14px 16px;
+            text-align: center;
+            border-bottom: 1px solid #21262d;
+        }
+        .comparison th {
+            background: #21262d;
+            color: #8b949e;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .comparison td:first-child {
+            text-align: left;
+            color: #8b949e;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 48px 0;
+            border-top: 1px solid #21262d;
+            color: #8b949e;
+        }
+        .footer a { color: #58a6ff; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 2.2rem; }
+            .hero .tagline { font-size: 1.1rem; }
+            .stats { gap: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <section class="hero">
+        <h1>ClearDisk</h1>
+        <p class="tagline">
+            Your Mac is hiding <span class="highlight">50--500 GB</span> of developer caches.<br>
+            ClearDisk finds and cleans them in seconds.
+        </p>
+        <div class="btn-group">
+            <a href="https://github.com/bysiber/cleardisk/releases/latest" class="btn btn-primary">
+                Download Free
+            </a>
+            <a href="https://github.com/bysiber/cleardisk" class="btn btn-secondary">
+                View on GitHub
+            </a>
+        </div>
+        <div class="install-box">
+            <h3>Install via Homebrew</h3>
+            <code class="install-cmd">brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+        </div>
+    </section>
+
+    <section class="screenshot">
+        <img src="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/showcase.png"
+             alt="ClearDisk Screenshots showing Caches, Projects, Clean Projects, Clean Caches, Large Files, and Overview tabs">
+    </section>
+
+    <section class="stats">
+        <div class="stat">
+            <div class="number">590 KB</div>
+            <div class="label">App Size</div>
+        </div>
+        <div class="stat">
+            <div class="number">15+</div>
+            <div class="label">Cache Types</div>
+        </div>
+        <div class="stat">
+            <div class="number">0</div>
+            <div class="label">Dependencies</div>
+        </div>
+        <div class="stat">
+            <div class="number">0</div>
+            <div class="label">Data Collection</div>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="feature">
+            <div class="icon">&#x1F50D;</div>
+            <h3>Smart Cache Detection</h3>
+            <p>Automatically finds Xcode DerivedData, node_modules, CocoaPods, Docker, pip, Cargo, and 10+ more cache types across your entire system.</p>
+        </div>
+        <div class="feature">
+            <div class="icon">&#x1F4CA;</div>
+            <h3>Visual Size Breakdown</h3>
+            <p>See exactly how much space each cache type uses. Project-level view shows caches grouped by your development projects.</p>
+        </div>
+        <div class="feature">
+            <div class="icon">&#x1F9F9;</div>
+            <h3>One-Click Clean</h3>
+            <p>Preview sizes before cleaning. Select individual caches or clean everything at once. No surprises.</p>
+        </div>
+        <div class="feature">
+            <div class="icon">&#x1F4BB;</div>
+            <h3>Menu Bar Native</h3>
+            <p>Lives in your menu bar -- always one click away. No dock clutter. Opens instantly when you need it.</p>
+        </div>
+        <div class="feature">
+            <div class="icon">&#x1F512;</div>
+            <h3>Privacy First</h3>
+            <p>Zero network access. No analytics. No data collection. No telemetry. Everything runs locally on your Mac.</p>
+        </div>
+        <div class="feature">
+            <div class="icon">&#x1F4E6;</div>
+            <h3>Open Source</h3>
+            <p>MIT licensed. Full source code on GitHub. Audit, fork, contribute -- the code is yours to inspect.</p>
+        </div>
+    </section>
+
+    <section class="cache-types">
+        <h2>Supported Cache Types</h2>
+        <div class="cache-grid">
+            <span class="cache-tag">Xcode DerivedData</span>
+            <span class="cache-tag">node_modules</span>
+            <span class="cache-tag">CocoaPods</span>
+            <span class="cache-tag">SPM Cache</span>
+            <span class="cache-tag">Homebrew</span>
+            <span class="cache-tag">Docker</span>
+            <span class="cache-tag">pip</span>
+            <span class="cache-tag">Cargo</span>
+            <span class="cache-tag">Go Modules</span>
+            <span class="cache-tag">Gradle</span>
+            <span class="cache-tag">Maven</span>
+            <span class="cache-tag">Flutter/Pub</span>
+            <span class="cache-tag">Xcode Archives</span>
+            <span class="cache-tag">iOS Simulators</span>
+            <span class="cache-tag">Yarn Cache</span>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <h2>Why ClearDisk?</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>ClearDisk</th>
+                    <th>CleanMyMac</th>
+                    <th>DaisyDisk</th>
+                    <th>DevCleaner</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Price</td>
+                    <td>Free</td>
+                    <td>$35/yr</td>
+                    <td>$10</td>
+                    <td>Free</td>
+                </tr>
+                <tr>
+                    <td>Open Source</td>
+                    <td>&#x2705;</td>
+                    <td>&#x274C;</td>
+                    <td>&#x274C;</td>
+                    <td>&#x2705;</td>
+                </tr>
+                <tr>
+                    <td>Developer Caches</td>
+                    <td>15+ types</td>
+                    <td>Generic</td>
+                    <td>Generic</td>
+                    <td>Xcode only</td>
+                </tr>
+                <tr>
+                    <td>Menu Bar App</td>
+                    <td>&#x2705;</td>
+                    <td>&#x274C;</td>
+                    <td>&#x274C;</td>
+                    <td>&#x274C;</td>
+                </tr>
+                <tr>
+                    <td>No Data Collection</td>
+                    <td>&#x2705;</td>
+                    <td>&#x274C;</td>
+                    <td>&#x2705;</td>
+                    <td>&#x2705;</td>
+                </tr>
+                <tr>
+                    <td>App Size</td>
+                    <td>590 KB</td>
+                    <td>~100 MB</td>
+                    <td>~25 MB</td>
+                    <td>~5 MB</td>
+                </tr>
+                <tr>
+                    <td>Homebrew Install</td>
+                    <td>&#x2705;</td>
+                    <td>&#x2705;</td>
+                    <td>&#x2705;</td>
+                    <td>&#x274C;</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <footer class="footer">
+        <p>
+            ClearDisk is free and open source under the <a href="https://github.com/bysiber/cleardisk/blob/main/LICENSE">MIT License</a>.<br>
+            Built with Swift & SwiftUI. Requires macOS 14+.<br><br>
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a> &middot;
+            <a href="https://github.com/bysiber/cleardisk/releases/latest">Download</a> &middot;
+            <a href="https://github.com/bysiber/cleardisk/discussions">Discussions</a> &middot;
+            <a href="https://github.com/bysiber/cleardisk/issues">Report a Bug</a>
+        </p>
+    </footer>
+</div>
+
+</body>
+</html>
