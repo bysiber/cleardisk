@@ -162,6 +162,44 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 
 Issues and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
+## FAQ
+
+<details>
+<summary><strong>How much disk space can ClearDisk recover?</strong></summary>
+
+Typically **50-200 GB** for active developers. Xcode DerivedData alone can grow to 80+ GB. Add node_modules, Docker images, and package manager caches and it's common to find 100+ GB of reclaimable space.
+</details>
+
+<details>
+<summary><strong>Is it safe to clean these caches?</strong></summary>
+
+Yes. All cleaned files are moved to Trash first -- nothing is permanently deleted. Xcode will rebuild DerivedData on next build. Package managers (npm, pip, Homebrew) will re-download packages when needed. ClearDisk also shows risk levels (Safe/Caution/Risky) for each cache type.
+</details>
+
+<details>
+<summary><strong>What's the difference between ClearDisk and CleanMyMac?</strong></summary>
+
+CleanMyMac ($40/yr) is a general-purpose Mac cleaner. ClearDisk is free, open-source, and specifically designed for **developer caches** (Xcode, npm, Docker, Cargo, Gradle, etc.). ClearDisk lives in your menu bar for quick access and shows real-time storage forecasts.
+</details>
+
+<details>
+<summary><strong>Does ClearDisk work on Intel Macs?</strong></summary>
+
+Currently ClearDisk requires macOS 14+ (Sonoma) on Apple Silicon. Intel Mac support may be added in a future release.
+</details>
+
+<details>
+<summary><strong>How do I clean Xcode DerivedData?</strong></summary>
+
+With ClearDisk installed, click the menu bar icon and you'll see DerivedData size. Click "Clean" to move it to Trash. Manually: `rm -rf ~/Library/Developer/Xcode/DerivedData/*`
+</details>
+
+<details>
+<summary><strong>How do I find and delete old node_modules?</strong></summary>
+
+ClearDisk scans for node_modules in common project directories automatically. You can also use the manual command: `find ~ -name "node_modules" -type d -prune | xargs du -sh | sort -hr`
+</details>
+
 ## License
 
-[MIT](LICENSE) — Kadir Can Ozden
+[MIT](LICENSE) -- Kadir Can Ozden
