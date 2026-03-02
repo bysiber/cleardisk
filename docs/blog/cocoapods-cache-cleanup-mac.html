@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CocoaPods Cache Taking Up Too Much Disk Space on Mac? Complete Cleanup Guide</title>
+    <meta name="description" content="CocoaPods cache, Pods directories, and spec repos can consume 5-20GB on macOS. Learn how to audit, clean pod cache, remove unused Pods, and migrate to Swift Package Manager.">
+    <meta name="keywords" content="cocoapods cache cleanup mac, pod cache clean, cocoapods disk space, pods directory size, cocoapods spec repo, pod deintegrate, cocoapods storage mac, swift package manager migration">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/cocoapods-cache-cleanup-mac.html">
+    <meta property="og:title" content="CocoaPods Cache Cleanup Guide for macOS">
+    <meta property="og:description" content="CocoaPods cache, Pods directories, and spec repos can silently consume 5-20GB. Complete guide to audit and clean CocoaPods on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/cocoapods-cache-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CocoaPods Cache & Pods Directory Cleanup Guide for macOS">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "CocoaPods Cache Taking Up Too Much Disk Space on Mac?",
+        "description": "Complete guide to cleaning CocoaPods cache, Pods directories, spec repos, and migrating to SPM on macOS",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "datePublished": "2025-07-25",
+        "dateModified": "2025-07-25",
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/cocoapods-cache-cleanup-mac.html"
+    }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .header { background: linear-gradient(135deg, #E53935 0%, #C62828 100%); color: white; padding: 60px 20px; text-align: center; }
+        .header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; }
+        .header p { font-size: 1.1em; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .content { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #C62828; border-bottom: 2px solid #E53935; padding-bottom: 8px; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #333; }
+        p { margin: 15px 0; }
+        pre { background: #1a1a2e; color: #e0e0e0; padding: 20px; border-radius: 10px; overflow-x: auto; margin: 20px 0; font-size: 0.9em; line-height: 1.5; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #C62828; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        .danger { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #C62828; }
+        tr:hover { background: #f8f9fa; }
+        .cta { background: linear-gradient(135deg, #E53935 0%, #C62828 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 40px 0; }
+        .cta a { color: white; font-weight: 600; text-decoration: underline; }
+        .toc { background: #f8f9fa; padding: 25px; border-radius: 10px; margin: 30px 0; }
+        .toc ul { list-style: none; padding-left: 0; }
+        .toc li { padding: 5px 0; }
+        .toc a { color: #E53935; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        .breadcrumb { padding: 15px 20px; background: #f8f9fa; font-size: 0.9em; }
+        .breadcrumb a { color: #E53935; text-decoration: none; }
+        .cheatsheet { background: #1a1a2e; color: #e0e0e0; padding: 25px; border-radius: 12px; margin: 30px 0; }
+        .cheatsheet h3 { color: #E53935; margin-top: 0; }
+        .footer { text-align: center; padding: 40px 20px; background: #f8f9fa; margin-top: 60px; }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="https://bysiber.github.io/cleardisk/">ClearDisk</a> &raquo;
+        <a href="https://bysiber.github.io/cleardisk/blog/">Blog</a> &raquo;
+        CocoaPods Cache Cleanup
+    </div>
+
+    <div class="header">
+        <h1>CocoaPods Cache Taking Up Too Much Disk Space on Mac?</h1>
+        <p>How to find and clean CocoaPods cache, Pods directories, spec repos, and related artifacts on macOS -- reclaim 5-20GB</p>
+    </div>
+
+    <div class="content">
+        <p>If you have been developing iOS or macOS apps with CocoaPods, your machine has accumulated downloads, spec repos, and Pods directories that may be taking up <strong>5-20GB</strong> of SSD space. Even if you no longer use CocoaPods, leftover caches may still be lurking on your disk.</p>
+
+        <p>This guide covers every location where CocoaPods stores data and shows you how to reclaim that space safely.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <ul>
+                <li><a href="#audit">1. Audit Your CocoaPods Disk Usage</a></li>
+                <li><a href="#cache">2. Clean the Pod Download Cache</a></li>
+                <li><a href="#specs">3. Remove the Spec Repos</a></li>
+                <li><a href="#pods-dirs">4. Find and Clean Pods/ Directories</a></li>
+                <li><a href="#derived">5. Clean Xcode Build Artifacts for Pod Projects</a></li>
+                <li><a href="#deintegrate">6. Deintegrate CocoaPods from Projects</a></li>
+                <li><a href="#uninstall">7. Fully Uninstall CocoaPods</a></li>
+                <li><a href="#spm">8. Migrating to Swift Package Manager</a></li>
+                <li><a href="#automation">9. Automate CocoaPods Cleanup</a></li>
+                <li><a href="#cheatsheet">Complete Cheatsheet</a></li>
+            </ul>
+        </div>
+
+        <h2 id="audit">1. Audit Your CocoaPods Disk Usage</h2>
+
+        <p>CocoaPods stores data in several locations. Let's check them all:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Pod download cache</span>
+du -sh ~/Library/Caches/CocoaPods
+
+<span style="color:#6bb3e0;"># Spec repo (the dependency catalog)</span>
+du -sh ~/.cocoapods/repos
+
+<span style="color:#6bb3e0;"># CocoaPods home directory</span>
+du -sh ~/.cocoapods
+
+<span style="color:#6bb3e0;"># Find all Pods/ directories in your projects</span>
+find ~/Projects -name "Pods" -type d -maxdepth 3 -exec du -sh {} + 2>/dev/null | sort -hr</code></pre>
+
+        <p>Typical breakdown on a developer machine:</p>
+
+        <table>
+            <tr><th>Location</th><th>Typical Size</th><th>What It Contains</th></tr>
+            <tr><td><span class="inline-code">~/Library/Caches/CocoaPods</span></td><td>2-10GB</td><td>Downloaded pod source archives</td></tr>
+            <tr><td><span class="inline-code">~/.cocoapods/repos/trunk</span></td><td>500MB-2GB</td><td>Master spec repository (JSON podspecs)</td></tr>
+            <tr><td>Per-project <span class="inline-code">Pods/</span></td><td>200MB-2GB each</td><td>Installed dependencies for each project</td></tr>
+            <tr><td>Xcode DerivedData (pod targets)</td><td>1-5GB per project</td><td>Compiled pod frameworks</td></tr>
+        </table>
+
+        <div class="warning">
+            <strong>Why so large?</strong> CocoaPods downloads and caches every version of every pod you have ever installed. The spec repo alone contains metadata for 90,000+ libraries. Each project's Pods/ directory contains the full source code of all dependencies.
+        </div>
+
+        <h2 id="cache">2. Clean the Pod Download Cache</h2>
+
+        <p>The download cache at <span class="inline-code">~/Library/Caches/CocoaPods</span> stores compressed archives of every pod version you have ever installed.</p>
+
+        <h3>Use the built-in command</h3>
+        <pre><code><span style="color:#6bb3e0;"># List cached pods</span>
+pod cache list
+
+<span style="color:#6bb3e0;"># Clean all cached downloads</span>
+pod cache clean --all
+
+<span style="color:#6bb3e0;"># Clean a specific pod's cache</span>
+pod cache clean AFNetworking</code></pre>
+
+        <h3>Manual cleanup (more thorough)</h3>
+        <pre><code><span style="color:#6bb3e0;"># Check size before</span>
+du -sh ~/Library/Caches/CocoaPods
+
+<span style="color:#6bb3e0;"># Remove the entire cache directory</span>
+rm -rf ~/Library/Caches/CocoaPods
+
+<span style="color:#6bb3e0;"># CocoaPods recreates it on next pod install</span></code></pre>
+
+        <div class="tip">
+            <strong>Is it safe?</strong> Yes. The download cache is just a local mirror of pods. Running <span class="inline-code">pod install</span> re-downloads anything needed. Your next install will be slower but nothing breaks.
+        </div>
+
+        <h2 id="specs">3. Remove the Spec Repos</h2>
+
+        <p>The spec repo at <span class="inline-code">~/.cocoapods/repos</span> is a full clone of the CocoaPods spec database. Since CocoaPods 1.8+, the default is the CDN-based trunk, but you may still have old repos:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># See all spec repos</span>
+pod repo list
+
+<span style="color:#6bb3e0;"># Check sizes</span>
+du -sh ~/.cocoapods/repos/*
+
+<span style="color:#6bb3e0;"># Example:</span>
+<span style="color:#6bb3e0;"># 1.2G  ~/.cocoapods/repos/trunk</span>
+<span style="color:#6bb3e0;"># 850M  ~/.cocoapods/repos/master  (legacy, pre-CDN)</span>
+
+<span style="color:#6bb3e0;"># Remove the old master repo if you have it</span>
+pod repo remove master
+
+<span style="color:#6bb3e0;"># Or remove all repos</span>
+rm -rf ~/.cocoapods/repos
+
+<span style="color:#6bb3e0;"># CocoaPods recreates trunk on next use</span></code></pre>
+
+        <div class="tip">
+            <strong>The master vs trunk difference:</strong> Before CocoaPods 1.8, the full Git repo (<span class="inline-code">master</span>) was cloned (~3GB). Now CocoaPods uses a CDN-backed <span class="inline-code">trunk</span> which is lighter. If you see <span class="inline-code">master</span> in your repos, you can safely remove it.
+        </div>
+
+        <h2 id="pods-dirs">4. Find and Clean Pods/ Directories</h2>
+
+        <p>Each project using CocoaPods has a <span class="inline-code">Pods/</span> directory containing the actual source code of all dependencies. This is often the largest consumer of space.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Find all Pods directories across your projects</span>
+find ~ -name "Pods" -type d -maxdepth 4 2>/dev/null | while read dir; do
+    size=$(du -sh "$dir" 2>/dev/null | cut -f1)
+    echo "$size  $dir"
+done | sort -hr
+
+<span style="color:#6bb3e0;"># Total size of all Pods directories</span>
+find ~/Projects -name "Pods" -type d -maxdepth 3 -prune -exec du -sk {} + 2>/dev/null | awk '{sum+=$1} END{printf "Total: %.1f GB\n", sum/1048576}'</code></pre>
+
+        <h3>Clean Pods for inactive projects</h3>
+        <pre><code><span style="color:#6bb3e0;"># Remove Pods from a specific project (can re-install later)</span>
+cd ~/Projects/MyOldApp
+rm -rf Pods
+
+<span style="color:#6bb3e0;"># To restore: just run pod install</span>
+pod install
+
+<span style="color:#6bb3e0;"># Remove Pods from ALL projects (aggressive but saves lots of space)</span>
+find ~/Projects -name "Pods" -type d -maxdepth 3 -prune -exec rm -rf {} + 2>/dev/null</code></pre>
+
+        <div class="warning">
+            <strong>Keep your Podfile.lock!</strong> The <span class="inline-code">Podfile.lock</span> file records the exact versions of your dependencies. As long as you have this file, <span class="inline-code">pod install</span> restores the exact same versions. Never delete <span class="inline-code">Podfile.lock</span> unless you want to update dependency versions.
+        </div>
+
+        <h2 id="derived">5. Clean Xcode Build Artifacts for Pod Projects</h2>
+
+        <p>When Xcode builds a CocoaPods project, it compiles every pod into frameworks stored in DerivedData. These can be massive:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Check DerivedData size</span>
+du -sh ~/Library/Developer/Xcode/DerivedData
+
+<span style="color:#6bb3e0;"># Find largest DerivedData entries</span>
+du -sh ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null | sort -hr | head -10
+
+<span style="color:#6bb3e0;"># Clean all DerivedData</span>
+rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
+<span style="color:#6bb3e0;"># Or use Xcode: Product > Clean Build Folder (Shift+Cmd+K)</span></code></pre>
+
+        <p>Also check the Xcode archives if you have old builds:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Xcode archives (old build artifacts)</span>
+du -sh ~/Library/Developer/Xcode/Archives/*
+
+<span style="color:#6bb3e0;"># Remove old archives</span>
+find ~/Library/Developer/Xcode/Archives -maxdepth 1 -type d -mtime +90 -exec rm -rf {} +</code></pre>
+
+        <h2 id="deintegrate">6. Deintegrate CocoaPods from Projects</h2>
+
+        <p>If you have migrated a project to Swift Package Manager or no longer need CocoaPods, you can fully remove it:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Install the deintegrate plugin</span>
+gem install cocoapods-deintegrate
+
+<span style="color:#6bb3e0;"># Navigate to the project</span>
+cd ~/Projects/MyApp
+
+<span style="color:#6bb3e0;"># Remove CocoaPods integration from the Xcode project</span>
+pod deintegrate
+
+<span style="color:#6bb3e0;"># Remove related files</span>
+rm -rf Pods
+rm Podfile
+rm Podfile.lock
+rm -rf *.xcworkspace</code></pre>
+
+        <div class="danger">
+            <strong>Warning:</strong> After deintegrating, your project will not compile until you either add dependencies via another method (like SPM) or remove the import statements for pods you were using.
+        </div>
+
+        <h2 id="uninstall">7. Fully Uninstall CocoaPods</h2>
+
+        <p>If you no longer use CocoaPods at all, remove everything:</p>
+
+        <pre><code><span style="color:#6bb3e0;"># Uninstall CocoaPods gem</span>
+sudo gem uninstall cocoapods
+sudo gem uninstall cocoapods-core cocoapods-deintegrate cocoapods-downloader cocoapods-plugins cocoapods-search cocoapods-trunk
+
+<span style="color:#6bb3e0;"># Remove all CocoaPods data</span>
+rm -rf ~/.cocoapods
+rm -rf ~/Library/Caches/CocoaPods
+
+<span style="color:#6bb3e0;"># Remove the CocoaPods gem cache</span>
+gem cleanup
+
+<span style="color:#6bb3e0;"># Verify removal</span>
+which pod  <span style="color:#6bb3e0;"># should show nothing</span></code></pre>
+
+        <h2 id="spm">8. Migrating to Swift Package Manager</h2>
+
+        <p>Swift Package Manager (SPM) is built into Xcode and has several advantages for disk space:</p>
+
+        <table>
+            <tr><th>Feature</th><th>CocoaPods</th><th>Swift Package Manager</th></tr>
+            <tr><td>Source in project</td><td>Full copy in Pods/</td><td>Shared cache (~/Library/Developer/...)</td></tr>
+            <tr><td>Spec repository</td><td>500MB-2GB local clone</td><td>No local repo needed</td></tr>
+            <tr><td>Workspace file</td><td>Generates .xcworkspace</td><td>Built into .xcodeproj</td></tr>
+            <tr><td>Shared across projects</td><td>No (each has own Pods/)</td><td>Yes (Xcode caches packages globally)</td></tr>
+            <tr><td>Typical overhead per project</td><td>200MB-2GB</td><td>Minimal (shared cache)</td></tr>
+        </table>
+
+        <p>Most popular pods now support SPM. Check the library's repo for a <span class="inline-code">Package.swift</span> file.</p>
+
+        <pre><code><span style="color:#6bb3e0;"># In Xcode: File > Add Package Dependencies</span>
+<span style="color:#6bb3e0;"># Paste the GitHub URL of the library</span>
+<span style="color:#6bb3e0;"># Xcode handles the rest</span>
+
+<span style="color:#6bb3e0;"># SPM packages are cached at:</span>
+du -sh ~/Library/Developer/Xcode/DerivedData/*/SourcePackages</code></pre>
+
+        <h2 id="automation">9. Automate CocoaPods Cleanup</h2>
+
+        <pre><code><span style="color:#6bb3e0;">#!/bin/bash</span>
+<span style="color:#6bb3e0;"># cocoapods-cleanup.sh -- Clean CocoaPods caches</span>
+
+echo "=== CocoaPods Disk Audit ==="
+echo "Download cache: $(du -sh ~/Library/Caches/CocoaPods 2>/dev/null | cut -f1)"
+echo "Spec repos:     $(du -sh ~/.cocoapods/repos 2>/dev/null | cut -f1)"
+
+BEFORE=$(du -sk ~/Library/Caches/CocoaPods ~/.cocoapods 2>/dev/null | awk '{sum+=$1} END{print sum}')
+
+echo ""
+echo "=== Cleaning download cache ==="
+rm -rf ~/Library/Caches/CocoaPods
+
+echo "=== Cleaning old spec repos ==="
+rm -rf ~/.cocoapods/repos/master 2>/dev/null
+
+echo "=== Cleaning lock files ==="
+find ~/.cocoapods -name "*.lock" -delete 2>/dev/null
+
+AFTER=$(du -sk ~/Library/Caches/CocoaPods ~/.cocoapods 2>/dev/null | awk '{sum+=$1} END{print sum}')
+SAVED=$(( (BEFORE - AFTER) / 1024 ))
+echo ""
+echo "=== Done! Freed approximately ${SAVED}MB ==="</code></pre>
+
+        <div class="cta">
+            <strong>Skip the manual work.</strong>
+            <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> automatically finds and cleans CocoaPods cache, Xcode DerivedData, node_modules, Docker images, and 15+ other developer cache types from your Mac's menu bar -- free and open source.
+            <br><br>
+            <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+        </div>
+
+        <div class="cheatsheet">
+            <h3>Complete CocoaPods Disk Cleanup Cheatsheet</h3>
+<pre><code><span style="color:#6bb3e0;"># === AUDIT ===</span>
+du -sh ~/Library/Caches/CocoaPods      <span style="color:#6bb3e0;"># download cache</span>
+du -sh ~/.cocoapods/repos              <span style="color:#6bb3e0;"># spec repos</span>
+du -sh ~/.cocoapods                    <span style="color:#6bb3e0;"># total CocoaPods home</span>
+pod cache list                         <span style="color:#6bb3e0;"># list cached pods</span>
+
+<span style="color:#6bb3e0;"># === SAFE CLEANUP ===</span>
+pod cache clean --all                  <span style="color:#6bb3e0;"># clean download cache</span>
+pod repo remove master                 <span style="color:#6bb3e0;"># remove old spec repo</span>
+
+<span style="color:#6bb3e0;"># === MODERATE ===</span>
+rm -rf ~/Library/Caches/CocoaPods      <span style="color:#6bb3e0;"># nuke download cache</span>
+rm -rf ~/.cocoapods/repos              <span style="color:#6bb3e0;"># remove all spec repos</span>
+rm -rf ~/Projects/OldApp/Pods          <span style="color:#6bb3e0;"># remove project pods</span>
+
+<span style="color:#6bb3e0;"># === AGGRESSIVE ===</span>
+find ~/Projects -name "Pods" -type d -maxdepth 3 -prune -exec rm -rf {} +
+
+<span style="color:#6bb3e0;"># === NUCLEAR (full uninstall) ===</span>
+sudo gem uninstall cocoapods
+rm -rf ~/.cocoapods
+rm -rf ~/Library/Caches/CocoaPods
+
+<span style="color:#6bb3e0;"># === ALSO CLEAN ===</span>
+rm -rf ~/Library/Developer/Xcode/DerivedData/*  <span style="color:#6bb3e0;"># Xcode build artifacts</span>
+gem cleanup                            <span style="color:#6bb3e0;"># Ruby gem cache</span></code></pre>
+        </div>
+
+        <h2>Frequently Asked Questions</h2>
+
+        <h3>How much space can I recover from CocoaPods?</h3>
+        <p>Typically <strong>5-20GB</strong> depending on the number of projects and pods used. The download cache and per-project Pods/ directories are the largest consumers. If you also clean DerivedData, expect to save even more.</p>
+
+        <h3>Will pod cache clean remove things I need?</h3>
+        <p>No. <span class="inline-code">pod cache clean --all</span> only removes the local download cache. Your projects still have their <span class="inline-code">Pods/</span> directories intact. The cache just speeds up future installs so they do not have to re-download from the network.</p>
+
+        <h3>Can I safely delete the Pods/ directory?</h3>
+        <p>Yes, as long as you keep the <span class="inline-code">Podfile</span> and <span class="inline-code">Podfile.lock</span>. Running <span class="inline-code">pod install</span> restores everything to the exact same state. Many teams even gitignore the Pods/ directory.</p>
+
+        <h3>Is CocoaPods still maintained?</h3>
+        <p>CocoaPods is in maintenance mode. Apple's Swift Package Manager is now the recommended dependency manager for Apple platforms. If you are starting a new project, consider using SPM instead. For existing projects, CocoaPods still works but consider migrating dependencies that support SPM.</p>
+
+        <h3>What about Carthage?</h3>
+        <p>Carthage stores builds at <span class="inline-code">Carthage/Build</span> and checkouts at <span class="inline-code">Carthage/Checkouts</span> in each project. You can safely delete both directories and rebuild with <span class="inline-code">carthage bootstrap</span>.</p>
+    </div>
+
+    <div class="footer">
+        <p><a href="https://bysiber.github.io/cleardisk/">ClearDisk Home</a></p>
+        <p style="margin-top: 15px;">
+            <a href="https://bysiber.github.io/cleardisk/blog/free-disk-space-mac-developer.html">Free 50GB+ Guide</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/clean-node-modules-mac.html">node_modules Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/docker-disk-space-cleanup-mac.html">Docker Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/mac-disk-cleaner-comparison.html">ClearDisk vs Others</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/rust-cargo-cache-cleanup-mac.html">Rust/Cargo Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> |
+            <a href="https://bysiber.github.io/cleardisk/blog/gradle-cache-cleanup-mac.html">Gradle Cleanup</a> |
+            <strong>CocoaPods Cleanup</strong>
+        </p>
+        <p style="margin-top: 15px; color: #999;">
+            <a href="https://github.com/bysiber/cleardisk">GitHub</a> |
+            Published July 2025
+        </p>
+    </div>
+</body>
+</html>
