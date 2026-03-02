@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraform &amp; OpenTofu Cache Cleanup on Mac -- Free 5-20GB of Disk Space | ClearDisk</title>
+    <meta name="description" content="Terraform and OpenTofu provider plugins, module caches, and .terragrunt-cache can consume 5-20GB on macOS. Learn how to audit, clean, and manage Terraform caches safely.">
+    <meta name="keywords" content="terraform cache cleanup mac, terraform plugin cache, opentofu cache disk space, terragrunt cache cleanup, terraform init disk space, terraform provider cache mac, terraform cache too large">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/terraform-opentofu-cache-cleanup-mac.html">
+    <meta property="og:title" content="Terraform &amp; OpenTofu Cache Cleanup on Mac -- Free 5-20GB">
+    <meta property="og:description" content="Terraform provider plugins, module caches, and Terragrunt cache eating your disk? Here's how to safely clean up and reclaim 5-20GB on macOS.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/terraform-opentofu-cache-cleanup-mac.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Terraform &amp; OpenTofu Cache Cleanup on Mac">
+    <meta name="twitter:description" content="Clean Terraform/OpenTofu provider plugins, modules, and Terragrunt caches. Reclaim 5-20GB on macOS.">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        "headline": "Terraform & OpenTofu Cache Cleanup on Mac -- Free 5-20GB of Disk Space",
+        "description": "Complete guide to finding and cleaning Terraform/OpenTofu provider caches, module directories, Terragrunt caches, and state files on macOS.",
+        "author": {"@type": "Person", "name": "bysiber"},
+        "datePublished": "2025-07-18",
+        "dateModified": "2025-07-18",
+        "publisher": {"@type": "Organization", "name": "ClearDisk"},
+        "mainEntityOfPage": "https://bysiber.github.io/cleardisk/blog/terraform-opentofu-cache-cleanup-mac.html",
+        "keywords": ["terraform", "opentofu", "terragrunt", "cache cleanup", "disk space", "macOS", "provider plugins"]
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; line-height: 1.7; color: #1d1d1f; background: #fff; }
+        .article-header { background: linear-gradient(135deg, #027DFD 0%, #0256b0 100%); color: white; padding: 60px 20px; text-align: center; }
+        .article-header h1 { font-size: 2.2em; max-width: 800px; margin: 0 auto 15px; font-weight: 700; }
+        .article-header .subtitle { font-size: 1.15em; opacity: 0.92; max-width: 600px; margin: 0 auto; }
+        .article-meta { text-align: center; padding: 20px; color: #6e6e73; font-size: 0.9em; border-bottom: 1px solid #f0f0f0; }
+        .content { max-width: 780px; margin: 0 auto; padding: 40px 20px; }
+        h2 { font-size: 1.6em; margin: 45px 0 20px; color: #1d1d1f; letter-spacing: -0.02em; }
+        h3 { font-size: 1.25em; margin: 30px 0 15px; color: #1d1d1f; }
+        p { margin-bottom: 18px; color: #424245; font-size: 1.05em; }
+        .alert-box { background: linear-gradient(135deg, #fff3cd, #fff8e1); border-left: 4px solid #ffc107; padding: 20px 25px; border-radius: 8px; margin: 25px 0; }
+        .alert-box strong { color: #856404; }
+        .tip-box { background: linear-gradient(135deg, #d4edda, #e8f5e9); border-left: 4px solid #28a745; padding: 20px 25px; border-radius: 8px; margin: 25px 0; }
+        .tip-box strong { color: #155724; }
+        .info-box { background: linear-gradient(135deg, #d1ecf1, #e0f4f7); border-left: 4px solid #17a2b8; padding: 20px 25px; border-radius: 8px; margin: 25px 0; }
+        .info-box strong { color: #0c5460; }
+        pre { background: #1d1d1f; color: #f5f5f7; padding: 20px 25px; border-radius: 12px; overflow-x: auto; margin: 20px 0; font-size: 0.92em; line-height: 1.6; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .inline-code { background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; color: #e63946; }
+        .size-table { width: 100%; border-collapse: collapse; margin: 25px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .size-table th { background: #027DFD; color: white; padding: 14px 18px; text-align: left; font-weight: 600; }
+        .size-table td { padding: 12px 18px; border-bottom: 1px solid #f0f0f0; }
+        .size-table tr:hover { background: #f8f9ff; }
+        .size-highlight { color: #e63946; font-weight: 700; }
+        ul, ol { margin: 15px 0 20px 25px; color: #424245; }
+        li { margin-bottom: 8px; font-size: 1.02em; }
+        .cta-box { background: linear-gradient(135deg, #027DFD, #0256b0); color: white; padding: 35px; border-radius: 16px; text-align: center; margin: 40px 0; }
+        .cta-box h3 { color: white; margin-bottom: 12px; }
+        .cta-box p { color: rgba(255,255,255,0.92); }
+        .cta-box a { display: inline-block; background: white; color: #027DFD; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; margin-top: 15px; transition: transform 0.2s; }
+        .cta-box a:hover { transform: scale(1.05); }
+        a { color: #027DFD; }
+        .breadcrumb { max-width: 780px; margin: 20px auto 0; padding: 0 20px; font-size: 0.9em; color: #6e6e73; }
+        .breadcrumb a { color: #027DFD; text-decoration: none; }
+        .footer-nav { max-width: 780px; margin: 0 auto; padding: 30px 20px; border-top: 1px solid #e0e0e0; font-size: 0.92em; color: #6e6e73; text-align: center; line-height: 2; }
+        .footer-nav a { color: #027DFD; text-decoration: none; margin: 0 4px; }
+        .footer-nav a:hover { text-decoration: underline; }
+        @media (max-width: 600px) { .article-header h1 { font-size: 1.6em; } .content { padding: 25px 15px; } pre { padding: 15px; font-size: 0.85em; } }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb">
+        <a href="../">ClearDisk</a> &rsaquo; <a href="./">Blog</a> &rsaquo; Terraform &amp; OpenTofu Cache Cleanup
+    </div>
+
+    <header class="article-header">
+        <h1>Terraform &amp; OpenTofu Cache Cleanup on Mac -- Free 5-20GB of Disk Space</h1>
+        <p class="subtitle">A complete guide to finding and safely cleaning Terraform provider plugins, module caches, Terragrunt data, and state artifacts on macOS</p>
+    </header>
+
+    <div class="article-meta">
+        Published July 18, 2025 &bull; 10 min read &bull; by <a href="https://github.com/bysiber" style="color:#027DFD">bysiber</a>
+    </div>
+
+    <article class="content">
+        <p>If you work with Infrastructure as Code, you know the story: every <span class="inline-code">terraform init</span> downloads provider plugins, every module source gets cached, and Terragrunt creates full copies of everything. Before you know it, your Mac has <strong>5-20GB or more</strong> consumed by Terraform-related files scattered across dozens of directories.</p>
+
+        <p>This guide covers every Terraform and OpenTofu cache location on macOS, how to measure them, and how to clean them safely -- without breaking your infrastructure workflows.</p>
+
+        <h2>Where Does Terraform Store Data on macOS?</h2>
+
+        <table class="size-table">
+            <thead>
+                <tr><th>Directory</th><th>What It Stores</th><th>Typical Size</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="inline-code">.terraform/</span> (per project)</td><td>Downloaded provider plugins &amp; modules</td><td class="size-highlight">200 MB - 2 GB each</td></tr>
+                <tr><td><span class="inline-code">~/.terraform.d/</span></td><td>Plugin cache, credentials, CLI config</td><td class="size-highlight">1-5 GB</td></tr>
+                <tr><td><span class="inline-code">.terragrunt-cache/</span></td><td>Terragrunt module copies with providers</td><td class="size-highlight">2-15 GB</td></tr>
+                <tr><td><span class="inline-code">~/.terraform.d/plugin-cache/</span></td><td>Shared plugin cache (if configured)</td><td class="size-highlight">500 MB - 3 GB</td></tr>
+                <tr><td><span class="inline-code">terraform.tfstate*</span></td><td>State files (if local backend)</td><td>1-100 MB</td></tr>
+                <tr><td><span class="inline-code">~/.config/opentofu/</span></td><td>OpenTofu configuration</td><td>100-500 MB</td></tr>
+                <tr><td><span class="inline-code">.terraform.lock.hcl</span></td><td>Provider version locks</td><td>&lt;1 MB</td></tr>
+            </tbody>
+        </table>
+
+        <div class="alert-box">
+            <strong>&#9888; The Hidden Cost:</strong> Each <span class="inline-code">.terraform/</span> directory contains a full copy of every provider binary your project uses. The AWS provider alone is ~350MB. If you have 10 projects using AWS, that's 3.5GB just in duplicate AWS provider binaries.
+        </div>
+
+        <h2>Step 1: Audit Your Terraform Disk Usage</h2>
+
+        <pre><code># Find ALL .terraform directories and their sizes
+find ~ -name ".terraform" -type d -not -path "*/.*/.terraform" 2>/dev/null | \
+    while read d; do du -sh "$d" 2>/dev/null; done | sort -rh | head -20
+
+# Global Terraform config/cache
+du -sh ~/.terraform.d/ 2>/dev/null
+du -sh ~/.terraform.d/plugin-cache/ 2>/dev/null
+du -sh ~/.terraform.d/plugins/ 2>/dev/null
+
+# Find Terragrunt caches
+find ~ -name ".terragrunt-cache" -type d 2>/dev/null | \
+    while read d; do du -sh "$d" 2>/dev/null; done | sort -rh | head -20
+
+# OpenTofu directories
+du -sh ~/.config/opentofu/ 2>/dev/null
+
+# Total damage estimate
+echo "=== Total Terraform/IaC Disk Usage ==="
+echo -n ".terraform dirs: "; find ~ -name ".terraform" -type d 2>/dev/null -exec du -sk {} + | awk '{sum+=$1} END{print sum/1024 " MB"}'
+echo -n ".terragrunt-cache: "; find ~ -name ".terragrunt-cache" -type d 2>/dev/null -exec du -sk {} + | awk '{sum+=$1} END{print sum/1024 " MB"}'
+echo -n "~/.terraform.d/: "; du -sk ~/.terraform.d/ 2>/dev/null | awk '{print $1/1024 " MB"}'</code></pre>
+
+        <h2>Step 2: Enable the Plugin Cache (Prevent Duplicates)</h2>
+
+        <p>Before cleaning, the single most impactful thing you can do is enable Terraform's plugin cache. This stores one copy of each provider version and creates symlinks instead of downloading duplicates:</p>
+
+        <pre><code># Create the cache directory
+mkdir -p ~/.terraform.d/plugin-cache
+
+# Create or edit ~/.terraformrc
+cat &gt; ~/.terraformrc &lt;&lt; 'EOF'
+plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"
+plugin_cache_may_break_dependency_lock_file = true
+EOF
+
+# Or set via environment variable
+export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
+# Add to your ~/.zshrc or ~/.bashrc for persistence</code></pre>
+
+        <div class="tip-box">
+            <strong>&#10003; Huge Savings:</strong> The plugin cache typically reduces disk usage by <strong>60-80%</strong> on machines with multiple Terraform projects. Instead of 10 copies of the AWS provider (3.5GB), you store just one (350MB).
+        </div>
+
+        <h2>Step 3: Clean .terraform Directories</h2>
+
+        <p>The <span class="inline-code">.terraform/</span> directory in each project is safe to delete -- it's recreated by <span class="inline-code">terraform init</span>:</p>
+
+        <pre><code># Clean a single project
+cd your-terraform-project
+rm -rf .terraform/
+terraform init    # Re-downloads providers and modules
+
+# Clean ALL .terraform directories at once
+find ~/Projects -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null
+
+# Safer: only clean .terraform dirs older than 30 days
+find ~/Projects -name ".terraform" -type d -mtime +30 -exec rm -rf {} + 2>/dev/null
+
+# Preview what would be cleaned (dry run)
+find ~/Projects -name ".terraform" -type d -mtime +30 -exec du -sh {} + 2>/dev/null | sort -rh</code></pre>
+
+        <div class="info-box">
+            <strong>&#8505; Note:</strong> Deleting <span class="inline-code">.terraform/</span> does NOT delete your state files or <span class="inline-code">.terraform.lock.hcl</span>. It only removes cached provider binaries and module sources. You'll need to run <span class="inline-code">terraform init</span> before your next <span class="inline-code">plan</span> or <span class="inline-code">apply</span>.
+        </div>
+
+        <h2>Step 4: Clean Terragrunt Cache</h2>
+
+        <p>Terragrunt's caching is particularly aggressive -- it creates a full copy of each module including all provider plugins:</p>
+
+        <pre><code># Check total Terragrunt cache size
+find ~ -name ".terragrunt-cache" -type d -exec du -sh {} + 2>/dev/null | sort -rh
+
+# Clean all Terragrunt caches
+find ~ -name ".terragrunt-cache" -type d -exec rm -rf {} + 2>/dev/null
+
+# Or use Terragrunt's built-in command (v0.45+)
+terragrunt run-all clean
+
+# Clean only in specific environments
+find ~/infra/staging -name ".terragrunt-cache" -exec rm -rf {} +
+find ~/infra/dev -name ".terragrunt-cache" -exec rm -rf {} +</code></pre>
+
+        <div class="alert-box">
+            <strong>&#9888; Terragrunt Tip:</strong> After cleaning, combine the plugin cache (<span class="inline-code">TF_PLUGIN_CACHE_DIR</span>) with Terragrunt to prevent the cache from re-bloating. This is the single most effective combination for managing IaC disk usage.
+        </div>
+
+        <h2>Step 5: Clean Global Terraform Data</h2>
+
+        <pre><code># The global config directory
+du -sh ~/.terraform.d/
+
+# Clean old plugin versions from shared cache
+ls ~/.terraform.d/plugin-cache/registry.terraform.io/ 2>/dev/null
+
+# Remove old provider versions (keep only latest)
+# Example: clean hashicorp/aws versions older than current
+ls -la ~/.terraform.d/plugin-cache/registry.terraform.io/hashicorp/aws/ 2>/dev/null
+
+# Clean global plugins (legacy format, Terraform &lt; 0.13)
+rm -rf ~/.terraform.d/plugins/
+
+# Clean credential helpers cache
+rm -rf ~/.terraform.d/credentials.tfrc.json  # Only if using terraform login</code></pre>
+
+        <h2>Step 6: OpenTofu-Specific Cleanup</h2>
+
+        <p>If you've migrated to OpenTofu, it stores data in slightly different locations:</p>
+
+        <pre><code># OpenTofu config
+du -sh ~/.config/opentofu/ 2>/dev/null
+
+# OpenTofu uses the same .terraform/ directory in projects
+# but has its own global config path:
+du -sh ~/.terraform.d/ 2>/dev/null
+
+# Set plugin cache for OpenTofu too
+export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
+# Or in ~/.tofurc:
+# plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"
+
+# Clean OpenTofu lock files if switching from Terraform
+find ~/Projects -name ".terraform.lock.hcl" -exec rm {} +
+# Then: tofu init -upgrade</code></pre>
+
+        <h2>Step 7: Clean Terraform State Artifacts</h2>
+
+        <pre><code># Find local state files (should be using remote backend)
+find ~ -name "terraform.tfstate" -type f 2>/dev/null | head -20
+find ~ -name "terraform.tfstate.backup" -type f -exec du -sh {} + 2>/dev/null
+
+# Clean backup state files (keep the current state!)
+find ~/Projects -name "terraform.tfstate.backup" -delete
+
+# Find crash logs
+find ~ -name "crash.log" -path "*terraform*" -exec du -sh {} + 2>/dev/null
+find ~ -name "crash.log" -path "*terraform*" -delete</code></pre>
+
+        <div class="alert-box">
+            <strong>&#9888; NEVER delete terraform.tfstate without a backup.</strong> If you're using local state, this file is the only record of what Terraform manages. Always use a remote backend (S3, GCS, Azure Blob, Terraform Cloud) for production infrastructure.
+        </div>
+
+        <h2>The Complete Terraform Cleanup Script</h2>
+
+        <pre><code>#!/bin/bash
+echo "=== Terraform/OpenTofu Disk Usage Audit ==="
+echo ""
+
+# .terraform directories
+tf_count=$(find ~ -name ".terraform" -type d 2>/dev/null | wc -l | tr -d ' ')
+tf_size=$(find ~ -name ".terraform" -type d -exec du -sk {} + 2>/dev/null | awk '{sum+=$1} END{printf "%.1f", sum/1024}')
+echo ".terraform directories: $tf_count found, ${tf_size}MB total"
+
+# Terragrunt cache
+tg_count=$(find ~ -name ".terragrunt-cache" -type d 2>/dev/null | wc -l | tr -d ' ')
+tg_size=$(find ~ -name ".terragrunt-cache" -type d -exec du -sk {} + 2>/dev/null | awk '{sum+=$1} END{printf "%.1f", sum/1024}')
+echo ".terragrunt-cache: $tg_count found, ${tg_size}MB total"
+
+# Global config
+echo "~/.terraform.d/: $(du -sh ~/.terraform.d/ 2>/dev/null | cut -f1)"
+echo "Plugin cache: $(du -sh ~/.terraform.d/plugin-cache/ 2>/dev/null | cut -f1)"
+
+# State files
+state_count=$(find ~ -name "terraform.tfstate*" -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "State files found: $state_count"
+
+echo ""
+echo "=== Recommendations ==="
+echo "1. Enable plugin cache: mkdir -p ~/.terraform.d/plugin-cache"
+echo "2. Add to ~/.terraformrc: plugin_cache_dir = \"\$HOME/.terraform.d/plugin-cache\""
+echo "3. Clean inactive projects: rm -rf .terraform/ && terraform init"
+echo "4. Clean Terragrunt: find . -name '.terragrunt-cache' -exec rm -rf {} +"
+echo "5. Use ClearDisk for visual overview: https://github.com/bysiber/cleardisk"</code></pre>
+
+        <div class="cta-box">
+            <h3>Skip the Manual Audit -- Use ClearDisk</h3>
+            <p>ClearDisk is a free, open-source macOS menu bar app that automatically finds and measures all your Terraform provider caches, Terragrunt cache directories, and every other developer cache in one clean dashboard.</p>
+            <a href="https://github.com/bysiber/cleardisk">Download ClearDisk Free on GitHub</a>
+        </div>
+
+        <h2>How Much Space Can You Recover?</h2>
+
+        <table class="size-table">
+            <thead>
+                <tr><th>Action</th><th>Space Recovered</th><th>Risk Level</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Clean <span class="inline-code">.terraform/</span> in inactive projects</td><td class="size-highlight">1-10 GB</td><td>None -- <span class="inline-code">terraform init</span> restores</td></tr>
+                <tr><td>Clean <span class="inline-code">.terragrunt-cache/</span></td><td class="size-highlight">2-15 GB</td><td>None -- regenerated on next run</td></tr>
+                <tr><td>Enable plugin cache (prevents duplicates)</td><td class="size-highlight">3-10 GB ongoing</td><td>None -- transparent optimization</td></tr>
+                <tr><td>Clean old provider versions from cache</td><td class="size-highlight">500 MB - 2 GB</td><td>Low -- re-downloads on demand</td></tr>
+                <tr><td>Delete state backups</td><td>10-500 MB</td><td>Low -- backups only</td></tr>
+                <tr><td>Clean crash logs</td><td>&lt;10 MB</td><td>None -- diagnostic only</td></tr>
+            </tbody>
+        </table>
+
+        <div class="tip-box">
+            <strong>&#10003; Total Potential Savings:</strong> Enabling the plugin cache + cleaning old <span class="inline-code">.terraform/</span> and <span class="inline-code">.terragrunt-cache/</span> directories typically recovers <strong>5-20GB</strong> on machines with multiple IaC projects.
+        </div>
+
+        <h2>Preventing Future Cache Bloat</h2>
+
+        <ol>
+            <li><strong>Always enable the plugin cache</strong> -- this single setting prevents the worst of the disk bloat</li>
+            <li><strong>Use remote state backends</strong> -- stops local state file accumulation</li>
+            <li><strong>Clean inactive projects</strong> -- <span class="inline-code">.terraform/</span> persists even after you stop working on a project</li>
+            <li><strong>Pin provider versions tightly</strong> -- avoids accumulating multiple minor versions</li>
+            <li><strong>Set up CI/CD for applies</strong> -- reduces the need for local <span class="inline-code">terraform init</span> in every environment</li>
+            <li><strong>Monitor with ClearDisk</strong> -- catch IaC cache growth before it becomes a problem</li>
+        </ol>
+
+        <h2>Terraform Cache vs Other Developer Tools</h2>
+
+        <table class="size-table">
+            <thead>
+                <tr><th>Developer Tool</th><th>Typical Cache Size on macOS</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Xcode + DerivedData + Simulators</td><td class="size-highlight">15-50 GB</td></tr>
+                <tr><td>Docker Desktop</td><td class="size-highlight">10-30 GB</td></tr>
+                <tr><td>Flutter + Dart (everything)</td><td class="size-highlight">10-30 GB</td></tr>
+                <tr><td>Terraform / OpenTofu (all caches)</td><td class="size-highlight">5-20 GB</td></tr>
+                <tr><td>node_modules (across projects)</td><td class="size-highlight">5-20 GB</td></tr>
+                <tr><td>Rust (cargo + target/)</td><td class="size-highlight">5-25 GB</td></tr>
+                <tr><td>Homebrew</td><td>2-8 GB</td></tr>
+                <tr><td>Go modules</td><td>1-5 GB</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Quick Reference Commands</h2>
+
+        <pre><code># Audit
+find ~ -name ".terraform" -type d -exec du -sh {} + 2>/dev/null | sort -rh | head -10
+find ~ -name ".terragrunt-cache" -type d -exec du -sh {} + 2>/dev/null | sort -rh | head -10
+du -sh ~/.terraform.d/
+
+# Clean (safe operations)
+find ~/Projects -name ".terraform" -type d -mtime +30 -exec rm -rf {} +
+find ~/Projects -name ".terragrunt-cache" -type d -exec rm -rf {} +
+
+# Prevent (add to ~/.terraformrc)
+# plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"
+
+# Re-initialize after cleanup
+terraform init
+# or: tofu init</code></pre>
+
+        <div class="cta-box">
+            <h3>Monitor All Your IaC Caches Automatically</h3>
+            <p>Stop guessing which Terraform directories are eating your disk. ClearDisk shows you Terraform, Terragrunt, and every other developer cache in a single menu bar click.</p>
+            <a href="https://github.com/bysiber/cleardisk">Get ClearDisk -- Free &amp; Open Source</a>
+        </div>
+    </article>
+
+    <footer class="footer-nav">
+        More guides:
+        <a href="free-disk-space-mac-developer.html">Free 50GB+</a> &middot;
+        <a href="xcode-disk-space-cleanup-guide.html">Xcode Cleanup</a> &middot;
+        <a href="xcode-simulators-device-support-cleanup-mac.html">Simulators &amp; DeviceSupport</a> &middot;
+        <a href="flutter-dart-cache-cleanup-mac.html">Flutter &amp; Dart</a> &middot;
+        <a href="clean-node-modules-mac.html">node_modules</a> &middot;
+        <a href="docker-disk-space-cleanup-mac.html">Docker</a> &middot;
+        <a href="homebrew-cleanup-guide-mac.html">Homebrew</a> &middot;
+        <a href="python-pip-cache-cleanup-mac.html">Python &amp; pip</a> &middot;
+        <a href="rust-cargo-cache-cleanup-mac.html">Rust &amp; Cargo</a> &middot;
+        <a href="go-module-cache-cleanup-mac.html">Go Modules</a> &middot;
+        <a href="gradle-cache-cleanup-mac.html">Gradle</a> &middot;
+        <a href="cocoapods-cache-cleanup-mac.html">CocoaPods</a> &middot;
+        <a href="npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm</a> &middot;
+        <a href="maven-sbt-cache-cleanup-mac.html">Maven &amp; sbt</a> &middot;
+        <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a>
+        <br><br>
+        <a href="../">ClearDisk Home</a> &middot; <a href="./">All Blog Posts</a> &middot; <a href="https://github.com/bysiber/cleardisk">GitHub</a>
+    </footer>
+</body>
+</html>

@@ -108,4 +108,10 @@
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
     </url>
+    <url>
+        <loc>https://bysiber.github.io/cleardisk/blog/terraform-opentofu-cache-cleanup-mac.html</loc>
+        <lastmod>2025-07-18</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
 </urlset>
