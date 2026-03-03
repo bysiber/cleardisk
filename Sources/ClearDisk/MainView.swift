@@ -160,38 +160,40 @@ struct MainView: View {
             if isExpanded {
                 // Expanded view: full-height content with back button
                 VStack(spacing: 0) {
-                    HStack {
-                        Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isExpanded = false } }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 11))
-                                Text("Back")
-                                    .font(.system(size: 12))
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.blue)
-                        
-                        Spacer()
-                        
+                    ZStack {
+                        // Center title
                         Text(selectedTab.rawValue)
                             .font(.system(size: 13, weight: .semibold))
                         
-                        Spacer()
-                        
-                        if diskMonitor.isScanning {
-                            ProgressView()
-                                .scaleEffect(0.7)
+                        // Left: back button, Right: refresh
+                        HStack {
+                            Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isExpanded = false } }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 11))
+                                    Text("Back")
+                                        .font(.system(size: 12))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                            
+                            Spacer()
+                            
+                            if diskMonitor.isScanning {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                            Button(action: { diskMonitor.scan() }) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 12))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Refresh")
                         }
-                        Button(action: { diskMonitor.scan() }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 12))
-                        }
-                        .buttonStyle(.plain)
-                        .help("Refresh")
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
