@@ -3,7 +3,8 @@
 set -e
 
 APP_NAME="ClearDisk"
-BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="$(dirname "$SCRIPT_DIR")"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 
 echo "Building $APP_NAME..."

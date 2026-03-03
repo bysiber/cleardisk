@@ -60,29 +60,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Smart icon based on threshold
         let symbol: String
-        let tintColor: NSColor
-        
         if pct >= 90 {
             symbol = "externaldrive.fill.badge.exclamationmark"
-            tintColor = .systemRed
         } else if pct >= 80 {
             symbol = "externaldrive.fill.badge.minus"
-            tintColor = .systemOrange
         } else {
             symbol = "externaldrive.fill"
-            tintColor = .secondaryLabelColor
         }
         
         if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "ClearDisk") {
             let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
             let configured = image.withSymbolConfiguration(config) ?? image
-            configured.isTemplate = (pct < 80) // Template for normal, colored for warnings
+            configured.isTemplate = true
             button.image = configured
-            if pct >= 80 {
-                button.contentTintColor = tintColor
-            } else {
-                button.contentTintColor = nil
-            }
         }
         
         // Smart text: show cleanable when disk is stressed, compact info otherwise
