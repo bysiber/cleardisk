@@ -1,6 +1,7 @@
 import Cocoa
 import SwiftUI
 import UserNotifications
+import Combine
 
 // MARK: - App Entry Point
 @main
@@ -20,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
     var eventMonitor: Any?
+    var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
@@ -46,10 +48,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start monitoring
         diskMonitor.scan()
         
-        // Update periodically (5 min)
+        // Auto-update menu bar when disk data changes
+        diskMonitor.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+        
+        // Refresh periodically (5 min)
         Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             self?.diskMonitor.scan()
-            self?.updateMenuBarIcon()
         }
     }
     
@@ -96,7 +105,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             if let button = statusItem.button {
                 diskMonitor.scan()
-                updateMenuBarIcon()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 
                 // Close popover on outside click
