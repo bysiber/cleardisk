@@ -65,7 +65,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateMenuBarIcon() {
         guard let button = statusItem.button else { return }
         let pct = diskMonitor.usedPercentage
-        let cleanable = diskMonitor.totalCleanable
         
         // Smart icon based on threshold
         let symbol: String
@@ -84,18 +83,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = configured
         }
         
-        // Smart text: show cleanable when disk is stressed, compact info otherwise
-        if pct >= 80 && cleanable > 0 {
-            let cleanGB = Double(cleanable) / 1_073_741_824
-            if cleanGB >= 1.0 {
-                button.title = " \(String(format: "%.0f", cleanGB))GB"
-            } else {
-                let cleanMB = Double(cleanable) / 1_048_576
-                button.title = " \(String(format: "%.0f", cleanMB))MB"
-            }
+        // Always show free space in tray
+        let freeGB = Double(diskMonitor.freeSpace) / 1_073_741_824
+        if freeGB >= 1.0 {
+            button.title = " \(String(format: "%.0f", freeGB))GB"
         } else {
-            let freeGB = diskMonitor.freeSpace / 1_073_741_824
-            button.title = " \(freeGB)GB"
+            let freeMB = Double(diskMonitor.freeSpace) / 1_048_576
+            button.title = " \(String(format: "%.0f", freeMB))MB"
         }
     }
     
