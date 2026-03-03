@@ -1,5 +1,11 @@
 import SwiftUI
 
+// MARK: - Layout Constants
+enum Layout {
+    static let popoverWidth: CGFloat = 380
+    static let popoverHeight: CGFloat = 700
+}
+
 // MARK: - Main View
 struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
@@ -60,7 +66,7 @@ struct MainView: View {
                 mainScreen
             }
         }
-        .frame(width: 380, height: 700)
+        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
         .alert("Clean Cache", isPresented: $showCleanConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
@@ -1290,10 +1296,10 @@ struct MainView: View {
                                     
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(cache.name)
-                                            .font(.system(size: 11, weight: .medium))
+                                            .font(.system(size: 12, weight: .medium))
                                             .foregroundColor(.primary)
                                         Text(cache.cacheDescription)
-                                            .font(.system(size: 9))
+                                            .font(.system(size: 10))
                                             .foregroundColor(.secondary)
                                             .lineLimit(1)
                                     }
@@ -1301,11 +1307,11 @@ struct MainView: View {
                                     Spacer()
                                     
                                     Text(formatBytes(cache.size))
-                                        .font(.system(size: 10, design: .monospaced))
+                                        .font(.system(size: 11, design: .monospaced))
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 5)
+                                .padding(.vertical, 6)
                                 .contentShape(Rectangle())
                                 .background(isSelected ? Color.accentColor.opacity(0.04) : Color.clear)
                             }
@@ -1386,7 +1392,7 @@ struct MainView: View {
             .padding(.bottom, 8)
             .padding(.top, 4)
         }
-        .frame(width: 380, height: 540)
+        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
     }
     
     // MARK: - Clean Projects Sub-Screen
@@ -1491,40 +1497,40 @@ struct MainView: View {
                                         .foregroundColor(isSelected ? .accentColor : .secondary.opacity(0.5))
                                     
                                     Image(systemName: artifact.typeIcon)
-                                        .font(.system(size: 12))
-                                        .frame(width: 18)
+                                        .font(.system(size: 14))
+                                        .frame(width: 20)
                                         .foregroundColor(artifact.isStale ? .orange : .purple)
                                     
                                     VStack(alignment: .leading, spacing: 1) {
                                         HStack(spacing: 4) {
                                             Text(artifact.projectName)
-                                                .font(.system(size: 11, weight: .medium))
+                                                .font(.system(size: 12, weight: .medium))
                                                 .foregroundColor(.primary)
                                             Text(artifact.artifactName)
-                                                .font(.system(size: 8))
+                                                .font(.system(size: 9))
                                                 .foregroundColor(.white)
-                                                .padding(.horizontal, 3)
+                                                .padding(.horizontal, 4)
                                                 .padding(.vertical, 1)
-                                                .background(RoundedRectangle(cornerRadius: 2).fill(Color.purple.opacity(0.5)))
+                                                .background(RoundedRectangle(cornerRadius: 3).fill(Color.purple.opacity(0.5)))
                                             if let days = artifact.daysSinceModified, days > 30 {
                                                 Text("\(days)d")
-                                                    .font(.system(size: 8))
+                                                    .font(.system(size: 9))
                                                     .foregroundColor(.orange)
                                             }
                                         }
                                         Text(artifact.projectType)
-                                            .font(.system(size: 9))
+                                            .font(.system(size: 10))
                                             .foregroundColor(.secondary)
                                     }
                                     
                                     Spacer()
                                     
                                     Text(formatBytes(artifact.size))
-                                        .font(.system(size: 10, design: .monospaced))
+                                        .font(.system(size: 11, design: .monospaced))
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 5)
+                                .padding(.vertical, 6)
                                 .contentShape(Rectangle())
                                 .background(isSelected ? Color.accentColor.opacity(0.04) : Color.clear)
                             }
@@ -1584,7 +1590,7 @@ struct MainView: View {
             .padding(.bottom, 8)
             .padding(.top, 4)
         }
-        .frame(width: 380, height: 540)
+        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
     }
     
     var filteredProjectArtifacts: [ProjectArtifact] {
