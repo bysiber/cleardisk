@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CD_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$CD_ROOT"
+
 # ClearDisk Release Script
 # Usage: ./release.sh <version>     -- new release (e.g. ./release.sh 1.6.3)
 # Usage: ./release.sh <version> -u  -- update existing release (rebuild + replace DMG)
@@ -22,7 +26,7 @@ echo "==> Building release binary..."
 swift build -c release 2>&1 | tail -3
 
 echo "==> Creating .app bundle..."
-./build_app.sh 2>&1 | tail -3
+"$SCRIPT_DIR/build_app.sh" 2>&1 | tail -3
 
 echo "==> Creating DMG with Applications shortcut..."
 rm -rf /tmp/dmg_staging
