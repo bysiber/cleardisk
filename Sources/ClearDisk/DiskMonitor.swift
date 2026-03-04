@@ -366,6 +366,7 @@ class DiskMonitor: ObservableObject {
         "Maven Cache": "Local Maven repository (.m2). Re-downloads on mvn build.",
         "Android Emulators": "Android Virtual Devices and disk images. Must re-create in AVD Manager.",
         "Docker (Data)": "Docker images, containers, and volumes. May lose running containers and uncommitted data!",
+        "Terraform Plugins": "Terraform/OpenTofu CLI plugins and provider cache. Re-downloads on terraform init.",
         "Composer Cache": "Cached PHP packages. Re-downloads on composer install.",
         "Go Modules": "Go module download cache. Re-downloads on go mod download.",
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
@@ -474,6 +475,8 @@ class DiskMonitor: ObservableObject {
             ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution", nil),
             // Containers
             ("Docker (Data)", "cube.transparent", "\(home)/Library/Containers/com.docker.docker/Data", "risky", nil),
+            // Infrastructure
+            ("Terraform Plugins", "server.rack", "\(home)/.terraform.d", "caution", nil),
             // PHP
             ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe", nil),
             // Go/Rust
@@ -751,6 +754,7 @@ class DiskMonitor: ObservableObject {
         ("Gemfile", "vendor/bundle", "Ruby"),
         ("pubspec.yaml", ".dart_tool", "Flutter/Dart"),
         ("CMakeLists.txt", "build", "CMake"),
+        ("main.tf", ".terraform", "Terraform"),
     ]
     
     /// Directories to scan for projects
@@ -820,7 +824,7 @@ class DiskMonitor: ObservableObject {
         }
         
         // Skip node_modules, .git, etc. when recursing
-        let skipDirs: Set<String> = ["node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__", ".venv", "venv"]
+        let skipDirs: Set<String> = ["node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__", ".venv", "venv", ".terraform"]
         
         for item in contents {
             if item.hasPrefix(".") && item != ".build" { continue }
