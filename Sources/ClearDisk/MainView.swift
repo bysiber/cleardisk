@@ -761,9 +761,8 @@ struct MainView: View {
         let preview = topNames.joined(separator: ", ")
         
         return VStack(spacing: 0) {
-            // Group header row
+            // Group header row - entire row is clickable
             HStack(spacing: 6) {
-                // Tappable area for expand/collapse
                 HStack(spacing: 6) {
                     Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .bold))
@@ -789,16 +788,6 @@ struct MainView: View {
                                 .font(.system(size: 9))
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
-                        }
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if expandedGroups.contains(groupName) {
-                            expandedGroups.remove(groupName)
-                        } else {
-                            expandedGroups.insert(groupName)
                         }
                     }
                 }
@@ -842,6 +831,16 @@ struct MainView: View {
                     .fill(Color.purple.opacity(0.05))
             )
             .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if expandedGroups.contains(groupName) {
+                        expandedGroups.remove(groupName)
+                    } else {
+                        expandedGroups.insert(groupName)
+                    }
+                }
+            }
             
             // Expanded child items
             if isGroupExpanded {
