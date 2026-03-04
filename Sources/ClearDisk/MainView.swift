@@ -762,15 +762,8 @@ struct MainView: View {
         
         return VStack(spacing: 0) {
             // Group header row
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if expandedGroups.contains(groupName) {
-                        expandedGroups.remove(groupName)
-                    } else {
-                        expandedGroups.insert(groupName)
-                    }
-                }
-            }) {
+            HStack(spacing: 6) {
+                // Tappable area for expand/collapse
                 HStack(spacing: 6) {
                     Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .bold))
@@ -798,21 +791,57 @@ struct MainView: View {
                                 .lineLimit(1)
                         }
                     }
-                    Spacer()
-                    Text(formatBytes(totalSize))
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(.purple.opacity(0.8))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.purple.opacity(0.05))
-                )
-                .padding(.horizontal, 4)
                 .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if expandedGroups.contains(groupName) {
+                            expandedGroups.remove(groupName)
+                        } else {
+                            expandedGroups.insert(groupName)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                Text(formatBytes(totalSize))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(.purple.opacity(0.8))
+                
+                // Clean entire group
+                Button(action: {
+                    selectedCacheIDs = Set(caches.map { $0.id })
+                    showCleanSelectedCachesConfirm = true
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.red)
+                .disabled(isCleaning)
+                .help("Clean all \(groupName) caches")
+                
+                // Reveal first item in Finder
+                Button(action: {
+                    if let first = caches.first {
+                        diskMonitor.revealInFinder(first.path)
+                    }
+                }) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.blue)
+                .help("Show in Finder")
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.purple.opacity(0.05))
+            )
+            .padding(.horizontal, 4)
             
             // Expanded child items
             if isGroupExpanded {
