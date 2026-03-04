@@ -376,6 +376,19 @@ class DiskMonitor: ObservableObject {
         "mise Rubies": "Ruby versions managed by mise. Reinstall with mise install ruby@X.Y.Z.",
         "RVM": "RVM rubies and gemsets. Reinstall with rvm install X.Y.Z.",
         "Bundler Cache": "Downloaded gem files. Rebuilds automatically with bundle install.",
+        // AI Tools
+        "Claude Desktop": "Claude Desktop conversation cache and temp files. Can grow very large. Re-downloads on next launch.",
+        "Claude Code": "Claude Code CLI session history and configs. Re-creates on next session.",
+        "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull.",
+        "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
+        "Cursor Cache": "Cursor editor cache, workspace storage, and extensions data. Re-builds on next launch.",
+        "Windsurf Cache": "Windsurf editor cache and workspace data. Re-builds on next launch.",
+        // IDEs (VS Code)
+        "VS Code Cache": "VS Code application cache. Safe to delete, rebuilds automatically.",
+        "VS Code Data": "VS Code compiled JavaScript cache. Safe to delete, recompiles on launch.",
+        "VS Code Extensions Cache": "Downloaded extension VSIX packages. Safe to delete, re-downloads when needed.",
+        "VS Code Chromium Cache": "Chromium disk cache used by VS Code. Safe to delete, rebuilds on launch.",
+        "VS Code Logs": "Old session logs and telemetry data. Safe to delete anytime.",
     ]
     
     /// Resolve DerivedData subfolders to project names using info.plist → WorkspacePath
@@ -426,134 +439,106 @@ class DiskMonitor: ObservableObject {
         NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.dt.Xcode" }
     }
     
-    /// Returns list of (name, path) tuples for all known dev cache paths
-    func devCachePaths() -> [(String, String)] {
+    /// Single source of truth for all developer cache paths
+    /// (name, icon, path, riskLevel, group)
+    /// Risk levels: safe = rebuild with command, caution = may need re-download, risky = data loss possible
+    private func allCachePaths() -> [(name: String, icon: String, path: String, riskLevel: String, group: String?)] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
             // Xcode & Apple
-            ("Xcode DerivedData", "\(home)/Library/Developer/Xcode/DerivedData"),
-            ("Xcode Archives", "\(home)/Library/Developer/Xcode/Archives"),
-            ("Xcode Simulators", "\(home)/Library/Developer/CoreSimulator/Devices"),
-            ("Xcode Caches", "\(home)/Library/Developer/Xcode/Products"),
-            ("Xcode Device Support", "\(home)/Library/Developer/Xcode/iOS DeviceSupport"),
-            ("Xcode Logs", "\(home)/Library/Logs/CoreSimulator"),
-            ("Xcode Previews", "\(home)/Library/Developer/Xcode/UserData/Previews"),
-            ("Simulator Caches", "\(home)/Library/Developer/CoreSimulator/Caches"),
-            ("Swift PM Cache", "\(home)/Library/Caches/org.swift.swiftpm"),
+            ("Xcode DerivedData", "xmark.bin.fill", "\(home)/Library/Developer/Xcode/DerivedData", "safe", "Xcode"),
+            ("Xcode Archives", "archivebox.fill", "\(home)/Library/Developer/Xcode/Archives", "caution", "Xcode"),
+            ("Xcode Simulators", "iphone", "\(home)/Library/Developer/CoreSimulator/Devices", "caution", "Xcode"),
+            ("Xcode Caches", "internaldrive", "\(home)/Library/Developer/Xcode/Products", "safe", "Xcode"),
+            ("Xcode Device Support", "cpu", "\(home)/Library/Developer/Xcode/iOS DeviceSupport", "safe", "Xcode"),
+            ("Xcode Logs", "doc.text.fill", "\(home)/Library/Logs/CoreSimulator", "safe", "Xcode"),
+            ("Xcode Previews", "eye.fill", "\(home)/Library/Developer/Xcode/UserData/Previews", "safe", "Xcode"),
+            ("Simulator Caches", "internaldrive.fill", "\(home)/Library/Developer/CoreSimulator/Caches", "safe", "Xcode"),
+            ("Swift PM Cache", "swift", "\(home)/Library/Caches/org.swift.swiftpm", "safe", "Xcode"),
             // iOS/macOS Ecosystem
-            ("CocoaPods Cache", "\(home)/Library/Caches/CocoaPods"),
-            ("Carthage", "\(home)/Library/Caches/org.carthage.CarthageKit"),
+            ("CocoaPods Cache", "shippingbox.fill", "\(home)/Library/Caches/CocoaPods", "safe", nil),
+            ("Carthage", "cart.fill", "\(home)/Library/Caches/org.carthage.CarthageKit", "safe", nil),
             // System Tools
-            ("Homebrew Cache", "\(home)/Library/Caches/Homebrew"),
+            ("Homebrew Cache", "mug.fill", "\(home)/Library/Caches/Homebrew", "safe", nil),
             // JavaScript/Node
-            ("npm Cache", "\(home)/.npm/_cacache"),
-            ("Yarn Cache", "\(home)/Library/Caches/Yarn"),
-            ("pnpm Store", "\(home)/Library/pnpm/store"),
-            ("Bun Cache", "\(home)/.bun/install/cache"),
+            ("npm Cache", "shippingbox", "\(home)/.npm/_cacache", "safe", nil),
+            ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe", nil),
+            ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe", nil),
+            ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe", nil),
             // Python
-            ("pip Cache", "\(home)/Library/Caches/pip"),
-            ("Conda Packages", "\(home)/.conda/pkgs"),
+            ("pip Cache", "cube.fill", "\(home)/Library/Caches/pip", "safe", nil),
+            ("Conda Packages", "flask.fill", "\(home)/.conda/pkgs", "safe", nil),
             // Java/Android
-            ("Gradle Cache", "\(home)/.gradle/caches"),
-            ("Maven Cache", "\(home)/.m2/repository"),
-            ("Android Emulators", "\(home)/.android/avd"),
+            ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe", nil),
+            ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe", nil),
+            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution", nil),
             // Containers
-            ("Docker (Data)", "\(home)/Library/Containers/com.docker.docker/Data"),
+            ("Docker (Data)", "cube.transparent", "\(home)/Library/Containers/com.docker.docker/Data", "risky", nil),
             // PHP
-            ("Composer Cache", "\(home)/.composer/cache"),
+            ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe", nil),
             // Go/Rust
-            ("Go Modules", "\(home)/go/pkg/mod/cache"),
-            ("Rust Cargo", "\(home)/.cargo/registry"),
+            ("Go Modules", "leaf.fill", "\(home)/go/pkg/mod/cache", "safe", nil),
+            ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe", nil),
             // Mobile
-            ("Flutter/Pub Cache", "\(home)/.pub-cache"),
+            ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe", nil),
             // IDEs
-            ("JetBrains Cache", "\(home)/.cache/JetBrains"),
+            ("JetBrains Cache", "laptopcomputer", "\(home)/.cache/JetBrains", "safe", nil),
             // Ruby
-            ("Ruby Gems", "\(home)/.gem"),
-            ("rbenv Versions", "\(home)/.rbenv/versions"),
-            ("mise Rubies", "\(home)/.local/share/mise/installs/ruby"),
-            ("RVM", "\(home)/.rvm"),
-            ("Bundler Cache", "\(home)/.bundle/cache"),
+            ("Ruby Gems", "diamond.fill", "\(home)/.gem", "safe", "Ruby"),
+            ("rbenv Versions", "diamond.fill", "\(home)/.rbenv/versions", "caution", "Ruby"),
+            ("mise Rubies", "diamond.fill", "\(home)/.local/share/mise/installs/ruby", "caution", "Ruby"),
+            ("RVM", "diamond.fill", "\(home)/.rvm", "caution", "Ruby"),
+            ("Bundler Cache", "shippingbox.fill", "\(home)/.bundle/cache", "safe", "Ruby"),
+            // VS Code
+            ("VS Code Cache", "laptopcomputer", "\(home)/Library/Caches/com.microsoft.VSCode", "safe", "VS Code"),
+            ("VS Code Data", "laptopcomputer", "\(home)/Library/Application Support/Code/CachedData", "safe", "VS Code"),
+            ("VS Code Extensions Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/CachedExtensionVSIXs", "safe", "VS Code"),
+            ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
+            ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
+            // AI Tools
+            ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "caution", "AI Tools"),
+            ("Claude Code", "terminal.fill", "\(home)/.claude", "caution", "AI Tools"),
+            ("Ollama Models", "brain", "\(home)/.ollama/models", "risky", "AI Tools"),
+            ("ChatGPT Desktop", "bubble.right.fill", "\(home)/Library/Group Containers/group.com.openai.chat", "caution", "AI Tools"),
+            ("Cursor Cache", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "caution", "AI Tools"),
+            ("Windsurf Cache", "wind", "\(home)/Library/Application Support/Windsurf", "caution", "AI Tools"),
         ]
+    }
+
+    /// Returns list of (name, path) tuples for all known dev cache paths
+    func devCachePaths() -> [(String, String)] {
+        return allCachePaths().map { ($0.name, $0.path) }
     }
     
     private func scanDevCaches() {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        
-        // Risk levels: safe = rebuild with command, caution = may need re-download, risky = data loss possible
-        // (name, icon, path, riskLevel)
-        let devPaths: [(String, String, String, String)] = [
-            // Xcode & Apple
-            ("Xcode DerivedData", "xmark.bin.fill", "\(home)/Library/Developer/Xcode/DerivedData", "safe"),
-            ("Xcode Archives", "archivebox.fill", "\(home)/Library/Developer/Xcode/Archives", "caution"),
-            ("Xcode Simulators", "iphone", "\(home)/Library/Developer/CoreSimulator/Devices", "caution"),
-            ("Xcode Caches", "internaldrive", "\(home)/Library/Developer/Xcode/Products", "safe"),
-            ("Xcode Device Support", "cpu", "\(home)/Library/Developer/Xcode/iOS DeviceSupport", "safe"),
-            ("Xcode Logs", "doc.text.fill", "\(home)/Library/Logs/CoreSimulator", "safe"),
-            ("Xcode Previews", "eye.fill", "\(home)/Library/Developer/Xcode/UserData/Previews", "safe"),
-            ("Simulator Caches", "internaldrive.fill", "\(home)/Library/Developer/CoreSimulator/Caches", "safe"),
-            ("Swift PM Cache", "swift", "\(home)/Library/Caches/org.swift.swiftpm", "safe"),
-            // iOS/macOS Ecosystem
-            ("CocoaPods Cache", "shippingbox.fill", "\(home)/Library/Caches/CocoaPods", "safe"),
-            ("Carthage", "cart.fill", "\(home)/Library/Caches/org.carthage.CarthageKit", "safe"),
-            // System Tools
-            ("Homebrew Cache", "mug.fill", "\(home)/Library/Caches/Homebrew", "safe"),
-            // JavaScript/Node
-            ("npm Cache", "shippingbox", "\(home)/.npm/_cacache", "safe"),
-            ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe"),
-            ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe"),
-            ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe"),
-            // Python
-            ("pip Cache", "cube.fill", "\(home)/Library/Caches/pip", "safe"),
-            ("Conda Packages", "flask.fill", "\(home)/.conda/pkgs", "safe"),
-            // Java/Android
-            ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe"),
-            ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe"),
-            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution"),
-            // Containers
-            ("Docker (Data)", "cube.transparent", "\(home)/Library/Containers/com.docker.docker/Data", "risky"),
-            // PHP
-            ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe"),
-            // Go/Rust
-            ("Go Modules", "leaf.fill", "\(home)/go/pkg/mod/cache", "safe"),
-            ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe"),
-            // Mobile
-            ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe"),
-            // IDEs
-            ("JetBrains Cache", "laptopcomputer", "\(home)/.cache/JetBrains", "safe"),
-            // Ruby
-            ("Ruby Gems", "diamond.fill", "\(home)/.gem", "safe"),
-            ("rbenv Versions", "diamond.fill", "\(home)/.rbenv/versions", "caution"),
-            ("mise Rubies", "diamond.fill", "\(home)/.local/share/mise/installs/ruby", "caution"),
-            ("RVM", "diamond.fill", "\(home)/.rvm", "caution"),
-            ("Bundler Cache", "shippingbox.fill", "\(home)/.bundle/cache", "safe"),
-        ]
+        let devPaths = allCachePaths()
         
         var caches: [DevCache] = []
-        for (name, icon, path, riskLevel) in devPaths {
-            let size = directorySize(path: path)
+        for entry in devPaths {
+            let size = directorySize(path: entry.path)
             if size > 1_048_576 { // Only show if > 1MB
-                let lastAccessed = lastAccessDate(path: path)
+                let lastAccessed = lastAccessDate(path: entry.path)
                 let daysSinceAccess = daysSince(lastAccessed)
-                let suggestion = generateSuggestion(name: name, size: size, daysSinceAccess: daysSinceAccess)
-                let desc = DiskMonitor.cacheDescriptions[name] ?? ""
+                let suggestion = generateSuggestion(name: entry.name, size: size, daysSinceAccess: daysSinceAccess)
+                let desc = DiskMonitor.cacheDescriptions[entry.name] ?? ""
                 
                 // Resolve DerivedData subfolders to project names
                 var detail: String? = nil
-                if name == "Xcode DerivedData" {
+                if entry.name == "Xcode DerivedData" {
                     detail = derivedDataProjectSummary()
                 }
                 
                 caches.append(DevCache(
-                    name: name,
-                    icon: icon,
-                    path: path,
+                    name: entry.name,
+                    icon: entry.icon,
+                    path: entry.path,
                     size: size,
                     lastAccessed: lastAccessed,
                     daysSinceAccess: daysSinceAccess,
                     suggestion: suggestion,
-                    riskLevel: riskLevel,
+                    riskLevel: entry.riskLevel,
                     cacheDescription: desc,
+                    group: entry.group,
                     detail: detail
                 ))
             }
@@ -912,6 +897,7 @@ struct DevCache: Identifiable {
     let suggestion: String?
     let riskLevel: String // "safe" = 🟢, "caution" = 🟡, "risky" = 🔴
     let cacheDescription: String // human-readable "what is this?"
+    let group: String? // grouping key: "Xcode", "VS Code", "AI Tools", "Ruby", or nil
     var detail: String? = nil // optional extra detail (e.g. DerivedData project list)
     
     var riskEmoji: String {

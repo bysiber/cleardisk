@@ -2,6 +2,21 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.6.3] - 2026-03-04
+### Added
+- **AI tools cache support** - Claude Desktop, Claude Code, Ollama Models, ChatGPT Desktop, Cursor, Windsurf
+- **VS Code cache support** - VS Code Cache, CachedData, CachedExtensionVSIXs, Chromium Cache, Logs
+- Total cache paths increased from 32 to 43
+
+### Changed
+- Refactored cache path definitions into single source of truth (no more duplication between devCachePaths and scanDevCaches)
+
+### Fixed
+- Menu bar icon/text visibility on macOS Tahoe (always use template mode)
+- Tray shows free space instead of cleanable amount (was confusing on high usage)
+- Stale tray values fixed with Combine observer
+- Expand view title centered using ZStack overlay
+
 ## [1.6.2] - 2026-03-02
 ### Added
 - **Ruby ecosystem cache support** - rbenv versions, mise rubies, RVM, Bundler cache (PR #6 by @benoittgt)

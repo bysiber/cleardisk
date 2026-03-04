@@ -25,6 +25,8 @@ struct MainView: View {
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
     @State private var isExpanded = false
+    @State private var expandedGroups: Set<String> = []
+
     
     enum Tab: String, CaseIterable {
         case developer = "Developer"
@@ -667,6 +669,39 @@ struct MainView: View {
     }
     
     // MARK: - Developer Tab
+    
+    /// Groups caches by their group field, preserving order
+    /// Returns: [(groupName: String?, caches: [DevCache])]
+    /// Grouped items appear as a single collapsible row, ungrouped items appear individually
+    private var groupedDevCaches: [(key: String?, caches: [DevCache])] {
+        var result: [(key: String?, caches: [DevCache])] = []
+        var groupMap: [String: Int] = [:] // group name -> index in result
+        
+        for cache in diskMonitor.devCaches {
+            if let group = cache.group {
+                if let idx = groupMap[group] {
+                    result[idx].caches.append(cache)
+                } else {
+                    groupMap[group] = result.count
+                    result.append((key: group, caches: [cache]))
+                }
+            } else {
+                result.append((key: nil, caches: [cache]))
+            }
+        }
+        return result
+    }
+    
+    private func groupIcon(_ groupName: String) -> String {
+        switch groupName {
+        case "Xcode": return "hammer.fill"
+        case "VS Code": return "laptopcomputer"
+        case "AI Tools": return "brain"
+        case "Ruby": return "diamond.fill"
+        default: return "folder.fill"
+        }
+    }
+    
     var developerContent: some View {
         VStack(spacing: 2) {
             if diskMonitor.devCaches.isEmpty {
@@ -701,12 +736,101 @@ struct MainView: View {
                 .padding(.vertical, 8)
                 .background(Color.red.opacity(0.04))
                 
-                ForEach(diskMonitor.devCaches) { cache in
-                    devCacheRow(cache)
+                ForEach(Array(groupedDevCaches.enumerated()), id: \.offset) { _, entry in
+                    if let groupName = entry.key {
+                        // Grouped items with expand/collapse
+                        cacheGroupRow(groupName: groupName, caches: entry.caches)
+                            .padding(.bottom, 4)
+                    } else {
+                        // Standalone items
+                        ForEach(entry.caches) { cache in
+                            devCacheRow(cache)
+                        }
+                    }
                 }
             }
         }
         .padding(.vertical, 4)
+    }
+    
+    func cacheGroupRow(groupName: String, caches: [DevCache]) -> some View {
+        let totalSize = caches.reduce(Int64(0)) { $0 + $1.size }
+        let isGroupExpanded = expandedGroups.contains(groupName)
+        let sortedCaches = caches.sorted { $0.size > $1.size }
+        let topNames = sortedCaches.prefix(3).map { $0.name.replacingOccurrences(of: "\(groupName) ", with: "").replacingOccurrences(of: "Xcode ", with: "") }
+        let preview = topNames.joined(separator: ", ")
+        
+        return VStack(spacing: 0) {
+            // Group header row
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if expandedGroups.contains(groupName) {
+                        expandedGroups.remove(groupName)
+                    } else {
+                        expandedGroups.insert(groupName)
+                    }
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.purple.opacity(0.7))
+                        .frame(width: 10)
+                    Image(systemName: groupIcon(groupName))
+                        .font(.system(size: 14))
+                        .frame(width: 22)
+                        .foregroundColor(.purple)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(groupName)
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("\(caches.count)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.purple.opacity(0.6)))
+                        }
+                        if !isGroupExpanded {
+                            Text(preview)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    Text(formatBytes(totalSize))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.purple.opacity(0.8))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.purple.opacity(0.05))
+                )
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            // Expanded child items
+            if isGroupExpanded {
+                VStack(spacing: 0) {
+                    ForEach(caches) { cache in
+                        devCacheRow(cache)
+                    }
+                }
+                .padding(.leading, 20)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color.purple.opacity(0.2))
+                        .frame(width: 2)
+                        .padding(.leading, 16)
+                        .padding(.vertical, 4)
+                }
+            }
+        }
     }
     
     func devCacheRow(_ cache: DevCache) -> some View {
@@ -1616,7 +1740,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.6.2")
+                Text("ClearDisk v1.6.3")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
