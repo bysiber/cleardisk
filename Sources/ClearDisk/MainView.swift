@@ -1768,7 +1768,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.6.3")
+                Text("ClearDisk v1.6.4")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }

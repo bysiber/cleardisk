@@ -2,6 +2,12 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.6.4] - 2026-03-05
+### Added
+- **Terraform/OpenTofu cache support** - Monitor `~/.terraform.d` plugin cache and per-project `.terraform` artifact directories (Issue #10, PR #11)
+- Terraform added as project type for artifact scanning (`main.tf` marker, `.terraform` artifacts)
+- Total cache paths increased from 43 to 44
+
 ## [1.6.3] - 2026-03-04
 ### Added
 - **AI tools cache support** - Claude Desktop, Claude Code, Ollama Models, ChatGPT Desktop, Cursor, Windsurf
