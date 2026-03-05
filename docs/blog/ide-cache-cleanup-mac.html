@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VS Code & JetBrains IDE Cache Cleanup on Mac — Reclaim 5-30GB+ (2025 Guide)</title>
+    <meta name="description" content="VS Code, IntelliJ IDEA, PyCharm, WebStorm and other IDEs accumulate 5-30GB+ of caches, logs and extensions on macOS. Learn exactly where they hide and how to safely clean them.">
+    <meta name="keywords" content="vs code cache cleanup mac, jetbrains cache cleanup mac, intellij cache clear, pycharm cache mac, webstorm cache cleanup, ide disk space mac, vscode extensions size, cursor ide cache, zed cache cleanup, sublime text cache mac, neovim cache cleanup, free disk space ide mac">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/ide-cache-cleanup-mac.html">
+
+    <meta property="og:title" content="VS Code & JetBrains IDE Cache Cleanup on Mac — Reclaim 5-30GB+">
+    <meta property="og:description" content="IDEs silently accumulate gigabytes of caches, logs, and extensions. Learn how to reclaim all of it on macOS.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/ide-cache-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "VS Code & JetBrains IDE Cache Cleanup on Mac — Reclaim 5-30GB+ (2025 Guide)",
+        "description": "VS Code, IntelliJ IDEA, PyCharm, WebStorm and other IDEs accumulate 5-30GB+ of caches, logs and extensions on macOS. Complete guide to auditing and cleaning every IDE cache safely.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-03-05",
+        "dateModified": "2025-03-05",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/ide-cache-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+        .cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 40px 0;
+        }
+        .cta a { color: white; text-decoration: underline; }
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            font-weight: 600;
+            margin-top: 15px;
+            text-decoration: none;
+        }
+        .cta-button:hover { text-decoration: none; opacity: 0.9; }
+        details { margin: 10px 0; }
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 0;
+            color: #0066cc;
+        }
+        summary:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>VS Code & JetBrains IDE Cache Cleanup on Mac — Reclaim 5-30GB+</h1>
+        <p class="meta">Updated March 2025 -- Covers VS Code, Cursor, JetBrains (IntelliJ, PyCharm, WebStorm), Sublime Text, Vim/Neovim, Zed -- 11 min read</p>
+
+        <p>Your IDE is probably the application you use most as a developer — and it's quietly hoarding gigabytes of caches, logs, workspace data, and extensions that you never see. Between VS Code's workspace storage, JetBrains' system caches and local history, and plugin/extension data across every editor you've tried, it's common to find <strong>5-30GB+</strong> of IDE-related files consuming precious SSD space on your Mac.</p>
+
+        <p>This guide covers every major IDE and editor on macOS with exact paths, audit commands, and safe cleanup procedures.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit — How Much Space Are Your IDEs Using?</a>
+            <a href="#vscode">2. VS Code — Caches, Extensions & Workspace Storage</a>
+            <a href="#cursor">3. Cursor — The AI IDE Fork of VS Code</a>
+            <a href="#jetbrains">4. JetBrains IDEs — IntelliJ, PyCharm, WebStorm & More</a>
+            <a href="#sublime">5. Sublime Text — Packages & Cache</a>
+            <a href="#vim-neovim">6. Vim & Neovim — Plugin Caches</a>
+            <a href="#zed">7. Zed Editor — Cache & Extensions</a>
+            <a href="#lsp-servers">8. Language Servers & LSP Caches</a>
+            <a href="#old-ides">9. Cleaning Up IDEs You No Longer Use</a>
+            <a href="#automation">10. Automate IDE Cache Cleanup</a>
+            <a href="#cheatsheet">11. IDE Cleanup Cheatsheet</a>
+            <a href="#faq">12. FAQ</a>
+        </div>
+
+        <!-- Section 1: Audit -->
+        <h2 id="audit">1. Quick Audit — How Much Space Are Your IDEs Using?</h2>
+
+        <p>Run this comprehensive audit script to see how much disk space each IDE is consuming on your Mac:</p>
+
+<pre><code>#!/bin/bash
+echo "=== IDE Cache Disk Usage Audit ==="
+echo ""
+
+echo "--- VS Code ---"
+du -sh ~/Library/Application\ Support/Code 2>/dev/null || echo "  Not found"
+du -sh ~/.vscode/extensions 2>/dev/null || echo "  Extensions not found"
+du -sh ~/Library/Caches/com.microsoft.VSCode 2>/dev/null || echo "  Cache not found"
+
+echo ""
+echo "--- Cursor ---"
+du -sh ~/Library/Application\ Support/Cursor 2>/dev/null || echo "  Not found"
+du -sh ~/.cursor/extensions 2>/dev/null || echo "  Extensions not found"
+du -sh ~/Library/Caches/com.todesktop.runtime.Cursor 2>/dev/null || echo "  Cache not found"
+
+echo ""
+echo "--- JetBrains ---"
+for dir in ~/Library/Caches/JetBrains/*/; do
+    du -sh "$dir" 2>/dev/null
+done
+for dir in ~/Library/Application\ Support/JetBrains/*/; do
+    du -sh "$dir" 2>/dev/null
+done
+du -sh ~/Library/Logs/JetBrains 2>/dev/null || echo "  Logs not found"
+
+echo ""
+echo "--- Sublime Text ---"
+du -sh ~/Library/Application\ Support/Sublime\ Text 2>/dev/null || echo "  Not found"
+du -sh ~/Library/Caches/com.sublimetext.4 2>/dev/null || echo "  Cache not found"
+
+echo ""
+echo "--- Neovim ---"
+du -sh ~/.local/share/nvim 2>/dev/null || echo "  Not found"
+du -sh ~/.local/state/nvim 2>/dev/null || echo "  State not found"
+du -sh ~/.cache/nvim 2>/dev/null || echo "  Cache not found"
+
+echo ""
+echo "--- Zed ---"
+du -sh ~/Library/Application\ Support/Zed 2>/dev/null || echo "  Not found"
+du -sh ~/Library/Caches/dev.zed.Zed 2>/dev/null || echo "  Cache not found"
+du -sh ~/.local/share/zed 2>/dev/null || echo "  Extensions not found"
+
+echo ""
+echo "--- Language Servers ---"
+du -sh ~/Library/Caches/typescript 2>/dev/null || echo "  TS server not found"
+du -sh ~/.cache/pylsp 2>/dev/null || echo "  Python LSP not found"
+du -sh ~/Library/Caches/sourcekit-lsp 2>/dev/null || echo "  SourceKit LSP not found"
+
+echo ""
+echo "=== Total Quick Estimate ==="
+total=0
+for d in \
+    ~/Library/Application\ Support/Code \
+    ~/.vscode/extensions \
+    ~/Library/Caches/com.microsoft.VSCode \
+    ~/Library/Application\ Support/Cursor \
+    ~/.cursor/extensions \
+    ~/Library/Caches/JetBrains \
+    ~/Library/Application\ Support/JetBrains \
+    ~/Library/Application\ Support/Sublime\ Text \
+    ~/.local/share/nvim \
+    ~/Library/Application\ Support/Zed; do
+    if [[ -d "$d" ]]; then
+        size=$(du -sk "$d" 2>/dev/null | awk '{print $1}')
+        total=$((total + size))
+    fi
+done
+echo "Estimated total IDE cache usage: $((total / 1024)) MB"</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> On a typical developer Mac with 2-3 IDEs installed, this audit usually reveals 5-15GB of reclaimable space. Power users with multiple JetBrains IDEs or heavy VS Code extension usage often see 20GB+.
+        </div>
+
+        <!-- Section 2: VS Code -->
+        <h2 id="vscode">2. VS Code — Caches, Extensions & Workspace Storage</h2>
+
+        <p>Visual Studio Code stores data across multiple locations on macOS. Here's where everything lives:</p>
+
+        <h3>2.1 Extension Storage <span class="size-badge">1-5GB typical</span></h3>
+
+        <p>VS Code extensions are installed in <code class="inline-code">~/.vscode/extensions</code>. Each extension can be 10-500MB, and old versions may linger after updates.</p>
+
+<pre><code># Check total extension size
+du -sh ~/.vscode/extensions
+
+# List extensions by size (largest first)
+du -sh ~/.vscode/extensions/* 2>/dev/null | sort -hr | head -20
+
+# See what the VS Code CLI reports
+code --list-extensions --show-versions | wc -l</code></pre>
+
+        <p>To clean unused extensions:</p>
+
+<pre><code># List all installed extensions
+code --list-extensions
+
+# Uninstall extensions you no longer need
+code --uninstall-extension &lt;publisher.extension-name&gt;
+
+# Example: remove a large extension
+code --uninstall-extension ms-python.python</code></pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> Don't manually delete folders from <code class="inline-code">~/.vscode/extensions</code> while VS Code is running. Use the CLI or the Extensions panel to uninstall properly.
+        </div>
+
+        <h3>2.2 Workspace Storage <span class="size-badge">500MB-5GB</span></h3>
+
+        <p>Every folder you've opened in VS Code gets a workspace storage entry. This includes search history, file states, extension data per workspace, and more. Over months or years this grows significantly.</p>
+
+<pre><code># Check workspace storage size
+du -sh ~/Library/Application\ Support/Code/User/workspaceStorage
+
+# Count workspace entries
+ls ~/Library/Application\ Support/Code/User/workspaceStorage | wc -l
+
+# Find and list workspace storage entries (each has workspace.json)
+for d in ~/Library/Application\ Support/Code/User/workspaceStorage/*/; do
+    size=$(du -sk "$d" 2>/dev/null | awk '{print $1}')
+    name=$(cat "$d/workspace.json" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('folder','unknown'))" 2>/dev/null)
+    echo "${size}K  ${name}"
+done | sort -hr | head -20</code></pre>
+
+        <p>To clean workspace storage for projects you no longer work on:</p>
+
+<pre><code># Remove all workspace storage (VS Code will recreate for active workspaces)
+rm -rf ~/Library/Application\ Support/Code/User/workspaceStorage
+
+# Or selectively remove large/old entries
+# First identify them with the script above, then:
+rm -rf ~/Library/Application\ Support/Code/User/workspaceStorage/&lt;hash&gt;</code></pre>
+
+        <h3>2.3 Cache Directory <span class="size-badge">200MB-2GB</span></h3>
+
+<pre><code># Main VS Code cache
+du -sh ~/Library/Caches/com.microsoft.VSCode
+
+# GPU shader cache and crash reports
+du -sh ~/Library/Caches/com.microsoft.VSCode.ShipIt 2>/dev/null
+
+# Clean the cache directory
+rm -rf ~/Library/Caches/com.microsoft.VSCode/*
+
+# Also check for Electron/Chromium cache
+du -sh ~/Library/Application\ Support/Code/Cache
+du -sh ~/Library/Application\ Support/Code/CachedData
+du -sh ~/Library/Application\ Support/Code/CachedExtensionVSIXs
+
+# Clean cached data
+rm -rf ~/Library/Application\ Support/Code/Cache/*
+rm -rf ~/Library/Application\ Support/Code/CachedData/*
+rm -rf ~/Library/Application\ Support/Code/CachedExtensionVSIXs/*</code></pre>
+
+        <h3>2.4 Logs <span class="size-badge">50-500MB</span></h3>
+
+<pre><code># VS Code keeps logs for each session
+du -sh ~/Library/Application\ Support/Code/logs
+
+# Clean old logs (safe to remove all)
+rm -rf ~/Library/Application\ Support/Code/logs/*</code></pre>
+
+        <h3>2.5 User Data & State</h3>
+
+<pre><code># Global storage used by extensions
+du -sh ~/Library/Application\ Support/Code/User/globalStorage
+
+# State database
+du -sh ~/Library/Application\ Support/Code/User/History</code></pre>
+
+        <div class="tip">
+            <strong>Quick cleanup summary for VS Code:</strong> Removing the Cache, CachedData, CachedExtensionVSIXs, logs, and workspaceStorage directories is safe while VS Code is closed. It will rebuild what it needs on next launch.
+        </div>
+
+        <!-- Section 3: Cursor -->
+        <h2 id="cursor">3. Cursor — The AI IDE Fork of VS Code</h2>
+
+        <p>Cursor is built on VS Code and mirrors its storage layout but under different directory names. If you use both VS Code and Cursor, you're effectively doubling the cache footprint.</p>
+
+<pre><code># Cursor application data (mirrors VS Code's "Code" directory)
+du -sh ~/Library/Application\ Support/Cursor
+
+# Cursor extensions (separate from VS Code extensions)
+du -sh ~/.cursor/extensions
+
+# Cursor cache
+du -sh ~/Library/Caches/com.todesktop.runtime.Cursor 2>/dev/null
+
+# Clean Cursor caches (close Cursor first)
+rm -rf ~/Library/Application\ Support/Cursor/Cache/*
+rm -rf ~/Library/Application\ Support/Cursor/CachedData/*
+rm -rf ~/Library/Application\ Support/Cursor/CachedExtensionVSIXs/*
+rm -rf ~/Library/Application\ Support/Cursor/logs/*
+
+# Clean workspace storage
+rm -rf ~/Library/Application\ Support/Cursor/User/workspaceStorage</code></pre>
+
+        <div class="warning">
+            <strong>Note:</strong> Cursor and VS Code maintain completely separate extension directories. If you have the same extensions installed in both, they're stored twice. Consider which IDE is your primary and uninstall duplicates from the other.
+        </div>
+
+        <!-- Section 4: JetBrains -->
+        <h2 id="jetbrains">4. JetBrains IDEs — IntelliJ, PyCharm, WebStorm & More</h2>
+
+        <p>JetBrains IDEs (IntelliJ IDEA, PyCharm, WebStorm, CLion, GoLand, Rider, RubyMine, PhpStorm, DataGrip) are among the heaviest IDEs in terms of disk usage. Each IDE version maintains its own separate cache, config, and log directories.</p>
+
+        <h3>4.1 Cache Directories <span class="size-badge">2-10GB per IDE</span></h3>
+
+        <p>JetBrains caches are stored in <code class="inline-code">~/Library/Caches/JetBrains/</code> with a subdirectory per product and version:</p>
+
+<pre><code># List all JetBrains cache directories with sizes
+du -sh ~/Library/Caches/JetBrains/* 2>/dev/null | sort -hr
+
+# Example output:
+# 4.2G  IntelliJIdea2024.3
+# 2.8G  WebStorm2024.3
+# 1.9G  IntelliJIdea2024.2    ← old version, safe to remove
+# 1.5G  PyCharm2024.3
+# 850M  GoLand2024.3
+
+# Total JetBrains cache size
+du -sh ~/Library/Caches/JetBrains</code></pre>
+
+        <p><strong>Key insight:</strong> When JetBrains IDEs update to a new version, the old version's cache directory is left behind. These stale caches can accumulate to tens of gigabytes.</p>
+
+<pre><code># Remove caches for old versions (keep only the latest)
+# First, check which version you're currently running:
+ls ~/Library/Caches/JetBrains/
+
+# Remove caches for versions you no longer use
+rm -rf ~/Library/Caches/JetBrains/IntelliJIdea2024.1
+rm -rf ~/Library/Caches/JetBrains/IntelliJIdea2024.2
+
+# Nuclear option: remove all caches (IDEs will rebuild on next launch)
+rm -rf ~/Library/Caches/JetBrains/*</code></pre>
+
+        <h3>4.2 System and Config Directories</h3>
+
+<pre><code># Application support (plugins, configs, system files)
+du -sh ~/Library/Application\ Support/JetBrains/* 2>/dev/null | sort -hr
+
+# Plugins can be very large
+for dir in ~/Library/Application\ Support/JetBrains/*/plugins/; do
+    du -sh "$dir" 2>/dev/null
+done
+
+# Logs
+du -sh ~/Library/Logs/JetBrains/* 2>/dev/null | sort -hr
+
+# Clean old version logs
+rm -rf ~/Library/Logs/JetBrains/IntelliJIdea2024.1
+rm -rf ~/Library/Logs/JetBrains/IntelliJIdea2024.2</code></pre>
+
+        <h3>4.3 Local History</h3>
+
+        <p>JetBrains IDEs maintain a local VCS history of all file changes. This is incredibly useful for recovery but can grow large:</p>
+
+<pre><code># Check local history size per IDE
+for dir in ~/Library/Caches/JetBrains/*/LocalHistory; do
+    du -sh "$dir" 2>/dev/null
+done</code></pre>
+
+        <h3>4.4 Invalidate Caches (The Built-in Way)</h3>
+
+        <p>Every JetBrains IDE has a built-in cache invalidation feature:</p>
+
+        <ol>
+            <li>Open the IDE</li>
+            <li>Go to <strong>File → Invalidate Caches…</strong></li>
+            <li>Check all options (Clear file system cache, Clear VCS Log caches, Clear all HTTP auth caches)</li>
+            <li>Click <strong>Invalidate and Restart</strong></li>
+        </ol>
+
+        <p>This is the safest approach for your current IDE version, but it won't clean up old version directories.</p>
+
+        <h3>4.5 JetBrains Toolbox</h3>
+
+        <p>If you use JetBrains Toolbox to manage your IDEs, it also maintains its own data:</p>
+
+<pre><code># Toolbox app data
+du -sh ~/Library/Application\ Support/JetBrains/Toolbox
+
+# Toolbox keeps old IDE versions as backups
+du -sh ~/Library/Application\ Support/JetBrains/Toolbox/apps/*/ch-0/* 2>/dev/null | sort -hr
+
+# Check Toolbox settings → remove old IDE versions from Toolbox UI</code></pre>
+
+        <div class="tip">
+            <strong>Pro tip:</strong> In JetBrains Toolbox settings, enable <strong>"Auto-delete previous version"</strong> to prevent old IDE caches from accumulating. This single setting can save you 5-15GB over time.
+        </div>
+
+        <!-- Section 5: Sublime Text -->
+        <h2 id="sublime">5. Sublime Text — Packages & Cache</h2>
+
+        <p>Sublime Text is lightweight compared to VS Code and JetBrains, but it still accumulates data over time:</p>
+
+<pre><code># Main Sublime Text data
+du -sh ~/Library/Application\ Support/Sublime\ Text
+
+# Breakdown:
+du -sh ~/Library/Application\ Support/Sublime\ Text/Packages 2>/dev/null
+du -sh ~/Library/Application\ Support/Sublime\ Text/Installed\ Packages 2>/dev/null
+du -sh ~/Library/Application\ Support/Sublime\ Text/Cache 2>/dev/null
+du -sh ~/Library/Application\ Support/Sublime\ Text/Index 2>/dev/null
+du -sh ~/Library/Application\ Support/Sublime\ Text/Local 2>/dev/null
+
+# System cache
+du -sh ~/Library/Caches/com.sublimetext.4 2>/dev/null
+
+# Clean the file index (rebuilt on next launch)
+rm -rf ~/Library/Application\ Support/Sublime\ Text/Index/*
+
+# Clean the cache
+rm -rf ~/Library/Application\ Support/Sublime\ Text/Cache/*
+rm -rf ~/Library/Caches/com.sublimetext.4/*</code></pre>
+
+        <p>For Sublime Text 3 (if you upgraded):</p>
+
+<pre><code># Check if old Sublime Text 3 data still exists
+du -sh ~/Library/Application\ Support/Sublime\ Text\ 3 2>/dev/null
+
+# If you've fully migrated to ST4, remove ST3 data
+rm -rf ~/Library/Application\ Support/Sublime\ Text\ 3
+rm -rf ~/Library/Caches/com.sublimetext.3</code></pre>
+
+        <!-- Section 6: Vim & Neovim -->
+        <h2 id="vim-neovim">6. Vim & Neovim — Plugin Caches</h2>
+
+        <p>Modern Vim and Neovim setups with plugin managers (lazy.nvim, packer, vim-plug) can accumulate significant cache data, especially with LSP integrations.</p>
+
+        <h3>6.1 Neovim</h3>
+
+<pre><code># Neovim data directory (plugins, Mason LSP servers, etc.)
+du -sh ~/.local/share/nvim
+
+# Plugin manager data
+du -sh ~/.local/share/nvim/lazy 2>/dev/null        # lazy.nvim
+du -sh ~/.local/share/nvim/site/pack 2>/dev/null    # packer
+du -sh ~/.local/share/nvim/plugged 2>/dev/null      # vim-plug
+
+# Mason (LSP/DAP/Linter installer) — this is often the biggest
+du -sh ~/.local/share/nvim/mason 2>/dev/null
+
+# Neovim state
+du -sh ~/.local/state/nvim
+
+# Neovim cache (compiled Lua, etc.)
+du -sh ~/.cache/nvim
+
+# Treesitter parsers
+du -sh ~/.local/share/nvim/lazy/nvim-treesitter/parser 2>/dev/null
+
+# Clean Neovim cache (rebuilt on next launch)
+rm -rf ~/.cache/nvim/*
+
+# Clean undo history (optional — you'll lose undo persistence)
+rm -rf ~/.local/state/nvim/undo/*
+
+# Clean swap files
+rm -rf ~/.local/state/nvim/swap/*</code></pre>
+
+        <h3>6.2 Vim</h3>
+
+<pre><code># Vim plugin directories
+du -sh ~/.vim/plugged 2>/dev/null        # vim-plug
+du -sh ~/.vim/bundle 2>/dev/null         # Vundle/Pathogen
+du -sh ~/.vim/pack 2>/dev/null           # native packages
+
+# Vim undo/swap/backup files
+du -sh ~/.vim/undodir 2>/dev/null
+du -sh ~/.vim/swapfiles 2>/dev/null
+
+# Clean swap and undo
+rm -rf ~/.vim/undodir/*
+rm -rf ~/.vim/swapfiles/*</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> Mason-installed LSP servers in Neovim are often the biggest disk consumer (1-3GB). Run <code class="inline-code">:Mason</code> in Neovim to see all installed servers and remove ones you don't use.
+        </div>
+
+        <!-- Section 7: Zed -->
+        <h2 id="zed">7. Zed Editor — Cache & Extensions</h2>
+
+        <p>Zed is a newer, performance-focused editor built in Rust. It's relatively lean but still accumulates cache data:</p>
+
+<pre><code># Zed application data
+du -sh ~/Library/Application\ Support/Zed
+
+# Zed cache
+du -sh ~/Library/Caches/dev.zed.Zed 2>/dev/null
+
+# Zed extensions and language servers
+du -sh ~/.local/share/zed 2>/dev/null
+
+# Zed logs
+du -sh ~/Library/Logs/Zed 2>/dev/null
+
+# Clean Zed cache (close Zed first)
+rm -rf ~/Library/Caches/dev.zed.Zed/*
+
+# Clean old Zed logs
+rm -rf ~/Library/Logs/Zed/*</code></pre>
+
+        <!-- Section 8: Language Servers -->
+        <h2 id="lsp-servers">8. Language Servers & LSP Caches</h2>
+
+        <p>Language servers run alongside your IDE and maintain their own caches. These are often shared across IDEs or installed independently:</p>
+
+<pre><code># TypeScript server cache
+du -sh ~/Library/Caches/typescript 2>/dev/null
+du -sh /tmp/TypeScript_* 2>/dev/null
+
+# SourceKit-LSP (Swift)
+du -sh ~/Library/Caches/org.swift.sourcekit-lsp 2>/dev/null
+
+# rust-analyzer
+du -sh ~/.cache/rust-analyzer 2>/dev/null
+
+# gopls (Go language server)
+du -sh ~/Library/Caches/gopls 2>/dev/null
+
+# clangd (C/C++)
+du -sh ~/.cache/clangd 2>/dev/null
+
+# Python language servers
+du -sh ~/.cache/pylsp 2>/dev/null
+du -sh ~/.cache/pyright 2>/dev/null
+
+# Ruby Solargraph
+du -sh ~/.solargraph 2>/dev/null
+
+# Lua language server
+du -sh ~/.cache/lua-language-server 2>/dev/null
+
+# Clean all LSP caches
+rm -rf ~/Library/Caches/typescript/*
+rm -rf ~/.cache/rust-analyzer/*
+rm -rf ~/Library/Caches/gopls/*
+rm -rf ~/.cache/clangd/*
+rm -rf ~/.cache/pylsp/*
+rm -rf ~/.cache/pyright/*</code></pre>
+
+        <div class="warning">
+            <strong>Note:</strong> Language server caches speed up project indexing significantly. After cleaning, your first IDE session in each project will be slower as the language server re-indexes. This is temporary.
+        </div>
+
+        <!-- Section 9: Old IDEs -->
+        <h2 id="old-ides">9. Cleaning Up IDEs You No Longer Use</h2>
+
+        <p>Developers often try multiple editors before settling on one. Leftover data from abandoned IDEs can waste gigabytes:</p>
+
+<pre><code># Check for data from IDEs you may have uninstalled
+
+# VS Code (stable)
+du -sh ~/Library/Application\ Support/Code 2>/dev/null
+du -sh ~/.vscode 2>/dev/null
+
+# VS Code Insiders
+du -sh ~/Library/Application\ Support/Code\ -\ Insiders 2>/dev/null
+du -sh ~/.vscode-insiders 2>/dev/null
+
+# VS Codium
+du -sh ~/Library/Application\ Support/VSCodium 2>/dev/null
+du -sh ~/.vscode-oss 2>/dev/null
+
+# Atom (discontinued)
+du -sh ~/.atom 2>/dev/null
+du -sh ~/Library/Application\ Support/Atom 2>/dev/null
+
+# TextMate
+du -sh ~/Library/Application\ Support/TextMate 2>/dev/null
+
+# Nova (Panic)
+du -sh ~/Library/Application\ Support/Nova 2>/dev/null
+
+# Eclipse
+du -sh ~/eclipse 2>/dev/null
+du -sh ~/.eclipse 2>/dev/null
+du -sh ~/Library/Application\ Support/Eclipse 2>/dev/null
+
+# Android Studio (Gradle handled in separate guide)
+du -sh ~/Library/Application\ Support/Google/AndroidStudio* 2>/dev/null
+du -sh ~/Library/Caches/Google/AndroidStudio* 2>/dev/null
+
+# Xcode (covered in our Xcode cleanup guide)
+du -sh ~/Library/Developer/Xcode/DerivedData 2>/dev/null</code></pre>
+
+        <p>If you find data for an IDE you no longer use, it's safe to remove all associated directories:</p>
+
+<pre><code># Example: completely removing Atom data after uninstall
+rm -rf ~/.atom
+rm -rf ~/Library/Application\ Support/Atom
+rm -rf ~/Library/Caches/com.github.atom
+rm -rf ~/Library/Caches/com.github.atom.ShipIt
+
+# Example: removing VS Code Insiders data
+rm -rf ~/Library/Application\ Support/Code\ -\ Insiders
+rm -rf ~/.vscode-insiders
+rm -rf ~/Library/Caches/com.microsoft.VSCodeInsiders</code></pre>
+
+        <!-- Section 10: Automation -->
+        <h2 id="automation">10. Automate IDE Cache Cleanup</h2>
+
+        <p>Create a script that safely cleans IDE caches on a schedule:</p>
+
+<pre><code>#!/bin/bash
+# ide-cleanup.sh — Safe IDE cache cleanup for macOS
+# Run monthly or when disk space is low
+
+set -euo pipefail
+
+echo "🧹 IDE Cache Cleanup — $(date)"
+echo "================================="
+freed=0
+
+cleanup() {
+    local path="$1"
+    local desc="$2"
+    if [[ -d "$path" ]]; then
+        size=$(du -sk "$path" 2>/dev/null | awk '{print $1}')
+        if [[ $size -gt 0 ]]; then
+            echo "  Cleaning $desc: $((size/1024))MB"
+            rm -rf "$path"/*
+            freed=$((freed + size))
+        fi
+    fi
+}
+
+# VS Code caches (safe to remove)
+echo ""
+echo "--- VS Code ---"
+cleanup ~/Library/Caches/com.microsoft.VSCode "VS Code system cache"
+cleanup ~/Library/Application\ Support/Code/Cache "VS Code cache"
+cleanup ~/Library/Application\ Support/Code/CachedData "VS Code cached data"
+cleanup ~/Library/Application\ Support/Code/CachedExtensionVSIXs "VS Code cached VSIXs"
+cleanup ~/Library/Application\ Support/Code/logs "VS Code logs"
+
+# Cursor caches
+echo ""
+echo "--- Cursor ---"
+cleanup ~/Library/Application\ Support/Cursor/Cache "Cursor cache"
+cleanup ~/Library/Application\ Support/Cursor/CachedData "Cursor cached data"
+cleanup ~/Library/Application\ Support/Cursor/logs "Cursor logs"
+
+# JetBrains — remove old version caches
+echo ""
+echo "--- JetBrains (old versions) ---"
+for dir in ~/Library/Caches/JetBrains/*/; do
+    dirname=$(basename "$dir")
+    # Extract version year — skip if it's the current year's latest
+    if [[ "$dirname" =~ 202[0-3] ]]; then
+        size=$(du -sk "$dir" 2>/dev/null | awk '{print $1}')
+        echo "  Removing old $dirname: $((size/1024))MB"
+        rm -rf "$dir"
+        freed=$((freed + size))
+    fi
+done
+
+# JetBrains logs
+cleanup ~/Library/Logs/JetBrains "JetBrains logs"
+
+# Sublime Text
+echo ""
+echo "--- Sublime Text ---"
+cleanup ~/Library/Application\ Support/Sublime\ Text/Cache "Sublime cache"
+cleanup ~/Library/Application\ Support/Sublime\ Text/Index "Sublime index"
+
+# Neovim cache
+echo ""
+echo "--- Neovim ---"
+cleanup ~/.cache/nvim "Neovim cache"
+
+# Zed cache
+echo ""
+echo "--- Zed ---"
+cleanup ~/Library/Caches/dev.zed.Zed "Zed cache"
+cleanup ~/Library/Logs/Zed "Zed logs"
+
+# Language server caches
+echo ""
+echo "--- Language Servers ---"
+cleanup ~/.cache/rust-analyzer "rust-analyzer"
+cleanup ~/.cache/clangd "clangd"
+cleanup ~/.cache/pylsp "Python LSP"
+cleanup ~/.cache/pyright "Pyright"
+
+echo ""
+echo "================================="
+echo "Total freed: $((freed/1024))MB"
+echo "Done! All IDEs will rebuild caches on next launch."</code></pre>
+
+        <p>Make it executable and optionally schedule with <code class="inline-code">cron</code> or <code class="inline-code">launchd</code>:</p>
+
+<pre><code># Make executable
+chmod +x ide-cleanup.sh
+
+# Run manually
+./ide-cleanup.sh
+
+# Schedule monthly via crontab
+crontab -e
+# Add: 0 3 1 * * /path/to/ide-cleanup.sh >> /tmp/ide-cleanup.log 2>&1</code></pre>
+
+        <!-- Section 11: Cheatsheet -->
+        <h2 id="cheatsheet">11. IDE Cleanup Cheatsheet</h2>
+
+        <table>
+            <tr>
+                <th>IDE / Editor</th>
+                <th>Typical Size</th>
+                <th>Key Cleanup Path</th>
+                <th>Safe to Delete?</th>
+            </tr>
+            <tr>
+                <td>VS Code Extensions</td>
+                <td>1-5GB</td>
+                <td><code class="inline-code">~/.vscode/extensions</code></td>
+                <td>Uninstall via CLI</td>
+            </tr>
+            <tr>
+                <td>VS Code Cache</td>
+                <td>200MB-2GB</td>
+                <td><code class="inline-code">~/Library/Caches/com.microsoft.VSCode</code></td>
+                <td>Yes (close IDE)</td>
+            </tr>
+            <tr>
+                <td>VS Code Workspace Storage</td>
+                <td>500MB-5GB</td>
+                <td><code class="inline-code">~/Library/Application Support/Code/User/workspaceStorage</code></td>
+                <td>Yes (close IDE)</td>
+            </tr>
+            <tr>
+                <td>Cursor Extensions</td>
+                <td>1-5GB</td>
+                <td><code class="inline-code">~/.cursor/extensions</code></td>
+                <td>Uninstall via CLI</td>
+            </tr>
+            <tr>
+                <td>Cursor Cache</td>
+                <td>200MB-2GB</td>
+                <td><code class="inline-code">~/Library/Application Support/Cursor/Cache</code></td>
+                <td>Yes (close IDE)</td>
+            </tr>
+            <tr>
+                <td>JetBrains Caches</td>
+                <td>2-10GB per IDE</td>
+                <td><code class="inline-code">~/Library/Caches/JetBrains/</code></td>
+                <td>Yes (old versions safe)</td>
+            </tr>
+            <tr>
+                <td>JetBrains Logs</td>
+                <td>100MB-1GB</td>
+                <td><code class="inline-code">~/Library/Logs/JetBrains/</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Sublime Text Index/Cache</td>
+                <td>50-500MB</td>
+                <td><code class="inline-code">~/Library/Application Support/Sublime Text/Index</code></td>
+                <td>Yes (rebuilt)</td>
+            </tr>
+            <tr>
+                <td>Neovim Data</td>
+                <td>500MB-3GB</td>
+                <td><code class="inline-code">~/.local/share/nvim</code></td>
+                <td>Cache only</td>
+            </tr>
+            <tr>
+                <td>Neovim Mason LSPs</td>
+                <td>1-3GB</td>
+                <td><code class="inline-code">~/.local/share/nvim/mason</code></td>
+                <td>Reinstall via :Mason</td>
+            </tr>
+            <tr>
+                <td>Zed Cache</td>
+                <td>100MB-1GB</td>
+                <td><code class="inline-code">~/Library/Caches/dev.zed.Zed</code></td>
+                <td>Yes (close editor)</td>
+            </tr>
+            <tr>
+                <td>Language Server Caches</td>
+                <td>200MB-2GB</td>
+                <td>Various <code class="inline-code">~/.cache/</code> dirs</td>
+                <td>Yes (reindexes)</td>
+            </tr>
+        </table>
+
+        <!-- Section 12: FAQ -->
+        <h2 id="faq">12. FAQ</h2>
+
+        <details>
+            <summary>Will cleaning VS Code cache break my settings or extensions?</summary>
+            <p>No. Your settings are stored in <code class="inline-code">~/Library/Application Support/Code/User/settings.json</code> and extensions in <code class="inline-code">~/.vscode/extensions</code>. The cache directories (<code class="inline-code">Cache</code>, <code class="inline-code">CachedData</code>, <code class="inline-code">logs</code>) are safe to remove — VS Code rebuilds them on launch. Your keybindings, snippets, and profiles are unaffected.</p>
+        </details>
+
+        <details>
+            <summary>Why do JetBrains IDEs use so much disk space?</summary>
+            <p>JetBrains IDEs maintain deep semantic indexes of your entire codebase, including symbol tables, reference graphs, and compiled stubs for all dependencies. They also keep local VCS history and caches per project. Each IDE version creates separate directories, so after several updates you may have 3-4 copies of these caches. Enable "Auto-delete previous version" in Toolbox to prevent this.</p>
+        </details>
+
+        <details>
+            <summary>Is it safe to delete the entire <code class="inline-code">~/Library/Caches/JetBrains/</code> folder?</summary>
+            <p>Yes, but your IDE will need to re-index all projects on next launch, which can take several minutes for large codebases. The caches will be rebuilt automatically. Your settings, plugins, and license information are stored separately and won't be affected.</p>
+        </details>
+
+        <details>
+            <summary>How do I clean VS Code workspace storage for deleted projects?</summary>
+            <p>VS Code doesn't automatically clean up workspace storage when you delete a project folder. You can run the workspace storage audit script in Section 2.2 to identify entries pointing to folders that no longer exist, then delete those entries manually. Or simply remove the entire <code class="inline-code">workspaceStorage</code> directory — VS Code will recreate entries for projects you actually open.</p>
+        </details>
+
+        <details>
+            <summary>Will removing Neovim's Mason directory uninstall my LSP servers?</summary>
+            <p>Yes, removing <code class="inline-code">~/.local/share/nvim/mason</code> will remove all Mason-installed language servers, linters, and formatters. You can reinstall them by opening Neovim and running <code class="inline-code">:Mason</code>, or by running <code class="inline-code">:MasonInstall &lt;server-name&gt;</code> for each one. If you have Mason configured in your init.lua with <code class="inline-code">mason-lspconfig</code>, servers will be reinstalled automatically.</p>
+        </details>
+
+        <details>
+            <summary>Can ClearDisk monitor IDE caches automatically?</summary>
+            <p>Yes! <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free macOS menu bar app that monitors 44+ developer cache locations in real time, including VS Code caches, JetBrains caches, and extension directories. It shows exactly how much space each IDE is using and lets you clean them with a single click. Download it from the <a href="https://github.com/bysiber/cleardisk">GitHub repository</a>.</p>
+        </details>
+
+        <div class="cta">
+            <h3>Tired of Manually Cleaning IDE Caches?</h3>
+            <p>ClearDisk lives in your menu bar and monitors all your IDE caches in real time — VS Code, JetBrains, Cursor, Sublime Text, and 40+ other developer cache paths.</p>
+            <a href="https://github.com/bysiber/cleardisk" class="cta-button">Get ClearDisk — Free & Open Source</a>
+        </div>
+
+        <p><strong>Related guides:</strong></p>
+        <ul>
+            <li><a href="free-disk-space-mac-developer.html">The Complete Guide to Freeing Disk Space on Mac for Developers</a></li>
+            <li><a href="xcode-disk-space-cleanup-guide.html">Xcode Disk Space Cleanup Guide</a></li>
+            <li><a href="clean-node-modules-mac.html">Clean node_modules on Mac</a></li>
+            <li><a href="version-manager-cache-cleanup-mac.html">Version Manager Cache Cleanup on Mac</a></li>
+            <li><a href="mac-disk-cleaner-comparison.html">Mac Disk Cleaner Comparison</a></li>
+        </ul>
+
+        <p style="margin-top: 30px; color: #86868b; font-size: 0.9em;">
+            <strong>About ClearDisk:</strong> A free, open-source macOS menu bar utility that monitors developer cache disk usage in real time. 
+            Supports 44+ cache paths including Xcode, node_modules, CocoaPods, Gradle, Docker, pip, Cargo, Homebrew, and more. 
+            <a href="https://github.com/bysiber/cleardisk">View on GitHub</a>.
+        </p>
+    </div>
+
+    <footer>
+        &copy; 2025 ClearDisk. Free and open-source macOS developer tool.
+        <br><a href="https://github.com/bysiber/cleardisk">GitHub</a> · <a href="../index.html">Home</a> · <a href="index.html">Blog</a>
+    </footer>
+</body>
+</html>
