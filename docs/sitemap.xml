@@ -114,4 +114,22 @@
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
     </url>
+    <url>
+        <loc>https://bysiber.github.io/cleardisk/blog/deno-bun-cache-cleanup-mac.html</loc>
+        <lastmod>2026-03-05</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://bysiber.github.io/cleardisk/blog/ai-ml-model-cache-cleanup-mac.html</loc>
+        <lastmod>2026-03-05</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://bysiber.github.io/cleardisk/blog/macos-ci-runner-disk-cleanup.html</loc>
+        <lastmod>2025-03-05</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
 </urlset>

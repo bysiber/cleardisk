@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>macOS CI Runner Disk Space Cleanup — GitHub Actions Self-Hosted Runner Guide</title>
+    <meta name="description" content="macOS self-hosted GitHub Actions runners fill up fast. Learn how to clean DerivedData, Docker, Homebrew, npm, Gradle, and other developer caches on CI machines.">
+    <meta name="keywords" content="github actions self-hosted runner cleanup, macos ci disk space, github actions runner disk full, clean macos runner, xcode deriveddata ci, actions runner bloat, ci cache cleanup mac">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/macos-ci-runner-disk-cleanup.html">
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "macOS CI Runner Disk Space Cleanup — GitHub Actions Self-Hosted Runner Guide",
+        "description": "Complete guide to cleaning developer caches on macOS self-hosted GitHub Actions runners. Covers Xcode, Docker, Homebrew, npm, Gradle, and automated cleanup workflows.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-03-05",
+        "dateModified": "2025-03-05",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/macos-ci-runner-disk-cleanup.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        h2 { font-size: 1.5em; margin-top: 40px; margin-bottom: 15px; color: #1d1d1f; border-bottom: 2px solid #0071e3; padding-bottom: 5px; display: inline-block; }
+        h3 { font-size: 1.2em; margin-top: 25px; margin-bottom: 10px; }
+        
+        .meta { color: #6e6e73; margin-bottom: 30px; font-size: 0.95em; }
+        
+        p { margin-bottom: 15px; }
+        
+        .toc { background: #f5f5f7; padding: 20px 30px; border-radius: 12px; margin: 25px 0; }
+        .toc h3 { margin-top: 0; }
+        .toc ol { padding-left: 20px; }
+        .toc li { margin-bottom: 5px; }
+        .toc a { color: #0071e3; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+        
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 18px 22px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0 20px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            background: #f5f5f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .tip {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 30px 0;
+            text-align: center;
+        }
+        .cta h3 { color: white; margin-top: 0; }
+        .cta a { color: #ffd700; }
+        .cta code { background: rgba(255,255,255,0.2); color: white; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 10px 14px;
+            text-align: left;
+        }
+        th {
+            background: #f5f5f7;
+            font-weight: 600;
+        }
+
+        .faq { margin-top: 20px; }
+        .faq details { margin-bottom: 10px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 16px; }
+        .faq summary { font-weight: 600; cursor: pointer; }
+        .faq p { margin-top: 10px; }
+
+        a { color: #0071e3; }
+        
+        .breadcrumb { margin-bottom: 20px; font-size: 0.9em; }
+        .breadcrumb a { color: #6e6e73; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+
+        footer { margin-top: 60px; padding-top: 30px; border-top: 1px solid #e0e0e0; color: #6e6e73; font-size: 0.85em; }
+        footer a { color: #0071e3; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="../index.html">ClearDisk</a> / <a href="index.html">Blog</a> / CI Runner Cleanup
+        </div>
+
+        <h1>macOS CI Runner Disk Space Cleanup — GitHub Actions Self-Hosted Runner Guide</h1>
+        <p class="meta">Updated March 2025 · 12 min read · By <a href="https://github.com/bysiber">bysiber</a></p>
+
+        <p>macOS self-hosted GitHub Actions runners are expensive machines — and they fill up <strong>fast</strong>. Between Xcode DerivedData, Docker images, Homebrew caches, npm/yarn packages, Gradle artifacts, and runner update leftovers, a 256GB SSD can hit 90% capacity within weeks of active CI usage.</p>
+
+        <p>This guide covers every major cache path that accumulates on macOS CI runners, how to audit them, and how to set up automated cleanup workflows to keep your runners healthy.</p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ol>
+                <li><a href="#audit">Full Disk Audit for macOS Runners</a></li>
+                <li><a href="#runner-artifacts">GitHub Actions Runner Artifacts</a></li>
+                <li><a href="#xcode">Xcode Caches on CI</a></li>
+                <li><a href="#docker">Docker Caches</a></li>
+                <li><a href="#package-managers">Package Manager Caches</a></li>
+                <li><a href="#build-tools">Build Tool Caches</a></li>
+                <li><a href="#system">System-Level Caches</a></li>
+                <li><a href="#automated">Automated Weekly Cleanup Workflow</a></li>
+                <li><a href="#monitoring">Monitoring Disk Usage</a></li>
+                <li><a href="#cheatsheet">Quick Reference Cheatsheet</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ol>
+        </div>
+
+        <!-- Section 1 -->
+        <h2 id="audit">1. Full Disk Audit for macOS Runners</h2>
+        
+        <p>Before cleaning anything, understand what's consuming space. Run this comprehensive audit on your macOS runner:</p>
+
+        <pre><code># Overall disk usage
+df -h /
+
+# Top-level directory sizes
+sudo du -sh /* 2>/dev/null | sort -hr | head -20
+
+# User-level breakdown (where most dev caches live)
+du -sh ~/Library/Developer/* 2>/dev/null | sort -hr
+du -sh ~/Library/Caches/* 2>/dev/null | sort -hr
+du -sh ~/.* 2>/dev/null | sort -hr | head -20</code></pre>
+
+        <h3>Common macOS Runner Disk Usage Breakdown</h3>
+        <table>
+            <tr><th>Path</th><th>Typical Size</th><th>Growth Rate</th></tr>
+            <tr><td><code>~/Library/Developer/Xcode/DerivedData/</code></td><td>5-30 GB</td><td>Fast (every build)</td></tr>
+            <tr><td><code>~/Library/Developer/CoreSimulator/</code></td><td>5-20 GB</td><td>Per simulator version</td></tr>
+            <tr><td><code>~/Library/Developer/Xcode/iOS DeviceSupport/</code></td><td>2-10 GB</td><td>Per iOS version</td></tr>
+            <tr><td><code>~/Library/Caches/org.swift.swiftpm/</code></td><td>1-5 GB</td><td>Per dependency</td></tr>
+            <tr><td><code>~/.docker/</code></td><td>5-50 GB</td><td>Per image/layer</td></tr>
+            <tr><td><code>$(brew --cache)</code></td><td>2-10 GB</td><td>Per install/upgrade</td></tr>
+            <tr><td><code>~/.npm/</code></td><td>1-5 GB</td><td>Per package version</td></tr>
+            <tr><td><code>~/.gradle/caches/</code></td><td>2-15 GB</td><td>Per dependency version</td></tr>
+            <tr><td><code>~/actions-runner/_work/</code></td><td>5-30 GB</td><td>Per workflow run</td></tr>
+        </table>
+
+        <!-- Section 2 -->
+        <h2 id="runner-artifacts">2. GitHub Actions Runner Artifacts</h2>
+
+        <p>The runner itself accumulates bloat over time, especially with automatic updates:</p>
+
+        <h3>Runner work directory</h3>
+        <pre><code># Check work directory size
+du -sh ~/actions-runner/_work/ 2>/dev/null
+
+# Check individual repo work dirs
+du -sh ~/actions-runner/_work/*/ 2>/dev/null | sort -hr | head -10
+
+# Tool cache (setup-node, setup-python, etc.)
+du -sh ~/actions-runner/_work/_tool/ 2>/dev/null</code></pre>
+
+        <h3>Runner update leftovers</h3>
+        <pre><code># Old runner binaries from auto-updates
+ls -la ~/actions-runner/bin.* ~/actions-runner/externals.* 2>/dev/null
+
+# Clean old runner update artifacts
+rm -rf ~/actions-runner/bin.* ~/actions-runner/externals.* 2>/dev/null
+rm -rf ~/actions-runner/_work/_update/externals 2>/dev/null</code></pre>
+
+        <div class="warning">
+            <strong>⚠️ Warning:</strong> Don't delete <code>~/actions-runner/_work/</code> while workflows are running. Schedule cleanup during idle periods.
+        </div>
+
+        <h3>Clean stale work directories</h3>
+        <pre><code># Remove work dirs older than 7 days (safe for most CI setups)
+find ~/actions-runner/_work/ -maxdepth 1 -mindepth 1 -type d -mtime +7 -exec rm -rf {} + 2>/dev/null
+
+# Or remove all (runner recreates on next run)
+rm -rf ~/actions-runner/_work/*/</code></pre>
+
+        <!-- Section 3 -->
+        <h2 id="xcode">3. Xcode Caches on CI</h2>
+
+        <p>Xcode is the #1 disk space consumer on macOS CI runners. iOS/macOS builds generate massive DerivedData directories.</p>
+
+        <h3>DerivedData (biggest offender)</h3>
+        <pre><code># Check size
+du -sh ~/Library/Developer/Xcode/DerivedData/ 2>/dev/null
+
+# Clean all DerivedData
+rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
+# Alternative: clean only builds older than 3 days
+find ~/Library/Developer/Xcode/DerivedData/ -maxdepth 1 -mindepth 1 -mtime +3 -exec rm -rf {} + 2>/dev/null</code></pre>
+
+        <h3>iOS Simulators</h3>
+        <pre><code># List all simulators
+xcrun simctl list devices
+
+# Delete unavailable simulators
+xcrun simctl delete unavailable
+
+# Reset all simulator content
+xcrun simctl erase all
+
+# Nuclear: delete all simulator runtimes (re-downloads as needed)
+xcrun simctl runtime delete all 2>/dev/null</code></pre>
+
+        <h3>iOS DeviceSupport</h3>
+        <pre><code># Check size
+du -sh ~/Library/Developer/Xcode/iOS\ DeviceSupport/ 2>/dev/null
+
+# Remove old device support files (keep only latest)
+ls -t ~/Library/Developer/Xcode/iOS\ DeviceSupport/ | tail -n +3 | while read d; do
+    rm -rf "$HOME/Library/Developer/Xcode/iOS DeviceSupport/$d"
+done</code></pre>
+
+        <h3>Archives and build caches</h3>
+        <pre><code># Xcode Archives
+du -sh ~/Library/Developer/Xcode/Archives/ 2>/dev/null
+rm -rf ~/Library/Developer/Xcode/Archives/*
+
+# Swift Package Manager cache
+du -sh ~/Library/Caches/org.swift.swiftpm/ 2>/dev/null
+rm -rf ~/Library/Caches/org.swift.swiftpm/*
+
+# Xcode module cache
+rm -rf ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/*</code></pre>
+
+        <!-- Section 4 -->
+        <h2 id="docker">4. Docker Caches</h2>
+
+        <p>If your CI uses Docker (via Docker Desktop, Colima, or OrbStack), images and build caches accumulate quickly:</p>
+
+        <pre><code># Check Docker disk usage
+docker system df
+
+# Standard cleanup (removes stopped containers, unused networks, dangling images)
+docker system prune -f
+
+# Aggressive cleanup (removes ALL unused images, not just dangling)
+docker system prune -af
+
+# Also clean volumes
+docker system prune -af --volumes
+
+# If using BuildKit, clean build cache separately
+docker builder prune -af</code></pre>
+
+        <div class="tip">
+            <strong>💡 Tip:</strong> On CI runners, <code>docker system prune -af --volumes</code> is usually safe since you rebuild everything from scratch anyway.
+        </div>
+
+        <!-- Section 5 -->
+        <h2 id="package-managers">5. Package Manager Caches</h2>
+
+        <h3>Homebrew</h3>
+        <pre><code># Check cache size
+du -sh $(brew --cache) 2>/dev/null
+
+# Clean downloads and old versions
+brew cleanup --prune=0
+
+# Remove all cached downloads
+rm -rf $(brew --cache)/*</code></pre>
+
+        <h3>npm / Yarn / pnpm</h3>
+        <pre><code># npm cache
+du -sh ~/.npm/ 2>/dev/null
+npm cache clean --force
+
+# Yarn Classic cache
+du -sh ~/Library/Caches/Yarn/ 2>/dev/null
+yarn cache clean
+
+# Yarn Berry (v2+)
+du -sh ~/.yarn/berry/cache/ 2>/dev/null
+
+# pnpm store
+du -sh ~/Library/pnpm/store/ 2>/dev/null
+pnpm store prune</code></pre>
+
+        <h3>pip / Poetry</h3>
+        <pre><code># pip cache
+du -sh ~/Library/Caches/pip/ 2>/dev/null
+pip cache purge
+
+# Poetry cache
+du -sh ~/Library/Caches/pypoetry/ 2>/dev/null</code></pre>
+
+        <h3>CocoaPods</h3>
+        <pre><code># CocoaPods cache
+du -sh ~/Library/Caches/CocoaPods/ 2>/dev/null
+pod cache clean --all
+
+# CocoaPods repos
+du -sh ~/.cocoapods/repos/ 2>/dev/null</code></pre>
+
+        <!-- Section 6 -->
+        <h2 id="build-tools">6. Build Tool Caches</h2>
+
+        <h3>Gradle (Android / Java builds)</h3>
+        <pre><code># Gradle caches
+du -sh ~/.gradle/caches/ 2>/dev/null
+du -sh ~/.gradle/wrapper/ 2>/dev/null
+
+# Clean Gradle cache
+rm -rf ~/.gradle/caches/transforms-*
+rm -rf ~/.gradle/caches/build-cache-*
+rm -rf ~/.gradle/caches/journal-*
+
+# Or nuclear: remove all caches (slower first build)
+rm -rf ~/.gradle/caches/*</code></pre>
+
+        <h3>Cargo (Rust builds)</h3>
+        <pre><code># Cargo registry and git
+du -sh ~/.cargo/registry/ 2>/dev/null
+du -sh ~/.cargo/git/ 2>/dev/null
+
+# Clean registry
+rm -rf ~/.cargo/registry/cache/*
+rm -rf ~/.cargo/registry/src/*</code></pre>
+
+        <h3>Go modules</h3>
+        <pre><code># Go module cache
+du -sh ~/go/pkg/mod/ 2>/dev/null
+
+# Clean all Go caches
+go clean -cache -modcache -testcache</code></pre>
+
+        <!-- Section 7 -->
+        <h2 id="system">7. System-Level Caches</h2>
+
+        <pre><code># macOS system caches
+du -sh ~/Library/Caches/ 2>/dev/null
+
+# Log files
+du -sh ~/Library/Logs/ 2>/dev/null
+sudo du -sh /var/log/ 2>/dev/null
+
+# Spotlight index (can be large, rebuilds automatically)
+sudo mdutil -E / 2>/dev/null
+
+# Trash
+rm -rf ~/.Trash/*</code></pre>
+
+        <!-- Section 8 -->
+        <h2 id="automated">8. Automated Weekly Cleanup Workflow</h2>
+
+        <p>Create a GitHub Actions workflow that runs weekly to clean your macOS self-hosted runner:</p>
+
+        <pre><code># .github/workflows/runner-cleanup.yml
+name: macOS Runner Cleanup
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Every Sunday at 3 AM
+  workflow_dispatch:       # Allow manual trigger
+
+jobs:
+  cleanup:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Pre-cleanup disk usage
+        run: df -h /
+
+      - name: Clean Xcode caches
+        run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+          rm -rf ~/Library/Developer/Xcode/Archives/*
+          xcrun simctl delete unavailable 2>/dev/null || true
+          rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+
+      - name: Clean package managers
+        run: |
+          brew cleanup --prune=0 2>/dev/null || true
+          npm cache clean --force 2>/dev/null || true
+          pip cache purge 2>/dev/null || true
+          pod cache clean --all 2>/dev/null || true
+
+      - name: Clean build tools
+        run: |
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.gradle/caches/build-cache-*
+          go clean -cache 2>/dev/null || true
+
+      - name: Clean Docker
+        run: |
+          docker system prune -af --volumes 2>/dev/null || true
+          docker builder prune -af 2>/dev/null || true
+
+      - name: Clean runner artifacts
+        run: |
+          rm -rf ~/actions-runner/bin.* ~/actions-runner/externals.* 2>/dev/null || true
+          find ~/actions-runner/_work/ -maxdepth 1 -mindepth 1 -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Clean system caches
+        run: |
+          rm -rf ~/Library/Logs/*
+          rm -rf ~/.Trash/*
+
+      - name: Post-cleanup disk usage
+        run: df -h /</code></pre>
+
+        <div class="tip">
+            <strong>💡 Tip:</strong> Add <code>workflow_dispatch</code> to allow manual trigger when disk is critically low.
+        </div>
+
+        <!-- Section 9 -->
+        <h2 id="monitoring">9. Monitoring Disk Usage</h2>
+
+        <p>Set up proactive monitoring so you catch disk issues before builds start failing:</p>
+
+        <h3>GitHub Actions step to check disk before each build</h3>
+        <pre><code># Add this as the FIRST step in your CI workflows
+- name: Check disk space
+  run: |
+    USAGE=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
+    echo "Disk usage: ${USAGE}%"
+    if [ "$USAGE" -gt 85 ]; then
+      echo "⚠️ WARNING: Disk usage is above 85%!"
+      echo "Running emergency cleanup..."
+      rm -rf ~/Library/Developer/Xcode/DerivedData/*
+      brew cleanup --prune=0 2>/dev/null || true
+      docker system prune -af 2>/dev/null || true
+      echo "Post-cleanup:"
+      df -h /
+    fi</code></pre>
+
+        <h3>Using ClearDisk for visual monitoring</h3>
+        <p>If your macOS runners have screen access (e.g., Mac minis), <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> provides a real-time menu bar indicator showing total developer cache usage across 44+ paths. One glance tells you if the runner needs cleanup.</p>
+
+        <pre><code># Install ClearDisk on macOS runners
+brew tap bysiber/cleardisk
+brew install --cask cleardisk</code></pre>
+
+        <!-- Section 10 -->
+        <h2 id="cheatsheet">10. Quick Reference Cheatsheet</h2>
+
+        <pre><code>#!/bin/bash
+# macos-runner-cleanup.sh — Complete CI runner cleanup script
+# Usage: ./macos-runner-cleanup.sh [--aggressive]
+
+echo "=== macOS CI Runner Cleanup ==="
+echo "Before: $(df -h / | tail -1 | awk '{print $4}') free"
+
+# Xcode (always safe on CI)
+rm -rf ~/Library/Developer/Xcode/DerivedData/*
+rm -rf ~/Library/Developer/Xcode/Archives/*
+rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+xcrun simctl delete unavailable 2>/dev/null
+
+# Package managers
+brew cleanup --prune=0 2>/dev/null
+npm cache clean --force 2>/dev/null
+pip cache purge 2>/dev/null
+pod cache clean --all 2>/dev/null
+
+# Build tools
+rm -rf ~/.gradle/caches/transforms-*
+rm -rf ~/.gradle/caches/build-cache-*
+go clean -cache 2>/dev/null
+
+# Docker
+docker system prune -f 2>/dev/null
+
+# Runner artifacts
+rm -rf ~/actions-runner/bin.* ~/actions-runner/externals.* 2>/dev/null
+
+# System
+rm -rf ~/Library/Logs/* ~/.Trash/*
+
+if [[ "$1" == "--aggressive" ]]; then
+    echo "=== Aggressive mode ==="
+    docker system prune -af --volumes 2>/dev/null
+    rm -rf ~/.gradle/caches/*
+    rm -rf ~/.npm/*
+    rm -rf ~/Library/Caches/pip/*
+    rm -rf ~/.cargo/registry/cache/* ~/.cargo/registry/src/*
+    go clean -cache -modcache 2>/dev/null
+    rm -rf ~/Library/Caches/CocoaPods/*
+    rm -rf ~/Library/Caches/org.swift.swiftpm/*
+fi
+
+echo "After: $(df -h / | tail -1 | awk '{print $4}') free"</code></pre>
+
+        <!-- CTA -->
+        <div class="cta">
+            <h3>Monitor All Cache Paths Automatically</h3>
+            <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free, open-source macOS menu bar utility that monitors 44+ developer cache paths in real-time — perfect for keeping an eye on your CI runner disk usage.</p>
+            <p style="margin-top: 15px;">
+                <code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code>
+            </p>
+        </div>
+
+        <!-- FAQ -->
+        <h2 id="faq">FAQ</h2>
+        <div class="faq">
+            <details>
+                <summary>How often should I clean my macOS CI runner?</summary>
+                <p>Weekly cleanup is sufficient for most teams. If you run 50+ builds per day or build large Xcode projects, consider daily cleanup of DerivedData and Docker caches. Set up the automated workflow in section 8.</p>
+            </details>
+            <details>
+                <summary>Is it safe to delete DerivedData on a CI runner?</summary>
+                <p>Yes. DerivedData contains build intermediates that are regenerated on the next build. On CI, builds typically start fresh anyway. The only downside is a slightly slower first build after cleanup.</p>
+            </details>
+            <details>
+                <summary>How much space can I typically recover?</summary>
+                <p>On an active macOS CI runner that hasn't been cleaned in a month, expect to recover <strong>20-60 GB</strong>. The biggest contributors are usually DerivedData (5-30 GB), Docker images (5-50 GB), and Homebrew cache (2-10 GB).</p>
+            </details>
+            <details>
+                <summary>Should I clean caches on GitHub-hosted macOS runners?</summary>
+                <p>GitHub-hosted runners are ephemeral — they're destroyed after each workflow run. Cleanup is only needed for <strong>self-hosted</strong> runners that persist between jobs.</p>
+            </details>
+            <details>
+                <summary>Will cleanup break my cached dependencies?</summary>
+                <p>Package manager caches (npm, pip, brew, etc.) are just download caches. Deleting them means packages will be re-downloaded on the next install, which takes a few extra minutes but won't break anything.</p>
+            </details>
+        </div>
+
+        <footer>
+            <p><strong>More macOS cleanup guides:</strong></p>
+            <p>
+                <a href="free-disk-space-mac-developer.html">Free 50GB+ on Your Mac</a> · 
+                <a href="xcode-disk-space-cleanup-guide.html">Xcode Cleanup Guide</a> · 
+                <a href="clean-node-modules-mac.html">Clean node_modules</a> · 
+                <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> · 
+                <a href="homebrew-cleanup-guide-mac.html">Homebrew Cleanup</a> · 
+                <a href="python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> · 
+                <a href="rust-cargo-cache-cleanup-mac.html">Rust/Cargo Cleanup</a> · 
+                <a href="go-module-cache-cleanup-mac.html">Go Module Cleanup</a> · 
+                <a href="gradle-cache-cleanup-mac.html">Gradle Cleanup</a> · 
+                <a href="cocoapods-cache-cleanup-mac.html">CocoaPods Cleanup</a> · 
+                <a href="npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm Cleanup</a> · 
+                <a href="deno-bun-cache-cleanup-mac.html">Deno/Bun Cleanup</a> · 
+                <a href="ai-ml-model-cache-cleanup-mac.html">AI/ML Model Cleanup</a> ·
+                <a href="terraform-opentofu-cache-cleanup-mac.html">Terraform/OpenTofu Cleanup</a> ·
+                <a href="maven-sbt-cache-cleanup-mac.html">Maven/SBT Cleanup</a> ·
+                <a href="xcode-simulators-device-support-cleanup-mac.html">Xcode Simulators Cleanup</a> ·
+                <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a>
+            </p>
+            <p style="margin-top: 15px;">
+                <a href="https://github.com/bysiber/cleardisk">⭐ Star ClearDisk on GitHub</a> · 
+                <a href="../index.html">ClearDisk Home</a> · 
+                <a href="index.html">All Blog Posts</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
