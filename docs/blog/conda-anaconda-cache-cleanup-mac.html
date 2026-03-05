@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conda & Anaconda Cache Cleanup on Mac — Reclaim 10-40GB+ (2025 Guide)</title>
+    <meta name="description" content="Conda environments, package caches, and Anaconda installations can consume 10-40GB+ on your Mac. Learn how to audit, clean, and manage conda disk usage with exact commands.">
+    <meta name="keywords" content="conda clean mac, anaconda disk space, miniconda cache cleanup, conda clean all, conda remove environment, conda cache size, anaconda taking up space mac, conda pkgs cleanup, free disk space conda mac, conda environments disk usage">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/conda-anaconda-cache-cleanup-mac.html">
+
+    <meta property="og:title" content="Conda & Anaconda Cache Cleanup on Mac — Reclaim 10-40GB+">
+    <meta property="og:description" content="Conda environments and package caches can consume 10-40GB+ on your Mac. Learn how to reclaim all of it.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/conda-anaconda-cache-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Conda & Anaconda Cache Cleanup on Mac — Reclaim 10-40GB+ (2025 Guide)",
+        "description": "Conda environments, package caches, and Anaconda installations can consume 10-40GB+ on your Mac. Complete guide to auditing and cleaning everything safely.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-03-05",
+        "dateModified": "2025-03-05",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/conda-anaconda-cache-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+        .cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 40px 0;
+        }
+        .cta a { color: white; text-decoration: underline; }
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            font-weight: 600;
+            margin-top: 15px;
+            text-decoration: none;
+        }
+        .cta-button:hover { text-decoration: none; opacity: 0.9; }
+        details { margin: 10px 0; }
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 0;
+            color: #0066cc;
+        }
+        summary:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>Conda & Anaconda Cache Cleanup on Mac — Reclaim 10-40GB+</h1>
+        <p class="meta">Updated March 2025 -- Covers Anaconda, Miniconda, Miniforge, Mamba, and conda-forge -- 10 min read</p>
+
+        <p>If you use conda for data science, machine learning, or scientific computing on macOS, you may not realize how much disk space your conda installation is consuming. Between downloaded package tarballs, extracted packages in <code class="inline-code">pkgs/</code>, multiple environments, and the base installation itself, it's common to find <strong>10-40GB+</strong> of conda-related files on a developer Mac.</p>
+
+        <p>This guide covers every conda-related disk consumer on macOS, with exact commands to audit and clean each one safely.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit — Where Is Your Conda Disk Space Going?</a>
+            <a href="#pkgs-cache">2. Package Cache (pkgs/) — The #1 Space Consumer</a>
+            <a href="#environments">3. Conda Environments — The Hidden Giants</a>
+            <a href="#conda-clean">4. conda clean — The Built-In Cleanup Tool</a>
+            <a href="#anaconda-vs-miniconda">5. Anaconda vs. Miniconda — Why It Matters for Disk Space</a>
+            <a href="#index-cache">6. Index Cache and Metadata</a>
+            <a href="#mamba">7. Mamba / Micromamba Caches</a>
+            <a href="#jupyter">8. Jupyter and Notebook Storage</a>
+            <a href="#full-removal">9. Completely Removing Conda from macOS</a>
+            <a href="#automation">10. Automate Conda Cleanup</a>
+            <a href="#cheatsheet">11. Quick Reference Cheatsheet</a>
+            <a href="#faq">12. FAQ</a>
+        </div>
+
+        <!-- Section 1 -->
+        <h2 id="audit">1. Quick Audit — Where Is Your Conda Disk Space Going?</h2>
+
+        <p>Before cleaning anything, let's see exactly what's consuming disk space. Run this audit script:</p>
+
+<pre><span style="color:#86868b"># Full conda disk audit</span>
+echo "=== Conda base installation ==="
+du -sh ~/miniconda3/ 2>/dev/null
+du -sh ~/anaconda3/ 2>/dev/null
+du -sh ~/miniforge3/ 2>/dev/null
+du -sh ~/mambaforge/ 2>/dev/null
+du -sh /opt/homebrew/Caskroom/miniconda/ 2>/dev/null
+
+echo ""
+echo "=== Package cache (pkgs/) ==="
+du -sh ~/miniconda3/pkgs/ 2>/dev/null
+du -sh ~/anaconda3/pkgs/ 2>/dev/null
+du -sh ~/miniforge3/pkgs/ 2>/dev/null
+
+echo ""
+echo "=== Environments ==="
+du -sh ~/miniconda3/envs/*/ 2>/dev/null | sort -hr
+du -sh ~/anaconda3/envs/*/ 2>/dev/null | sort -hr
+
+echo ""
+echo "=== Conda metadata ==="
+du -sh ~/.conda/ 2>/dev/null
+du -sh ~/.condarc 2>/dev/null
+
+echo ""
+echo "=== Total conda disk usage ==="
+du -sh ~/miniconda3/ ~/anaconda3/ ~/miniforge3/ ~/mambaforge/ 2>/dev/null</pre>
+
+        <p>Typical results on a data science Mac:</p>
+
+        <table>
+            <thead>
+                <tr><th>Location</th><th>Typical Size</th><th>What It Contains</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code class="inline-code">~/anaconda3/</code></td><td><span class="size-badge">5-25GB</span></td><td>Full Anaconda distribution + packages</td></tr>
+                <tr><td><code class="inline-code">~/miniconda3/</code></td><td><span class="size-badge">1-15GB</span></td><td>Minimal installer + installed packages</td></tr>
+                <tr><td><code class="inline-code">pkgs/</code></td><td><span class="size-badge">2-10GB</span></td><td>Downloaded package tarballs and extracted packages</td></tr>
+                <tr><td><code class="inline-code">envs/</code></td><td><span class="size-badge">1-20GB</span></td><td>All created environments</td></tr>
+                <tr><td><code class="inline-code">~/.conda/</code></td><td>50-500MB</td><td>Index cache, environment registry</td></tr>
+            </tbody>
+        </table>
+
+        <!-- Section 2 -->
+        <h2 id="pkgs-cache">2. Package Cache (pkgs/) — The #1 Space Consumer</h2>
+
+        <p>The <code class="inline-code">pkgs/</code> directory is conda's package cache. Every package you've ever installed is cached here — both the compressed tarball and the extracted version. This directory only grows; conda never automatically cleans it.</p>
+
+<pre><span style="color:#86868b"># See exactly what's in the package cache</span>
+du -sh ~/miniconda3/pkgs/ 2>/dev/null
+ls ~/miniconda3/pkgs/ | wc -l
+
+<span style="color:#86868b"># Top 20 largest cached packages</span>
+du -sh ~/miniconda3/pkgs/*/ 2>/dev/null | sort -hr | head -20
+
+<span style="color:#86868b"># Count compressed tarballs vs extracted dirs</span>
+ls ~/miniconda3/pkgs/*.tar.bz2 2>/dev/null | wc -l
+ls ~/miniconda3/pkgs/*.conda 2>/dev/null | wc -l</pre>
+
+        <p>Why is it so large? Every time conda installs or updates a package, both the download archive and extracted files are kept. If you've been using conda for a year or more, you likely have hundreds of cached packages — many for versions you no longer use.</p>
+
+        <h3>Clean the Package Cache</h3>
+
+<pre><span style="color:#86868b"># Remove only tarballs (safest — packages stay extracted)</span>
+conda clean --tarballs -y
+
+<span style="color:#86868b"># Remove unused extracted packages</span>
+conda clean --packages -y
+
+<span style="color:#86868b"># Remove both tarballs AND unused packages</span>
+conda clean --all -y
+
+<span style="color:#86868b"># Dry run — see what would be removed without deleting</span>
+conda clean --all --dry-run</pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> Running <code class="inline-code">conda clean --all -y</code> is safe. It only removes cached downloads and packages not currently linked to any environment. Active environments are never touched.
+        </div>
+
+        <!-- Section 3 -->
+        <h2 id="environments">3. Conda Environments — The Hidden Giants</h2>
+
+        <p>Each conda environment is a complete, isolated copy of Python and its packages. A single data science environment with PyTorch, TensorFlow, or JAX can easily be 3-8GB. Multiple environments multiply this quickly.</p>
+
+<pre><span style="color:#86868b"># List all environments with their locations</span>
+conda env list
+
+<span style="color:#86868b"># Size of each environment</span>
+du -sh ~/miniconda3/envs/*/ 2>/dev/null | sort -hr
+du -sh ~/anaconda3/envs/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># Check what packages are in an environment</span>
+conda list -n my_env
+
+<span style="color:#86868b"># Count packages per environment</span>
+for env in $(conda env list | grep -v "^#" | awk '{print $1}' | grep -v "^$"); do
+    count=$(conda list -n "$env" 2>/dev/null | grep -v "^#" | wc -l)
+    echo "$env: $count packages"
+done</pre>
+
+        <h3>Remove Unused Environments</h3>
+
+<pre><span style="color:#86868b"># Remove a specific environment</span>
+conda env remove -n old_project
+
+<span style="color:#86868b"># Remove by path (for envs created with --prefix)</span>
+conda env remove -p /path/to/env
+
+<span style="color:#86868b"># Force remove even if active</span>
+conda deactivate
+conda env remove -n unwanted_env</pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> Before removing an environment, export it if you might need it later:
+            <pre style="margin-top:10px">conda env export -n my_env > my_env_backup.yml</pre>
+            You can recreate it later with <code class="inline-code">conda env create -f my_env_backup.yml</code>
+        </div>
+
+        <h3>Find Stale Environments</h3>
+
+        <p>Look for environments you haven't used recently:</p>
+
+<pre><span style="color:#86868b"># Find envs not accessed in 60+ days (by python binary access time)</span>
+for env_dir in ~/miniconda3/envs/*/; do
+    env_name=$(basename "$env_dir")
+    last_access=$(stat -f "%Sa" -t "%Y-%m-%d" "$env_dir/bin/python" 2>/dev/null || echo "unknown")
+    size=$(du -sh "$env_dir" 2>/dev/null | awk '{print $1}')
+    echo "$size  $env_name  (last accessed: $last_access)"
+done | sort -hr</pre>
+
+        <!-- Section 4 -->
+        <h2 id="conda-clean">4. conda clean — The Built-In Cleanup Tool</h2>
+
+        <p>Conda has a built-in <code class="inline-code">conda clean</code> command with several useful flags:</p>
+
+        <table>
+            <thead>
+                <tr><th>Command</th><th>What It Cleans</th><th>Typical Savings</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code class="inline-code">conda clean -t</code></td><td>Compressed tarballs (.tar.bz2, .conda)</td><td>1-5GB</td></tr>
+                <tr><td><code class="inline-code">conda clean -p</code></td><td>Unused extracted packages</td><td>1-5GB</td></tr>
+                <tr><td><code class="inline-code">conda clean -i</code></td><td>Index cache (channel metadata)</td><td>50-200MB</td></tr>
+                <tr><td><code class="inline-code">conda clean -l</code></td><td>Lock files</td><td>Minimal</td></tr>
+                <tr><td><code class="inline-code">conda clean -f</code></td><td>Temp files and logfiles</td><td>Varies</td></tr>
+                <tr><td><code class="inline-code">conda clean --all</code></td><td>All of the above</td><td>2-10GB</td></tr>
+            </tbody>
+        </table>
+
+<pre><span style="color:#86868b"># The most common cleanup command</span>
+conda clean --all -y
+
+<span style="color:#86868b"># Preview what would be cleaned</span>
+conda clean --all --dry-run
+
+<span style="color:#86868b"># Clean only index cache (useful when having solver issues)</span>
+conda clean -i -y</pre>
+
+        <!-- Section 5 -->
+        <h2 id="anaconda-vs-miniconda">5. Anaconda vs. Miniconda — Why It Matters for Disk Space</h2>
+
+        <p>The choice between Anaconda and Miniconda has a huge impact on disk usage:</p>
+
+        <table>
+            <thead>
+                <tr><th>Distribution</th><th>Base Install Size</th><th>Included Packages</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>Anaconda</strong></td><td><span class="size-badge">4-6GB</span></td><td>250+ packages (NumPy, Pandas, SciPy, Jupyter, etc.)</td></tr>
+                <tr><td><strong>Miniconda</strong></td><td>200-400MB</td><td>Minimal (conda + Python only)</td></tr>
+                <tr><td><strong>Miniforge</strong></td><td>200-400MB</td><td>Minimal (conda-forge defaults)</td></tr>
+                <tr><td><strong>Micromamba</strong></td><td>~10MB</td><td>Standalone binary (no Python)</td></tr>
+            </tbody>
+        </table>
+
+        <div class="tip">
+            <strong>Tip:</strong> If you're using Anaconda and only need a few packages, consider switching to Miniconda. You'll save 4-5GB immediately on the base install, and you can install exactly what you need per environment.
+        </div>
+
+        <h3>Migrate from Anaconda to Miniconda</h3>
+
+<pre><span style="color:#86868b"># 1. Export your environments first</span>
+conda env list
+conda env export -n my_project > my_project.yml
+conda env export -n ml_env > ml_env.yml
+
+<span style="color:#86868b"># 2. Remove Anaconda</span>
+conda install anaconda-clean -y
+anaconda-clean --yes
+rm -rf ~/anaconda3/
+
+<span style="color:#86868b"># 3. Install Miniconda</span>
+<span style="color:#86868b"># Download from https://docs.conda.io/en/latest/miniconda.html</span>
+bash Miniconda3-latest-MacOSX-arm64.sh
+
+<span style="color:#86868b"># 4. Recreate only the environments you need</span>
+conda env create -f my_project.yml</pre>
+
+        <!-- Section 6 -->
+        <h2 id="index-cache">6. Index Cache and Metadata</h2>
+
+        <p>Conda caches channel index data to speed up environment solving. Over time, this metadata accumulates:</p>
+
+<pre><span style="color:#86868b"># Check index cache size</span>
+du -sh ~/.conda/ 2>/dev/null
+du -sh ~/miniconda3/pkgs/cache/ 2>/dev/null
+
+<span style="color:#86868b"># List conda config (channels add to cache size)</span>
+conda config --show channels
+
+<span style="color:#86868b"># Clean index cache</span>
+conda clean -i -y
+
+<span style="color:#86868b"># Remove channel metadata</span>
+rm -rf ~/.conda/pkgs_dirs/ 2>/dev/null</pre>
+
+        <p>If you have many custom channels configured (conda-forge, bioconda, pytorch, nvidia), the index cache can grow to several hundred MB. Cleaning it forces a fresh download on next install, which also fixes solver issues caused by stale metadata.</p>
+
+        <!-- Section 7 -->
+        <h2 id="mamba">7. Mamba / Micromamba Caches</h2>
+
+        <p>If you use Mamba (the faster conda alternative) or Micromamba, they have their own cache locations:</p>
+
+<pre><span style="color:#86868b"># Mamba uses the same pkgs/ directory as conda</span>
+<span style="color:#86868b"># So conda clean works for mamba too</span>
+mamba clean --all -y
+
+<span style="color:#86868b"># Micromamba has its own root</span>
+du -sh ~/micromamba/ 2>/dev/null
+du -sh ~/.local/share/mamba/ 2>/dev/null
+micromamba clean --all -y
+
+<span style="color:#86868b"># Check Mambaforge installation</span>
+du -sh ~/mambaforge/ 2>/dev/null
+du -sh ~/mambaforge/pkgs/ 2>/dev/null</pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> If you've switched from conda to mamba but still have the old conda installation, you may be paying for both. Check <code class="inline-code">which conda</code> and <code class="inline-code">which mamba</code> to see what's active.
+        </div>
+
+        <!-- Section 8 -->
+        <h2 id="jupyter">8. Jupyter and Notebook Storage</h2>
+
+        <p>Conda is often paired with Jupyter, which has its own disk footprint:</p>
+
+<pre><span style="color:#86868b"># Jupyter data directory</span>
+du -sh ~/Library/Jupyter/ 2>/dev/null
+
+<span style="color:#86868b"># Jupyter kernels (one per environment)</span>
+jupyter kernelspec list 2>/dev/null
+du -sh ~/Library/Jupyter/kernels/*/ 2>/dev/null
+
+<span style="color:#86868b"># IPython history and cache</span>
+du -sh ~/.ipython/ 2>/dev/null
+
+<span style="color:#86868b"># Jupyter runtime files</span>
+du -sh ~/Library/Jupyter/runtime/ 2>/dev/null
+
+<span style="color:#86868b"># Notebook checkpoints scattered across projects</span>
+find ~ -maxdepth 5 -type d -name ".ipynb_checkpoints" 2>/dev/null | head -20</pre>
+
+        <h3>Clean Jupyter Artifacts</h3>
+
+<pre><span style="color:#86868b"># Remove orphaned kernels (from deleted environments)</span>
+jupyter kernelspec list
+jupyter kernelspec uninstall old_kernel_name
+
+<span style="color:#86868b"># Clean notebook checkpoints</span>
+find ~/projects -type d -name ".ipynb_checkpoints" -exec rm -rf {} + 2>/dev/null
+
+<span style="color:#86868b"># Clear IPython history</span>
+rm -rf ~/.ipython/profile_default/history.sqlite 2>/dev/null</pre>
+
+        <!-- Section 9 -->
+        <h2 id="full-removal">9. Completely Removing Conda from macOS</h2>
+
+        <p>If you want to completely remove conda and start fresh (or switch to a different setup):</p>
+
+<pre><span style="color:#86868b"># 1. Export environments you want to keep</span>
+for env in $(conda env list | grep -v "^#" | awk '{print $1}' | grep -v "^$" | grep -v "base"); do
+    conda env export -n "$env" > "${env}_backup.yml" 2>/dev/null
+    echo "Exported: $env"
+done
+
+<span style="color:#86868b"># 2. Optional: Install anaconda-clean for thorough removal</span>
+conda install anaconda-clean -y
+anaconda-clean --yes
+
+<span style="color:#86868b"># 3. Remove the installation directory</span>
+rm -rf ~/miniconda3/     <span style="color:#86868b"># or ~/anaconda3/ or ~/miniforge3/</span>
+rm -rf ~/mambaforge/
+
+<span style="color:#86868b"># 4. Remove conda configuration</span>
+rm -rf ~/.conda/
+rm -f ~/.condarc
+
+<span style="color:#86868b"># 5. Remove shell initialization from ~/.zshrc</span>
+<span style="color:#86868b"># Edit ~/.zshrc and remove the conda initialize block:</span>
+<span style="color:#86868b"># >>> conda initialize >>></span>
+<span style="color:#86868b"># ... (several lines)</span>
+<span style="color:#86868b"># <<< conda initialize <<<</span>
+
+<span style="color:#86868b"># 6. Remove Jupyter artifacts</span>
+rm -rf ~/Library/Jupyter/
+
+<span style="color:#86868b"># 7. Verify nothing remains</span>
+which conda
+which python3</pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> Removing conda deletes <strong>all environments and installed packages</strong>. Make sure to export any environments you want to recreate later.
+        </div>
+
+        <!-- Section 10 -->
+        <h2 id="automation">10. Automate Conda Cleanup</h2>
+
+        <p>Add a weekly cleanup to your crontab or create an alias:</p>
+
+<pre><span style="color:#86868b"># Add to ~/.zshrc for a convenient alias</span>
+alias conda-cleanup='conda clean --all -y && echo "Conda cache cleaned!"'
+
+<span style="color:#86868b"># Or create a full cleanup script</span>
+cat &lt;&lt; 'EOF' &gt; ~/scripts/conda_cleanup.sh
+#!/bin/bash
+echo "=== Conda Cleanup ==="
+echo "Before:"
+du -sh ~/miniconda3/ 2>/dev/null || du -sh ~/anaconda3/ 2>/dev/null
+
+# Clean all caches
+conda clean --all -y
+
+# Report stale environments
+echo ""
+echo "=== Environments (check for unused) ==="
+for env_dir in ~/miniconda3/envs/*/; do
+    [ -d "$env_dir" ] || continue
+    name=$(basename "$env_dir")
+    size=$(du -sh "$env_dir" 2>/dev/null | awk '{print $1}')
+    echo "  $size  $name"
+done | sort -hr
+
+echo ""
+echo "After:"
+du -sh ~/miniconda3/ 2>/dev/null || du -sh ~/anaconda3/ 2>/dev/null
+echo "Done!"
+EOF
+chmod +x ~/scripts/conda_cleanup.sh</pre>
+
+        <h3>Scheduled Cleanup with cron</h3>
+
+<pre><span style="color:#86868b"># Run conda clean weekly (every Sunday at 3am)</span>
+crontab -e
+<span style="color:#86868b"># Add this line:</span>
+0 3 * * 0 /Users/$(whoami)/miniconda3/bin/conda clean --all -y >> /tmp/conda_cleanup.log 2>&1</pre>
+
+        <div class="cta">
+            <h3>Monitor All Developer Caches in Real-Time</h3>
+            <p>Conda is just one of 44+ developer cache paths that ClearDisk monitors. See your total developer disk usage — including pip, Docker, Xcode, Homebrew, node_modules, and more — right from the menu bar.</p>
+            <a href="https://github.com/bysiber/cleardisk" class="cta-button">Get ClearDisk (Free & Open Source)</a>
+        </div>
+
+        <!-- Section 11 -->
+        <h2 id="cheatsheet">11. Quick Reference Cheatsheet</h2>
+
+        <table>
+            <thead>
+                <tr><th>Task</th><th>Command</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Full conda disk audit</td>
+                    <td><code>du -sh ~/miniconda3/ ~/anaconda3/ 2>/dev/null</code></td>
+                </tr>
+                <tr>
+                    <td>Clean all caches</td>
+                    <td><code>conda clean --all -y</code></td>
+                </tr>
+                <tr>
+                    <td>Preview cleanup</td>
+                    <td><code>conda clean --all --dry-run</code></td>
+                </tr>
+                <tr>
+                    <td>Clean only tarballs</td>
+                    <td><code>conda clean --tarballs -y</code></td>
+                </tr>
+                <tr>
+                    <td>List environments</td>
+                    <td><code>conda env list</code></td>
+                </tr>
+                <tr>
+                    <td>Remove environment</td>
+                    <td><code>conda env remove -n env_name</code></td>
+                </tr>
+                <tr>
+                    <td>Export environment</td>
+                    <td><code>conda env export -n env_name > backup.yml</code></td>
+                </tr>
+                <tr>
+                    <td>Recreate environment</td>
+                    <td><code>conda env create -f backup.yml</code></td>
+                </tr>
+                <tr>
+                    <td>Package cache size</td>
+                    <td><code>du -sh ~/miniconda3/pkgs/</code></td>
+                </tr>
+                <tr>
+                    <td>Clean index cache</td>
+                    <td><code>conda clean -i -y</code></td>
+                </tr>
+                <tr>
+                    <td>Mamba cleanup</td>
+                    <td><code>mamba clean --all -y</code></td>
+                </tr>
+                <tr>
+                    <td>Jupyter kernels</td>
+                    <td><code>jupyter kernelspec list</code></td>
+                </tr>
+                <tr>
+                    <td>Remove Jupyter kernel</td>
+                    <td><code>jupyter kernelspec uninstall kernel_name</code></td>
+                </tr>
+                <tr>
+                    <td>GUI monitoring (all caches)</td>
+                    <td><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Section 12: FAQ -->
+        <h2 id="faq">12. FAQ</h2>
+
+        <details>
+            <summary>Is conda clean --all safe to run?</summary>
+            <p>Yes. It only removes cached downloads (tarballs), unused extracted packages, and index metadata. Your active environments and installed packages are never touched. You can verify with <code class="inline-code">conda clean --all --dry-run</code> first.</p>
+        </details>
+
+        <details>
+            <summary>Why does conda use so much disk space compared to pip?</summary>
+            <p>Conda environments are fully isolated — each one gets its own copy of Python, NumPy, and every dependency. Pip with virtualenvs shares more between environments. Additionally, conda caches both compressed archives and extracted packages in <code class="inline-code">pkgs/</code>, doubling the cache footprint.</p>
+        </details>
+
+        <details>
+            <summary>Should I switch from Anaconda to Miniconda?</summary>
+            <p>If disk space is a concern, yes. The Anaconda distribution includes 250+ packages that many users never touch. Miniconda starts minimal and lets you install only what you need. The savings are typically 4-5GB on the base install alone.</p>
+        </details>
+
+        <details>
+            <summary>Will cleaning the cache slow down future installs?</summary>
+            <p>Only slightly. Cleaned packages will need to be re-downloaded if you install them again. On a modern internet connection, this adds a few seconds per package. The disk space savings (often 5-10GB) are usually worth it.</p>
+        </details>
+
+        <details>
+            <summary>How do I clean conda caches on a CI runner?</summary>
+            <p>Add <code class="inline-code">conda clean --all -y</code> as a post-job step. On GitHub Actions, also consider using the <code class="inline-code">setup-miniconda</code> action with <code class="inline-code">auto-activate-base: false</code> and caching only the environment directory, not the full conda installation. See our <a href="macos-ci-runner-disk-cleanup.html">CI Runner Cleanup Guide</a> for more details.</p>
+        </details>
+
+        <details>
+            <summary>Can ClearDisk monitor conda caches?</summary>
+            <p>Yes. <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> monitors 44+ developer cache paths on macOS, including conda/miniconda directories, pip cache, and other Python-related paths. It runs as a menu bar app and shows real-time disk usage for all developer caches.</p>
+        </details>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> | <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Guide</a> | <a href="clean-node-modules-mac.html">node_modules Guide</a> | <a href="homebrew-cleanup-guide-mac.html">Homebrew Guide</a> | <a href="mac-disk-cleaner-comparison.html">Tool Comparison</a> | <a href="rust-cargo-cache-cleanup-mac.html">Rust/Cargo Guide</a> | <a href="go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> | <a href="gradle-cache-cleanup-mac.html">Gradle Cleanup</a> | <a href="cocoapods-cache-cleanup-mac.html">CocoaPods Cleanup</a> | <a href="npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm Cleanup</a> | <a href="maven-sbt-cache-cleanup-mac.html">Maven/sbt Cleanup</a> | <a href="macos-ci-runner-disk-cleanup.html">CI Runner Cleanup</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
