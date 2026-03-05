@@ -95,7 +95,7 @@ That's it. Homebrew handles everything, including the quarantine flag.
 ```bash
 git clone https://github.com/bysiber/cleardisk.git
 cd cleardisk
-bash build_app.sh
+bash scripts/build_app.sh
 cp -R ClearDisk.app /Applications/
 xattr -cr /Applications/ClearDisk.app
 open /Applications/ClearDisk.app
