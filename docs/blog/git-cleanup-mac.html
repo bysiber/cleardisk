@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Repository Cleanup on Mac — Reclaim 2-20GB+ from .git Directories (2025 Guide)</title>
+    <meta name="description" content="Git repositories accumulate large .git directories, orphaned worktrees, old refs, and stale LFS objects. Learn how to audit and clean git disk usage on macOS with exact commands.">
+    <meta name="keywords" content="git cleanup mac, git gc aggressive, git prune, git lfs cleanup, .git directory too large, reduce git repo size mac, git reflog expire, git worktree cleanup, git maintenance, free disk space git mac, git filter-repo">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/git-cleanup-mac.html">
+
+    <meta property="og:title" content="Git Repository Cleanup on Mac — Reclaim 2-20GB+ from .git Directories">
+    <meta property="og:description" content="Git repos silently grow enormous .git directories. Learn how to audit and reclaim all that space on macOS.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/git-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Git Repository Cleanup on Mac — Reclaim 2-20GB+ from .git Directories (2025 Guide)",
+        "description": "Git repositories accumulate large .git directories, orphaned worktrees, old refs, and stale LFS objects on macOS. Complete guide to auditing and cleaning git disk usage safely.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-03-05",
+        "dateModified": "2025-03-05",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/git-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+        .cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 40px 0;
+        }
+        .cta a { color: white; text-decoration: underline; }
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            font-weight: 600;
+            margin-top: 15px;
+            text-decoration: none;
+        }
+        .cta-button:hover { text-decoration: none; opacity: 0.9; }
+        details { margin: 10px 0; }
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 0;
+            color: #0066cc;
+        }
+        summary:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>Git Repository Cleanup on Mac — Reclaim 2-20GB+ from .git Directories</h1>
+        <p class="meta">Updated March 2025 -- Covers git gc, git prune, Git LFS, shallow clones, git maintenance, and bulk repo cleanup -- 11 min read</p>
+
+        <p>Every Git repository on your Mac contains a hidden <code class="inline-code">.git</code> directory that stores the entire project history — every commit, every branch, every version of every file. For active developers with dozens of cloned repositories, these <code class="inline-code">.git</code> directories can collectively consume <strong>2-20GB+</strong> of disk space, often more than the actual project files themselves.</p>
+
+        <p>This guide covers every aspect of Git disk usage on macOS: how to audit it, how to safely reclaim space, and how to prevent bloat from accumulating.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit — Find Your Largest .git Directories</a>
+            <a href="#git-gc">2. git gc — The Built-In Garbage Collector</a>
+            <a href="#reflog">3. Reflog Cleanup — Expire Old References</a>
+            <a href="#prune">4. Pruning Unreachable Objects</a>
+            <a href="#lfs">5. Git LFS — Large File Storage Cleanup</a>
+            <a href="#branches">6. Stale Branches & Remote Tracking</a>
+            <a href="#worktrees">7. Git Worktrees — Orphaned Checkouts</a>
+            <a href="#shallow">8. Shallow Clones — Reduce History on Disk</a>
+            <a href="#maintenance">9. git maintenance — Automated Optimization</a>
+            <a href="#bulk">10. Bulk Cleanup — All Repos at Once</a>
+            <a href="#nuclear">11. Nuclear Options — When You Need Maximum Space</a>
+            <a href="#cheatsheet">12. Git Cleanup Cheatsheet</a>
+            <a href="#faq">13. FAQ</a>
+        </div>
+
+        <!-- Section 1: Audit -->
+        <h2 id="audit">1. Quick Audit — Find Your Largest .git Directories</h2>
+
+        <p>Before you clean anything, find out where your disk space is actually going:</p>
+
+<pre><code>#!/bin/bash
+echo "=== Git Repository Disk Usage Audit ==="
+echo ""
+
+# Find all .git directories under common project locations
+echo "Scanning for Git repositories..."
+echo ""
+
+for base_dir in ~/Developer ~/Projects ~/repos ~/code ~/workspace ~/Documents/GitHub ~/src; do
+    if [[ -d "$base_dir" ]]; then
+        echo "--- $base_dir ---"
+        find "$base_dir" -name ".git" -type d -maxdepth 4 2>/dev/null | while read gitdir; do
+            repo_dir=$(dirname "$gitdir")
+            git_size=$(du -sk "$gitdir" 2>/dev/null | awk '{print $1}')
+            repo_name=$(basename "$repo_dir")
+            echo "  ${git_size}K  .git  ${repo_name}"
+        done | sort -hr | head -10
+        echo ""
+    fi
+done
+
+echo "--- Global Git data ---"
+du -sh ~/.gitconfig 2>/dev/null
+du -sh ~/Library/Caches/git 2>/dev/null || echo "  No global Git cache found"
+
+# Git LFS cache
+du -sh ~/.cache/lfs 2>/dev/null || echo "  No LFS cache found"
+
+echo ""
+echo "=== Top 15 Largest .git Directories ==="
+find ~ -name ".git" -type d -maxdepth 6 -not -path "*/node_modules/*" -not -path "*/.cache/*" 2>/dev/null | while read gitdir; do
+    du -sk "$gitdir" 2>/dev/null
+done | sort -hr | head -15 | while read size dir; do
+    repo=$(dirname "$dir" | sed "s|$HOME|~|")
+    echo "  $((size/1024))MB  $repo"
+done</code></pre>
+
+        <div class="tip">
+            <strong>Quick one-liner:</strong> To find git repos using more than 100MB for their <code class="inline-code">.git</code> directory:
+        </div>
+
+<pre><code>find ~/Developer -name ".git" -type d -maxdepth 4 -exec du -sk {} \; 2>/dev/null | awk '$1 > 102400 {printf "%dMB %s\n", $1/1024, $2}' | sort -hr</code></pre>
+
+        <!-- Section 2: git gc -->
+        <h2 id="git-gc">2. git gc — The Built-In Garbage Collector</h2>
+
+        <p>Git's garbage collector (<code class="inline-code">git gc</code>) is the primary tool for reclaiming space. It compresses file revisions, removes unreachable objects, and packs loose objects into efficient pack files.</p>
+
+        <h3>2.1 Basic Garbage Collection</h3>
+
+<pre><code># Run garbage collection (safe, fast)
+cd /path/to/repo
+git gc
+
+# Check repo size before and after
+du -sh .git</code></pre>
+
+        <h3>2.2 Aggressive Garbage Collection <span class="size-badge">Saves 10-50%</span></h3>
+
+<pre><code># More thorough compression (slower, better results)
+git gc --aggressive --prune=now
+
+# This rewrites pack files with better delta compression
+# Can take several minutes on large repos</code></pre>
+
+        <div class="warning">
+            <strong>When to use --aggressive:</strong> Only use <code class="inline-code">--aggressive</code> occasionally (e.g., after importing a repo or removing large files from history). It's CPU-intensive and the regular <code class="inline-code">git gc</code> is sufficient for routine cleanup.
+        </div>
+
+        <h3>2.3 Understanding What git gc Does</h3>
+
+        <ul>
+            <li><strong>Packs loose objects</strong> — Individual object files in <code class="inline-code">.git/objects</code> get compressed into pack files</li>
+            <li><strong>Removes unreachable objects</strong> — Commits/blobs not referenced by any branch, tag, or reflog entry</li>
+            <li><strong>Compresses pack files</strong> — Better delta compression between similar objects</li>
+            <li><strong>Prunes reflog</strong> — Removes expired reflog entries (default: 90 days for reachable, 30 for unreachable)</li>
+        </ul>
+
+        <!-- Section 3: Reflog -->
+        <h2 id="reflog">3. Reflog Cleanup — Expire Old References</h2>
+
+        <p>Git keeps a reflog — a history of where your branch tips have been — for safety. This prevents accidental loss but consumes space:</p>
+
+<pre><code># See reflog size
+git reflog | wc -l
+
+# Show reflog entries with dates
+git reflog --date=relative | head -20
+
+# Expire reflog entries older than 30 days
+git reflog expire --expire=30.days --all
+
+# Expire immediately (aggressive — only if you're sure)
+git reflog expire --expire=now --all
+
+# Always run gc after expiring reflog
+git gc --prune=now</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> The reflog is your safety net for recovering from <code class="inline-code">git reset --hard</code>, accidental branch deletions, and bad rebases. Don't expire it too aggressively on repos where you're actively working.
+        </div>
+
+        <!-- Section 4: Prune -->
+        <h2 id="prune">4. Pruning Unreachable Objects</h2>
+
+        <p>After rebasing, amending commits, or force-pushing, Git leaves behind "dangling" objects that are no longer reachable from any ref:</p>
+
+<pre><code># Count dangling objects
+git fsck --unreachable --no-reflogs 2>/dev/null | wc -l
+
+# Show dangling objects
+git fsck --dangling 2>/dev/null | head -20
+
+# Prune all unreachable objects
+git prune --expire=now
+
+# Combined approach: expire reflog + prune + gc
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive</code></pre>
+
+        <h3>Check Pack File Sizes</h3>
+
+<pre><code># List pack files (these contain your compressed history)
+ls -lh .git/objects/pack/
+
+# Count pack files (ideally just 1-2)
+ls .git/objects/pack/*.pack 2>/dev/null | wc -l
+
+# Repack into a single pack file
+git repack -a -d -f --depth=250 --window=250</code></pre>
+
+        <!-- Section 5: LFS -->
+        <h2 id="lfs">5. Git LFS — Large File Storage Cleanup</h2>
+
+        <p>If your repository uses Git LFS for large binary files (images, videos, models, datasets), the LFS cache can grow substantially:</p>
+
+        <h3>5.1 Audit LFS Usage</h3>
+
+<pre><code># Check if LFS is used in this repo
+git lfs ls-files
+
+# Check LFS disk usage
+git lfs env | grep -i storage
+du -sh .git/lfs
+
+# Check the global LFS cache
+du -sh ~/.cache/lfs 2>/dev/null
+
+# List LFS objects by size
+git lfs ls-files -s | sort -k3 -hr | head -20</code></pre>
+
+        <h3>5.2 Clean LFS Cache</h3>
+
+<pre><code># Remove old and unused LFS objects
+git lfs prune
+
+# More aggressive: remove all local LFS objects not on current HEAD
+git lfs prune --verify-remote --verify-unreachable
+
+# Clean the global LFS cache
+rm -rf ~/.cache/lfs/*
+
+# Dry run first to see what would be removed
+git lfs prune --dry-run</code></pre>
+
+        <h3>5.3 Deduplication Check</h3>
+
+<pre><code># If you have multiple clones of the same repo, LFS objects may be duplicated
+# Check for duplicate LFS objects across repos
+find ~/Developer -name "lfs" -path "*/.git/lfs" -type d 2>/dev/null -exec du -sh {} \; | sort -hr</code></pre>
+
+        <!-- Section 6: Branches -->
+        <h2 id="branches">6. Stale Branches & Remote Tracking</h2>
+
+        <p>Over time, repos accumulate remote tracking branches for branches that have been merged or deleted on the remote:</p>
+
+<pre><code># List all branches (local and remote)
+git branch -a | wc -l
+
+# List remote tracking branches that no longer exist on the remote
+git remote prune origin --dry-run
+
+# Actually prune them
+git remote prune origin
+
+# Or fetch with prune (recommended — do this regularly)
+git fetch --prune
+
+# Set auto-pruning globally
+git config --global fetch.prune true
+
+# Delete local branches that have been merged into main
+git branch --merged main | grep -v "main" | xargs git branch -d
+
+# Find and display local branches with no upstream
+git branch -vv | grep ': gone]'
+
+# Delete them
+git branch -vv | grep ': gone]' | awk '{print $1}' | xargs git branch -d</code></pre>
+
+        <div class="tip">
+            <strong>Set this once:</strong> Running <code class="inline-code">git config --global fetch.prune true</code> ensures stale remote branches are automatically cleaned up every time you <code class="inline-code">git fetch</code>.
+        </div>
+
+        <!-- Section 7: Worktrees -->
+        <h2 id="worktrees">7. Git Worktrees — Orphaned Checkouts</h2>
+
+        <p>Git worktrees let you check out multiple branches simultaneously, but forgotten worktrees waste disk space:</p>
+
+<pre><code># List all worktrees for a repository
+git worktree list
+
+# Check for orphaned worktrees (paths that no longer exist)
+git worktree list --porcelain | grep "worktree" | while read _ path; do
+    if [[ ! -d "$path" ]]; then
+        echo "ORPHANED: $path"
+    fi
+done
+
+# Remove orphaned worktrees
+git worktree prune
+
+# Verbose mode to see what's being pruned
+git worktree prune --verbose</code></pre>
+
+        <!-- Section 8: Shallow Clones -->
+        <h2 id="shallow">8. Shallow Clones — Reduce History on Disk</h2>
+
+        <p>For repositories you only need for reference (not active development), shallow clones dramatically reduce disk usage:</p>
+
+<pre><code># Clone with only the last 1 commit (saves 50-95% space)
+git clone --depth 1 https://github.com/user/repo.git
+
+# Clone with last 10 commits
+git clone --depth 10 https://github.com/user/repo.git
+
+# Clone only a single branch
+git clone --single-branch --branch main https://github.com/user/repo.git
+
+# Convert an existing full clone to shallow
+git fetch --depth 1
+git reflog expire --expire=now --all
+git gc --prune=now
+
+# Check if a repo is shallow
+git rev-parse --is-shallow-repository
+
+# Unshallow if you need full history later
+git fetch --unshallow</code></pre>
+
+        <h3>Comparison: Full vs. Shallow Clone Sizes</h3>
+
+        <table>
+            <tr>
+                <th>Repository</th>
+                <th>Full Clone</th>
+                <th>Shallow (depth=1)</th>
+                <th>Savings</th>
+            </tr>
+            <tr>
+                <td>linux kernel</td>
+                <td>4.5GB</td>
+                <td>260MB</td>
+                <td>94%</td>
+            </tr>
+            <tr>
+                <td>chromium</td>
+                <td>12GB</td>
+                <td>850MB</td>
+                <td>93%</td>
+            </tr>
+            <tr>
+                <td>react</td>
+                <td>350MB</td>
+                <td>45MB</td>
+                <td>87%</td>
+            </tr>
+            <tr>
+                <td>swift</td>
+                <td>1.8GB</td>
+                <td>180MB</td>
+                <td>90%</td>
+            </tr>
+            <tr>
+                <td>tensorflow</td>
+                <td>3.2GB</td>
+                <td>280MB</td>
+                <td>91%</td>
+            </tr>
+        </table>
+
+        <!-- Section 9: Maintenance -->
+        <h2 id="maintenance">9. git maintenance — Automated Optimization</h2>
+
+        <p>Git 2.29+ includes a built-in <code class="inline-code">git maintenance</code> command that automates repository optimization in the background:</p>
+
+<pre><code># Start background maintenance for a repository
+cd /path/to/repo
+git maintenance start
+
+# This registers the repo and runs tasks on a schedule:
+# - Hourly: commit-graph, prefetch
+# - Daily: loose-objects, incremental-repack
+# - Weekly: pack-refs
+
+# Check which repos are registered for maintenance
+git config --global --get-all maintenance.repo
+
+# Run maintenance manually
+git maintenance run
+
+# Run specific maintenance tasks
+git maintenance run --task=gc
+git maintenance run --task=loose-objects
+git maintenance run --task=incremental-repack
+git maintenance run --task=pack-refs
+
+# Stop background maintenance
+git maintenance unregister</code></pre>
+
+        <h3>Configure Maintenance Schedule</h3>
+
+<pre><code># Use launchd on macOS (git maintenance uses this by default)
+git maintenance start --scheduler=launchd
+
+# Check the launchd configuration
+ls ~/Library/LaunchAgents/org.git-scm.git.*
+
+# Verify maintenance is running
+launchctl list | grep git-maintenance</code></pre>
+
+        <div class="tip">
+            <strong>Recommendation:</strong> Run <code class="inline-code">git maintenance start</code> in your most-used repositories. It's lightweight and keeps repos optimized automatically without you thinking about it.
+        </div>
+
+        <!-- Section 10: Bulk Cleanup -->
+        <h2 id="bulk">10. Bulk Cleanup — All Repos at Once</h2>
+
+        <p>If you have many repositories, clean them all at once:</p>
+
+<pre><code>#!/bin/bash
+# bulk-git-cleanup.sh — Clean all Git repos under a directory
+
+BASE_DIR="${1:-$HOME/Developer}"
+total_before=0
+total_after=0
+
+echo "=== Bulk Git Repository Cleanup ==="
+echo "Scanning: $BASE_DIR"
+echo ""
+
+find "$BASE_DIR" -name ".git" -type d -maxdepth 5 2>/dev/null | while read gitdir; do
+    repo_dir=$(dirname "$gitdir")
+    repo_name=$(basename "$repo_dir")
+    
+    before=$(du -sk "$gitdir" 2>/dev/null | awk '{print $1}')
+    
+    # Change to repo directory
+    cd "$repo_dir" 2>/dev/null || continue
+    
+    # Run cleanup
+    git remote prune origin 2>/dev/null
+    git reflog expire --expire=30.days --all 2>/dev/null
+    git gc --prune=now 2>/dev/null
+    git worktree prune 2>/dev/null
+    git lfs prune 2>/dev/null
+    
+    after=$(du -sk "$gitdir" 2>/dev/null | awk '{print $1}')
+    saved=$((before - after))
+    
+    if [[ $saved -gt 1024 ]]; then
+        echo "  $repo_name: saved $((saved/1024))MB ($((before/1024))MB → $((after/1024))MB)"
+    fi
+done
+
+echo ""
+echo "Done! Run the audit script to see updated totals."</code></pre>
+
+        <p>Make executable and run:</p>
+
+<pre><code>chmod +x bulk-git-cleanup.sh
+
+# Clean all repos under ~/Developer
+./bulk-git-cleanup.sh ~/Developer
+
+# Clean all repos under a specific directory
+./bulk-git-cleanup.sh ~/Projects</code></pre>
+
+        <!-- Section 11: Nuclear Options -->
+        <h2 id="nuclear">11. Nuclear Options — When You Need Maximum Space</h2>
+
+        <p>When you need to free the most space possible and can accept trade-offs:</p>
+
+        <h3>11.1 Re-clone as Shallow</h3>
+
+<pre><code># If you don't need full history, delete and re-clone shallow
+rm -rf my-project
+git clone --depth 1 https://github.com/user/my-project.git</code></pre>
+
+        <h3>11.2 Remove Large Files from History</h3>
+
+<pre><code># Find the largest files in git history
+git rev-list --objects --all | \
+    git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' | \
+    awk '/^blob/ {printf "%s\t%s\t%s\n", $3, $2, $4}' | \
+    sort -hr | head -20 | \
+    numfmt --to=iec --field=1
+
+# Use git filter-repo to remove large files (install first)
+# brew install git-filter-repo
+git filter-repo --strip-blobs-bigger-than 10M</code></pre>
+
+        <div class="warning">
+            <strong>Caution:</strong> Rewriting history with <code class="inline-code">git filter-repo</code> changes all commit hashes. Only do this on repositories you own, and coordinate with your team. All collaborators will need to re-clone.
+        </div>
+
+        <h3>11.3 Delete Repos You Don't Need Locally</h3>
+
+<pre><code># Find repos you haven't touched in over 6 months
+find ~/Developer -name ".git" -type d -maxdepth 4 2>/dev/null | while read gitdir; do
+    repo_dir=$(dirname "$gitdir")
+    last_commit=$(git -C "$repo_dir" log -1 --format="%ar" 2>/dev/null)
+    repo_size=$(du -sh "$repo_dir" 2>/dev/null | awk '{print $1}')
+    echo "$repo_size  $last_commit  $(basename $repo_dir)"
+done | sort -hr | head -20
+
+# If it's on GitHub/GitLab, you can always re-clone later
+# rm -rf ~/Developer/old-unused-project</code></pre>
+
+        <!-- Section 12: Cheatsheet -->
+        <h2 id="cheatsheet">12. Git Cleanup Cheatsheet</h2>
+
+        <table>
+            <tr>
+                <th>Command</th>
+                <th>What It Does</th>
+                <th>Space Saved</th>
+                <th>Risk</th>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git gc</code></td>
+                <td>Compress objects, basic cleanup</td>
+                <td>5-20%</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git gc --aggressive</code></td>
+                <td>Deep compression, rewrite packs</td>
+                <td>10-50%</td>
+                <td>None (slow)</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git remote prune origin</code></td>
+                <td>Remove stale remote branches</td>
+                <td>Minimal</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git reflog expire</code></td>
+                <td>Expire old reflog entries</td>
+                <td>5-15%</td>
+                <td>Low (recovery limited)</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git prune --expire=now</code></td>
+                <td>Remove unreachable objects</td>
+                <td>5-30%</td>
+                <td>Low</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git lfs prune</code></td>
+                <td>Remove unused LFS objects</td>
+                <td>Variable (large)</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git worktree prune</code></td>
+                <td>Remove orphaned worktrees</td>
+                <td>Variable</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git fetch --prune</code></td>
+                <td>Fetch + remove stale remotes</td>
+                <td>Minimal</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git clone --depth 1</code></td>
+                <td>Shallow clone (no history)</td>
+                <td>80-95%</td>
+                <td>No git blame/log</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git maintenance start</code></td>
+                <td>Background auto-optimization</td>
+                <td>Continuous</td>
+                <td>None</td>
+            </tr>
+            <tr>
+                <td><code class="inline-code">git filter-repo</code></td>
+                <td>Rewrite history (remove large files)</td>
+                <td>Massive</td>
+                <td>High (rewrites history)</td>
+            </tr>
+        </table>
+
+        <!-- Section 13: FAQ -->
+        <h2 id="faq">13. FAQ</h2>
+
+        <details>
+            <summary>How often should I run git gc?</summary>
+            <p>Git runs <code class="inline-code">git gc --auto</code> automatically when loose objects exceed a threshold (typically ~6700). For most developers, this is sufficient. If you want proactive maintenance, use <code class="inline-code">git maintenance start</code> to schedule background optimization. Running <code class="inline-code">git gc --aggressive</code> monthly on large repos is a good practice if disk space is a concern.</p>
+        </details>
+
+        <details>
+            <summary>Is it safe to delete the .git directory?</summary>
+            <p>Deleting <code class="inline-code">.git</code> removes all version history, branches, tags, and stashes from the local copy. Your working directory files remain intact. If the repo is pushed to a remote (GitHub, GitLab, etc.), you can always re-clone. But if you have local-only branches or stashes, they'll be permanently lost. Only delete <code class="inline-code">.git</code> if you just need the current files or plan to re-clone.</p>
+        </details>
+
+        <details>
+            <summary>Why is my .git directory larger than the actual code?</summary>
+            <p>The <code class="inline-code">.git</code> directory stores the <em>entire history</em> of every file. If a 5MB file was modified 100 times, Git stores delta-compressed versions of all 100 states. Binary files (images, compiled assets) that were committed and later deleted are still in the history. Use <code class="inline-code">git rev-list</code> (shown in Section 11.2) to find the largest objects in your history.</p>
+        </details>
+
+        <details>
+            <summary>Will shallow cloning break anything?</summary>
+            <p>Shallow clones work fine for reading code, building, and even pushing commits. However, you can't <code class="inline-code">git blame</code> past the shallow boundary, <code class="inline-code">git log</code> is truncated, and some merge strategies may not work. For development repos where you need full history, keep a full clone. For reference repos, CI builds, and read-only checkouts, shallow clones are ideal.</p>
+        </details>
+
+        <details>
+            <summary>What's the difference between git prune and git gc?</summary>
+            <p><code class="inline-code">git prune</code> only removes unreachable loose objects. <code class="inline-code">git gc</code> does everything: it runs <code class="inline-code">git prune</code>, compresses loose objects into pack files, cleans up reflogs, repacks pack files, and updates the commit graph. Always prefer <code class="inline-code">git gc</code> — it's the comprehensive cleanup tool that includes pruning.</p>
+        </details>
+
+        <details>
+            <summary>Can ClearDisk help with Git repository cleanup?</summary>
+            <p>Yes! <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free macOS menu bar app that monitors 44+ developer cache locations in real time, giving you instant visibility into disk usage by developer tools including Git repositories, Xcode DerivedData, Docker, node_modules, and more. While Git-specific operations like <code class="inline-code">gc</code> and <code class="inline-code">prune</code> require the CLI, ClearDisk helps you identify which repos and caches are consuming the most space so you know where to focus your cleanup efforts.</p>
+        </details>
+
+        <div class="cta">
+            <h3>Monitor All Your Developer Disk Usage</h3>
+            <p>ClearDisk lives in your menu bar and monitors 44+ cache paths — Git repos, Xcode, Docker, node_modules, IDE caches, and more — so you always know where your disk space is going.</p>
+            <a href="https://github.com/bysiber/cleardisk" class="cta-button">Get ClearDisk — Free & Open Source</a>
+        </div>
+
+        <p><strong>Related guides:</strong></p>
+        <ul>
+            <li><a href="free-disk-space-mac-developer.html">The Complete Guide to Freeing Disk Space on Mac for Developers</a></li>
+            <li><a href="ide-cache-cleanup-mac.html">VS Code & JetBrains IDE Cache Cleanup on Mac</a></li>
+            <li><a href="clean-node-modules-mac.html">Clean node_modules on Mac</a></li>
+            <li><a href="docker-disk-space-cleanup-mac.html">Docker Disk Space Cleanup on Mac</a></li>
+            <li><a href="mac-disk-cleaner-comparison.html">Mac Disk Cleaner Comparison</a></li>
+        </ul>
+
+        <p style="margin-top: 30px; color: #86868b; font-size: 0.9em;">
+            <strong>About ClearDisk:</strong> A free, open-source macOS menu bar utility that monitors developer cache disk usage in real time. 
+            Supports 44+ cache paths including Xcode, node_modules, CocoaPods, Gradle, Docker, pip, Cargo, Homebrew, and more. 
+            <a href="https://github.com/bysiber/cleardisk">View on GitHub</a>.
+        </p>
+    </div>
+
+    <footer>
+        &copy; 2025 ClearDisk. Free and open-source macOS developer tool.
+        <br><a href="https://github.com/bysiber/cleardisk">GitHub</a> · <a href="../index.html">Home</a> · <a href="index.html">Blog</a>
+    </footer>
+</body>
+</html>
