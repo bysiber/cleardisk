@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Version Manager Cache Cleanup on Mac — nvm, pyenv, rbenv, SDKMAN, asdf, Volta Guide (2025)</title>
+    <meta name="description" content="Version managers like nvm, pyenv, rbenv, SDKMAN, asdf, and Volta can accumulate 5-30GB+ of old runtime versions on your Mac. Learn how to audit and clean each one.">
+    <meta name="keywords" content="nvm cleanup mac, pyenv disk space, rbenv cleanup, sdkman disk usage, asdf cleanup mac, volta cache cleanup, version manager cache mac, nvm old versions delete, pyenv versions remove, free disk space version managers mac">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/version-manager-cache-cleanup-mac.html">
+
+    <meta property="og:title" content="Version Manager Cache Cleanup on Mac — nvm, pyenv, rbenv, SDKMAN, asdf, Volta">
+    <meta property="og:description" content="Version managers can accumulate 5-30GB+ of old runtime versions on your Mac. Learn how to audit and clean each one.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/version-manager-cache-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Version Manager Cache Cleanup on Mac — nvm, pyenv, rbenv, SDKMAN, asdf, Volta Guide (2025)",
+        "description": "Version managers like nvm, pyenv, rbenv, SDKMAN, asdf, and Volta can accumulate 5-30GB+ of old runtime versions. Complete guide to auditing and cleaning each one.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-03-05",
+        "dateModified": "2025-03-05",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/version-manager-cache-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+        .cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 40px 0;
+        }
+        .cta a { color: white; text-decoration: underline; }
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            font-weight: 600;
+            margin-top: 15px;
+            text-decoration: none;
+        }
+        .cta-button:hover { text-decoration: none; opacity: 0.9; }
+        details { margin: 10px 0; }
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 0;
+            color: #0066cc;
+        }
+        summary:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>Version Manager Cache Cleanup on Mac — nvm, pyenv, rbenv, SDKMAN, asdf, Volta</h1>
+        <p class="meta">Updated March 2025 -- Covers nvm, fnm, Volta, pyenv, rbenv, SDKMAN, asdf, rustup, and goenv -- 12 min read</p>
+
+        <p>If you use version managers to juggle multiple programming language runtimes on macOS, you're probably sitting on <strong>5-30GB+</strong> of old, unused versions right now. Each tool keeps every version you've ever installed, and none of them automatically clean up after themselves.</p>
+
+        <p>This guide covers every major version manager on macOS: where each stores its data, how to audit disk usage, and the exact commands to clean up safely.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit — Total Version Manager Disk Usage</a>
+            <a href="#nvm">2. nvm (Node Version Manager)</a>
+            <a href="#fnm">3. fnm (Fast Node Manager)</a>
+            <a href="#volta">4. Volta (JavaScript Tool Manager)</a>
+            <a href="#pyenv">5. pyenv (Python Version Manager)</a>
+            <a href="#rbenv">6. rbenv (Ruby Version Manager)</a>
+            <a href="#sdkman">7. SDKMAN (Java / JVM Version Manager)</a>
+            <a href="#asdf">8. asdf (Universal Version Manager)</a>
+            <a href="#rustup">9. rustup (Rust Toolchain Manager)</a>
+            <a href="#goenv">10. goenv / Go Version Management</a>
+            <a href="#automation">11. Automate Version Manager Cleanup</a>
+            <a href="#cheatsheet">12. Quick Reference Cheatsheet</a>
+            <a href="#faq">13. FAQ</a>
+        </div>
+
+        <!-- Section 1 -->
+        <h2 id="audit">1. Quick Audit — Total Version Manager Disk Usage</h2>
+
+        <p>Run this comprehensive audit to see how much disk space all version managers are consuming:</p>
+
+<pre><span style="color:#86868b"># === Version Manager Disk Audit ===</span>
+echo "=== Node.js version managers ==="
+du -sh ~/.nvm/ 2>/dev/null
+du -sh ~/Library/Caches/fnm_multishells/ 2>/dev/null
+du -sh ~/.fnm/ 2>/dev/null
+du -sh ~/.volta/ 2>/dev/null
+
+echo ""
+echo "=== Python version managers ==="
+du -sh ~/.pyenv/ 2>/dev/null
+
+echo ""
+echo "=== Ruby version managers ==="
+du -sh ~/.rbenv/ 2>/dev/null
+du -sh ~/.rvm/ 2>/dev/null
+
+echo ""
+echo "=== JVM version managers ==="
+du -sh ~/.sdkman/ 2>/dev/null
+du -sh ~/.jabba/ 2>/dev/null
+
+echo ""
+echo "=== Universal version managers ==="
+du -sh ~/.asdf/ 2>/dev/null
+du -sh ~/.local/share/mise/ 2>/dev/null
+
+echo ""
+echo "=== Rust ==="
+du -sh ~/.rustup/ 2>/dev/null
+
+echo ""
+echo "=== Go ==="
+du -sh ~/.goenv/ 2>/dev/null
+du -sh ~/sdk/ 2>/dev/null</pre>
+
+        <p>Typical results on a multi-language developer Mac:</p>
+
+        <table>
+            <thead>
+                <tr><th>Version Manager</th><th>Directory</th><th>Typical Size</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>nvm</td><td><code class="inline-code">~/.nvm/</code></td><td><span class="size-badge">2-10GB</span></td></tr>
+                <tr><td>fnm</td><td><code class="inline-code">~/.fnm/</code></td><td><span class="size-badge">1-5GB</span></td></tr>
+                <tr><td>Volta</td><td><code class="inline-code">~/.volta/</code></td><td><span class="size-badge">1-5GB</span></td></tr>
+                <tr><td>pyenv</td><td><code class="inline-code">~/.pyenv/</code></td><td><span class="size-badge">2-8GB</span></td></tr>
+                <tr><td>rbenv</td><td><code class="inline-code">~/.rbenv/</code></td><td><span class="size-badge">1-5GB</span></td></tr>
+                <tr><td>SDKMAN</td><td><code class="inline-code">~/.sdkman/</code></td><td><span class="size-badge">3-15GB</span></td></tr>
+                <tr><td>asdf</td><td><code class="inline-code">~/.asdf/</code></td><td><span class="size-badge">2-10GB</span></td></tr>
+                <tr><td>rustup</td><td><code class="inline-code">~/.rustup/</code></td><td><span class="size-badge">2-8GB</span></td></tr>
+            </tbody>
+        </table>
+
+        <!-- Section 2 -->
+        <h2 id="nvm">2. nvm (Node Version Manager)</h2>
+
+        <p>nvm stores a complete Node.js installation for every version you've ever used. With Node releases happening frequently, it's easy to accumulate 5-10+ versions.</p>
+
+<pre><span style="color:#86868b"># See total nvm disk usage</span>
+du -sh ~/.nvm/ 2>/dev/null
+
+<span style="color:#86868b"># Size of each installed version</span>
+du -sh ~/.nvm/versions/node/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># Count installed versions</span>
+nvm ls | grep -c "v[0-9]"
+
+<span style="color:#86868b"># See which versions are in use</span>
+nvm ls
+nvm current</pre>
+
+        <h3>Clean Up nvm</h3>
+
+<pre><span style="color:#86868b"># Uninstall specific old versions</span>
+nvm uninstall 16.20.2
+nvm uninstall 18.17.0
+
+<span style="color:#86868b"># Keep only the latest LTS and current</span>
+<span style="color:#86868b"># First, check what you have:</span>
+nvm ls
+
+<span style="color:#86868b"># Install latest LTS if not current</span>
+nvm install --lts
+nvm alias default lts/*
+
+<span style="color:#86868b"># Remove all old versions (keep latest LTS)</span>
+for v in $(nvm ls --no-colors | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | sort -V | head -n -1); do
+    echo "Removing $v..."
+    nvm uninstall "$v"
+done
+
+<span style="color:#86868b"># Also clean npm global cache for each version</span>
+npm cache clean --force</pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> Each Node.js version is ~70-100MB. If you have 10 old versions, that's nearly 1GB of Node binaries alone — plus global npm packages installed per version.
+        </div>
+
+        <!-- Section 3 -->
+        <h2 id="fnm">3. fnm (Fast Node Manager)</h2>
+
+        <p>fnm is faster than nvm but has the same disk usage pattern. It also creates multishell directories that accumulate:</p>
+
+<pre><span style="color:#86868b"># fnm disk usage</span>
+du -sh ~/.fnm/ 2>/dev/null
+du -sh ~/Library/Caches/fnm_multishells/ 2>/dev/null
+
+<span style="color:#86868b"># List installed versions</span>
+fnm ls
+
+<span style="color:#86868b"># Size per version</span>
+du -sh ~/.fnm/node-versions/*/ 2>/dev/null | sort -hr</pre>
+
+        <h3>Clean Up fnm</h3>
+
+<pre><span style="color:#86868b"># Uninstall specific versions</span>
+fnm uninstall 18.17.0
+fnm uninstall 16.20.2
+
+<span style="color:#86868b"># Clean multishell cache (safe to delete)</span>
+rm -rf ~/Library/Caches/fnm_multishells/ 2>/dev/null
+
+<span style="color:#86868b"># List and remove all except current</span>
+current=$(fnm current)
+for v in $(fnm ls | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | grep -v "$current"); do
+    echo "Removing $v"
+    fnm uninstall "$v"
+done</pre>
+
+        <div class="warning">
+            <strong>Note:</strong> fnm's multishell cache at <code class="inline-code">~/Library/Caches/fnm_multishells/</code> can grow to hundreds of directories. Users have reported <a href="https://github.com/Schniz/fnm/issues/696">2,398+ directories</a> accumulating over time. It's safe to delete this directory.
+        </div>
+
+        <!-- Section 4 -->
+        <h2 id="volta">4. Volta (JavaScript Tool Manager)</h2>
+
+        <p>Volta manages Node, npm, yarn, and other JS tools. It caches all downloaded archives:</p>
+
+<pre><span style="color:#86868b"># Volta disk usage</span>
+du -sh ~/.volta/ 2>/dev/null
+
+<span style="color:#86868b"># Breakdown by type</span>
+du -sh ~/.volta/tools/ 2>/dev/null
+du -sh ~/.volta/cache/ 2>/dev/null
+du -sh ~/.volta/tmp/ 2>/dev/null
+
+<span style="color:#86868b"># List installed tools</span>
+volta list all</pre>
+
+        <h3>Clean Up Volta</h3>
+
+<pre><span style="color:#86868b"># Volta doesn't have a built-in cleanup command yet</span>
+<span style="color:#86868b"># (see https://github.com/volta-cli/volta/issues/330)</span>
+
+<span style="color:#86868b"># Manually clean cached downloads</span>
+rm -rf ~/.volta/cache/ 2>/dev/null
+rm -rf ~/.volta/tmp/ 2>/dev/null
+
+<span style="color:#86868b"># Remove old tool versions</span>
+<span style="color:#86868b"># List what's installed first</span>
+ls ~/.volta/tools/image/node/
+ls ~/.volta/tools/image/npm/
+ls ~/.volta/tools/image/yarn/
+
+<span style="color:#86868b"># Remove specific old versions</span>
+rm -rf ~/.volta/tools/image/node/16.20.2/ 2>/dev/null</pre>
+
+        <!-- Section 5 -->
+        <h2 id="pyenv">5. pyenv (Python Version Manager)</h2>
+
+        <p>pyenv keeps every Python version you've built from source — each one is 50-200MB depending on configuration.</p>
+
+<pre><span style="color:#86868b"># pyenv disk usage</span>
+du -sh ~/.pyenv/ 2>/dev/null
+
+<span style="color:#86868b"># Per-version sizes</span>
+du -sh ~/.pyenv/versions/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># List installed versions</span>
+pyenv versions
+
+<span style="color:#86868b"># Check which version is active</span>
+pyenv version</pre>
+
+        <h3>Clean Up pyenv</h3>
+
+<pre><span style="color:#86868b"># Uninstall specific versions</span>
+pyenv uninstall 3.9.7
+pyenv uninstall 3.10.4
+
+<span style="color:#86868b"># Remove build cache (source tarballs)</span>
+rm -rf ~/.pyenv/cache/ 2>/dev/null
+rm -rf ~/.pyenv/sources/ 2>/dev/null
+
+<span style="color:#86868b"># Remove all versions except current</span>
+current=$(pyenv version-name)
+for v in $(pyenv versions --bare | grep -v "^$current$"); do
+    echo "Removing $v"
+    pyenv uninstall -f "$v"
+done</pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> pyenv builds Python from source, keeping the build artifacts in <code class="inline-code">~/.pyenv/sources/</code>. Removing this directory saves space without affecting installed versions.
+        </div>
+
+        <!-- Section 6 -->
+        <h2 id="rbenv">6. rbenv (Ruby Version Manager)</h2>
+
+        <p>rbenv stores compiled Ruby versions and their gems:</p>
+
+<pre><span style="color:#86868b"># rbenv disk usage</span>
+du -sh ~/.rbenv/ 2>/dev/null
+
+<span style="color:#86868b"># Per-version sizes (includes gems)</span>
+du -sh ~/.rbenv/versions/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># List installed versions</span>
+rbenv versions
+
+<span style="color:#86868b"># Check active version</span>
+rbenv version</pre>
+
+        <h3>Clean Up rbenv</h3>
+
+<pre><span style="color:#86868b"># Uninstall old Ruby versions</span>
+rbenv uninstall 2.7.6
+rbenv uninstall 3.0.4
+
+<span style="color:#86868b"># Clean ruby-build cache</span>
+rm -rf ~/.rbenv/cache/ 2>/dev/null
+
+<span style="color:#86868b"># Clean gems for a specific version</span>
+RBENV_VERSION=3.1.2 gem cleanup
+
+<span style="color:#86868b"># If using RVM instead:</span>
+du -sh ~/.rvm/ 2>/dev/null
+rvm cleanup all
+rvm remove 2.7.6</pre>
+
+        <!-- Section 7 -->
+        <h2 id="sdkman">7. SDKMAN (Java / JVM Version Manager)</h2>
+
+        <p>SDKMAN is particularly space-hungry because JDK distributions are 200-400MB each, and it manages Gradle, Maven, Kotlin, and other JVM tools too:</p>
+
+<pre><span style="color:#86868b"># SDKMAN total disk usage</span>
+du -sh ~/.sdkman/ 2>/dev/null
+
+<span style="color:#86868b"># Per-candidate breakdown</span>
+du -sh ~/.sdkman/candidates/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># JDK versions specifically</span>
+du -sh ~/.sdkman/candidates/java/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># Download archives</span>
+du -sh ~/.sdkman/archives/ 2>/dev/null
+
+<span style="color:#86868b"># List installed candidates</span>
+sdk list java
+sdk list gradle
+sdk list kotlin</pre>
+
+        <h3>Clean Up SDKMAN</h3>
+
+<pre><span style="color:#86868b"># Remove download archives (biggest easy win)</span>
+rm -rf ~/.sdkman/archives/*
+
+<span style="color:#86868b"># Remove specific JDK versions</span>
+sdk uninstall java 17.0.6-tem
+sdk uninstall java 11.0.19-amzn
+
+<span style="color:#86868b"># Remove old Gradle/Maven versions</span>
+sdk uninstall gradle 7.6.1
+sdk uninstall maven 3.8.8
+
+<span style="color:#86868b"># SDKMAN flush command (clears temp + broadcast cache)</span>
+sdk flush
+
+<span style="color:#86868b"># See current defaults</span>
+sdk current</pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> SDKMAN can easily consume 5-15GB if you have multiple JDK vendors and versions (Temurin, Corretto, GraalVM, etc.). The <code class="inline-code">archives/</code> directory alone can be 2-5GB.
+        </div>
+
+        <!-- Section 8 -->
+        <h2 id="asdf">8. asdf (Universal Version Manager)</h2>
+
+        <p>asdf manages versions for many languages through plugins. Its disk usage is the sum of all managed runtimes:</p>
+
+<pre><span style="color:#86868b"># asdf total disk usage</span>
+du -sh ~/.asdf/ 2>/dev/null
+
+<span style="color:#86868b"># Per-plugin breakdown</span>
+du -sh ~/.asdf/installs/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># Download cache</span>
+du -sh ~/.asdf/downloads/ 2>/dev/null
+
+<span style="color:#86868b"># List all installed versions</span>
+asdf list</pre>
+
+        <h3>Clean Up asdf</h3>
+
+<pre><span style="color:#86868b"># Remove specific versions</span>
+asdf uninstall nodejs 16.20.2
+asdf uninstall python 3.9.7
+
+<span style="color:#86868b"># Remove download cache</span>
+rm -rf ~/.asdf/downloads/
+
+<span style="color:#86868b"># Remove a whole plugin (and all its versions)</span>
+asdf plugin remove erlang
+
+<span style="color:#86868b"># List and clean old versions per plugin</span>
+for plugin in $(asdf plugin list); do
+    echo "=== $plugin ==="
+    asdf list "$plugin"
+done</pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> If you use <a href="https://mise.jdx.dev/">mise</a> (formerly rtx) instead of asdf, check <code class="inline-code">~/.local/share/mise/</code> for its cache directory.
+        </div>
+
+        <!-- Section 9 -->
+        <h2 id="rustup">9. rustup (Rust Toolchain Manager)</h2>
+
+        <p>Rust toolchains are large (500MB-1GB each) and Rust releases every 6 weeks, so old toolchains accumulate fast:</p>
+
+<pre><span style="color:#86868b"># rustup disk usage</span>
+du -sh ~/.rustup/ 2>/dev/null
+
+<span style="color:#86868b"># Per-toolchain sizes</span>
+du -sh ~/.rustup/toolchains/*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># List installed toolchains</span>
+rustup toolchain list
+
+<span style="color:#86868b"># List installed targets</span>
+rustup target list --installed</pre>
+
+        <h3>Clean Up rustup</h3>
+
+<pre><span style="color:#86868b"># Remove old toolchains</span>
+rustup toolchain uninstall nightly-2024-01-15
+rustup toolchain uninstall 1.73.0
+
+<span style="color:#86868b"># Keep only stable and optionally nightly</span>
+rustup update stable
+rustup toolchain uninstall nightly
+
+<span style="color:#86868b"># Remove unused targets</span>
+rustup target remove wasm32-unknown-unknown
+
+<span style="color:#86868b"># Clean download cache</span>
+rm -rf ~/.rustup/downloads/ 2>/dev/null
+rm -rf ~/.rustup/tmp/ 2>/dev/null
+
+<span style="color:#86868b"># Also clean Cargo cache (related)</span>
+cargo cache --autoclean 2>/dev/null || rm -rf ~/.cargo/registry/cache/</pre>
+
+        <!-- Section 10 -->
+        <h2 id="goenv">10. goenv / Go Version Management</h2>
+
+        <p>If you use goenv or manage multiple Go versions manually:</p>
+
+<pre><span style="color:#86868b"># goenv disk usage</span>
+du -sh ~/.goenv/ 2>/dev/null
+
+<span style="color:#86868b"># Manual Go SDK downloads (go install golang.org/dl/goX.Y.Z)</span>
+du -sh ~/sdk/ 2>/dev/null
+du -sh ~/sdk/go*/ 2>/dev/null | sort -hr
+
+<span style="color:#86868b"># Go module cache (not a version manager, but related)</span>
+du -sh ~/go/pkg/mod/ 2>/dev/null
+du -sh $(go env GOMODCACHE) 2>/dev/null</pre>
+
+        <h3>Clean Up Go Versions</h3>
+
+<pre><span style="color:#86868b"># Remove goenv versions</span>
+goenv uninstall 1.19.5
+
+<span style="color:#86868b"># Remove manual SDK installs</span>
+rm -rf ~/sdk/go1.19.5/
+rm -rf ~/sdk/go1.20.3/
+
+<span style="color:#86868b"># Clean Go module cache</span>
+go clean -modcache
+
+<span style="color:#86868b"># Clean Go build cache</span>
+go clean -cache</pre>
+
+        <!-- Section 11 -->
+        <h2 id="automation">11. Automate Version Manager Cleanup</h2>
+
+        <p>Create a single script that audits and optionally cleans all version managers:</p>
+
+<pre><span style="color:#86868b">#!/bin/bash</span>
+<span style="color:#86868b"># version_manager_cleanup.sh — Audit all version managers</span>
+
+echo "╔══════════════════════════════════════╗"
+echo "║  Version Manager Disk Audit          ║"
+echo "╚══════════════════════════════════════╝"
+echo ""
+
+total=0
+
+audit() {
+    local name="$1" path="$2"
+    if [ -d "$path" ]; then
+        size=$(du -sm "$path" 2>/dev/null | awk '{print $1}')
+        total=$((total + size))
+        printf "  %-12s %6s MB  %s\n" "$name" "$size" "$path"
+    fi
+}
+
+audit "nvm"     "$HOME/.nvm"
+audit "fnm"     "$HOME/.fnm"
+audit "volta"   "$HOME/.volta"
+audit "pyenv"   "$HOME/.pyenv"
+audit "rbenv"   "$HOME/.rbenv"
+audit "rvm"     "$HOME/.rvm"
+audit "sdkman"  "$HOME/.sdkman"
+audit "asdf"    "$HOME/.asdf"
+audit "mise"    "$HOME/.local/share/mise"
+audit "rustup"  "$HOME/.rustup"
+audit "goenv"   "$HOME/.goenv"
+audit "go-sdk"  "$HOME/sdk"
+
+echo ""
+echo "  Total: ${total} MB ($((total / 1024)) GB)"
+echo ""
+
+<span style="color:#86868b"># Quick cleanup (caches only — doesn't remove versions)</span>
+if [ "$1" = "--clean" ]; then
+    echo "Cleaning caches..."
+    rm -rf ~/.nvm/.cache/ 2>/dev/null
+    rm -rf ~/Library/Caches/fnm_multishells/ 2>/dev/null
+    rm -rf ~/.volta/cache/ ~/.volta/tmp/ 2>/dev/null
+    rm -rf ~/.pyenv/cache/ ~/.pyenv/sources/ 2>/dev/null
+    rm -rf ~/.rbenv/cache/ 2>/dev/null
+    rm -rf ~/.sdkman/archives/ 2>/dev/null
+    rm -rf ~/.asdf/downloads/ 2>/dev/null
+    rm -rf ~/.rustup/downloads/ ~/.rustup/tmp/ 2>/dev/null
+    echo "Cache cleanup done!"
+fi</pre>
+
+        <div class="cta">
+            <h3>Monitor All Developer Caches Automatically</h3>
+            <p>Version managers are just part of the picture. ClearDisk monitors 44+ developer cache paths on macOS — including all version managers, build caches, Docker, Xcode DerivedData, Homebrew, and more — right from the menu bar.</p>
+            <a href="https://github.com/bysiber/cleardisk" class="cta-button">Get ClearDisk (Free & Open Source)</a>
+        </div>
+
+        <!-- Section 12 -->
+        <h2 id="cheatsheet">12. Quick Reference Cheatsheet</h2>
+
+        <table>
+            <thead>
+                <tr><th>Tool</th><th>Audit Command</th><th>Clean Command</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>nvm</td>
+                    <td><code>du -sh ~/.nvm/</code></td>
+                    <td><code>nvm uninstall &lt;version&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>fnm</td>
+                    <td><code>du -sh ~/.fnm/</code></td>
+                    <td><code>fnm uninstall &lt;version&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>Volta</td>
+                    <td><code>du -sh ~/.volta/</code></td>
+                    <td><code>rm -rf ~/.volta/cache/</code></td>
+                </tr>
+                <tr>
+                    <td>pyenv</td>
+                    <td><code>du -sh ~/.pyenv/</code></td>
+                    <td><code>pyenv uninstall &lt;version&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>rbenv</td>
+                    <td><code>du -sh ~/.rbenv/</code></td>
+                    <td><code>rbenv uninstall &lt;version&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>SDKMAN</td>
+                    <td><code>du -sh ~/.sdkman/</code></td>
+                    <td><code>sdk uninstall java &lt;v&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>asdf</td>
+                    <td><code>du -sh ~/.asdf/</code></td>
+                    <td><code>asdf uninstall &lt;plugin&gt; &lt;v&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>rustup</td>
+                    <td><code>du -sh ~/.rustup/</code></td>
+                    <td><code>rustup toolchain uninstall &lt;v&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>goenv</td>
+                    <td><code>du -sh ~/.goenv/</code></td>
+                    <td><code>goenv uninstall &lt;version&gt;</code></td>
+                </tr>
+                <tr>
+                    <td>All caches</td>
+                    <td>Run audit script above</td>
+                    <td><code>./version_manager_cleanup.sh --clean</code></td>
+                </tr>
+                <tr>
+                    <td>GUI monitoring</td>
+                    <td colspan="2"><code>brew tap bysiber/cleardisk && brew install --cask cleardisk</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Section 13: FAQ -->
+        <h2 id="faq">13. FAQ</h2>
+
+        <details>
+            <summary>Which version manager uses the most disk space?</summary>
+            <p>SDKMAN typically uses the most because JDK distributions are 200-400MB each, and developers often install multiple vendors (Temurin, Corretto, GraalVM). A machine with 5-6 JDK versions can easily have 2-3GB in SDKMAN alone. rustup is a close second, with each Rust toolchain being 500MB-1GB.</p>
+        </details>
+
+        <details>
+            <summary>Is it safe to delete the cache/download directories?</summary>
+            <p>Yes. Deleting cache and download directories (like <code class="inline-code">~/.sdkman/archives/</code>, <code class="inline-code">~/.pyenv/cache/</code>, <code class="inline-code">~/.asdf/downloads/</code>) only removes cached downloads. Already-installed versions continue to work. The files will be re-downloaded if you reinstall a version.</p>
+        </details>
+
+        <details>
+            <summary>Can I use multiple version managers at the same time?</summary>
+            <p>Technically yes, but it can cause PATH conflicts and confusion. If you have both nvm and fnm installed, or both pyenv and conda, consider consolidating to one per language. Removing the unused ones saves disk space and reduces complexity.</p>
+        </details>
+
+        <details>
+            <summary>Why doesn't nvm/asdf/fnm have a built-in cleanup command?</summary>
+            <p>This is a popular request across most version managers (see <a href="https://github.com/nvm-sh/nvm/issues/1195">nvm#1195</a>, <a href="https://github.com/asdf-vm/asdf/issues/830">asdf#830</a>, <a href="https://github.com/Schniz/fnm/issues/696">fnm#696</a>). Most tools treat version management as "install/uninstall only" and leave garbage collection to the user. Until cleanup commands are added, the manual approach in this guide is the way to go.</p>
+        </details>
+
+        <details>
+            <summary>How often should I clean up version managers?</summary>
+            <p>A quarterly cleanup is a good cadence. After major project transitions (e.g., upgrading from Node 18 to 20), immediately uninstall the old version while you remember. Setting up the automation script from section 11 as a cron job makes this effortless.</p>
+        </details>
+
+        <details>
+            <summary>Can ClearDisk monitor version manager directories?</summary>
+            <p>Yes. <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> monitors 44+ developer cache paths on macOS, including nvm, pyenv, rbenv, SDKMAN, rustup, and other version manager directories. It shows real-time disk usage from the menu bar so you can see when a version manager cache starts growing.</p>
+        </details>
+    </div>
+
+    <footer>
+        <p><a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free, open-source disk cleanup for macOS developers</p>
+        <p style="margin-top: 8px;">Also read: <a href="conda-anaconda-cache-cleanup-mac.html">Conda/Anaconda Cleanup</a> | <a href="python-pip-cache-cleanup-mac.html">Python/pip Cleanup</a> | <a href="free-disk-space-mac-developer.html">Free 50GB+ as a Developer</a> | <a href="docker-disk-space-cleanup-mac.html">Docker Cleanup</a> | <a href="xcode-disk-space-cleanup-guide.html">Xcode Guide</a> | <a href="clean-node-modules-mac.html">node_modules Guide</a> | <a href="homebrew-cleanup-guide-mac.html">Homebrew Guide</a> | <a href="rust-cargo-cache-cleanup-mac.html">Rust/Cargo Guide</a> | <a href="go-module-cache-cleanup-mac.html">Go/GOPATH Cleanup</a> | <a href="gradle-cache-cleanup-mac.html">Gradle Cleanup</a> | <a href="npm-yarn-pnpm-cache-cleanup-mac.html">npm/Yarn/pnpm Cleanup</a> | <a href="maven-sbt-cache-cleanup-mac.html">Maven/sbt Cleanup</a> | <a href="macos-ci-runner-disk-cleanup.html">CI Runner Cleanup</a></p>
+        <p style="margin-top: 8px;"><a href="../">Home</a> | <a href="./">Blog</a> | <a href="https://github.com/bysiber/cleardisk">GitHub</a></p>
+    </footer>
+</body>
+</html>
