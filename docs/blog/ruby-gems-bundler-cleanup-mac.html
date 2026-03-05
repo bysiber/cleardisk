@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruby, Gems & Bundler Cache Cleanup on Mac — Reclaim 2-15GB+ (2025 Guide)</title>
+    <meta name="description" content="Ruby installations, gem caches, Bundler vendor directories, and multiple Ruby versions can consume 2-15GB+ on macOS. Learn how to audit and clean all Ruby-related disk usage.">
+    <meta name="keywords" content="ruby gem cleanup mac, bundler cache cleanup, gem pristine, gem cleanup, rbenv versions disk space, ruby cache mac, bundler vendor cache, rubygems disk space, gem uninstall old versions mac, ruby development cleanup macos">
+    <link rel="canonical" href="https://bysiber.github.io/cleardisk/blog/ruby-gems-bundler-cleanup-mac.html">
+
+    <meta property="og:title" content="Ruby, Gems & Bundler Cache Cleanup on Mac — Reclaim 2-15GB+">
+    <meta property="og:description" content="Ruby versions, gems, and Bundler caches silently consume gigabytes on macOS. Learn how to reclaim all of it.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/bysiber/cleardisk/main/assets/social_preview.png">
+    <meta property="og:url" content="https://bysiber.github.io/cleardisk/blog/ruby-gems-bundler-cleanup-mac.html">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Ruby, Gems & Bundler Cache Cleanup on Mac — Reclaim 2-15GB+ (2025 Guide)",
+        "description": "Ruby installations, gem caches, Bundler vendor directories, and multiple Ruby versions can consume 2-15GB+ on macOS. Complete guide to cleaning all Ruby-related disk usage.",
+        "author": {
+            "@type": "Person",
+            "name": "bysiber"
+        },
+        "datePublished": "2025-03-05",
+        "dateModified": "2025-03-05",
+        "publisher": {
+            "@type": "Organization",
+            "name": "ClearDisk"
+        },
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": "https://bysiber.github.io/cleardisk/blog/ruby-gems-bundler-cleanup-mac.html"
+        }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            line-height: 1.7;
+            color: #1d1d1f;
+            background: #fff;
+        }
+        .container { max-width: 740px; margin: 0 auto; padding: 40px 20px; }
+        h1 { font-size: 2.2em; margin-bottom: 10px; line-height: 1.2; }
+        .meta { color: #86868b; margin-bottom: 30px; font-size: 0.95em; }
+        h2 { font-size: 1.5em; margin: 40px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #e5e5e7; }
+        h3 { font-size: 1.2em; margin: 25px 0 10px; }
+        p { margin-bottom: 15px; }
+        pre {
+            background: #1d1d1f;
+            color: #f5f5f7;
+            padding: 20px;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+        code {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        .inline-code {
+            background: #f5f5f7;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #1d1d1f;
+        }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .tip {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .size-badge {
+            display: inline-block;
+            background: #ff3b30;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        ul, ol { margin: 10px 0 15px 25px; }
+        li { margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #e5e5e7; }
+        th { font-weight: 600; background: #f5f5f7; }
+        .toc {
+            background: #f5f5f7;
+            padding: 20px 25px;
+            border-radius: 12px;
+            margin: 20px 0 30px;
+        }
+        .toc a { display: block; padding: 4px 0; }
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 1px solid #e5e5e7;
+        }
+        header a { font-weight: 600; font-size: 1.1em; color: #1d1d1f; }
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #86868b;
+            border-top: 1px solid #e5e5e7;
+            margin-top: 60px;
+            font-size: 0.9em;
+        }
+        .cta {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            margin: 40px 0;
+        }
+        .cta a { color: white; text-decoration: underline; }
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 12px 28px;
+            border-radius: 25px;
+            font-weight: 600;
+            margin-top: 15px;
+            text-decoration: none;
+        }
+        .cta-button:hover { text-decoration: none; opacity: 0.9; }
+        details { margin: 10px 0; }
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 0;
+            color: #0066cc;
+        }
+        summary:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> -- Free macOS Developer Cache Cleaner
+    </header>
+
+    <div class="container">
+        <h1>Ruby, Gems & Bundler Cache Cleanup on Mac — Reclaim 2-15GB+</h1>
+        <p class="meta">Updated March 2025 -- Covers system Ruby, rbenv, chruby, RubyGems, Bundler, Rails, and CocoaPods gems -- 10 min read</p>
+
+        <p>Ruby development on macOS involves multiple layers of disk usage that accumulate silently: installed Ruby versions (each 150-500MB), gem caches, Bundler vendor directories, documentation files, and native extension build artifacts. For developers working on Rails projects, iOS apps (CocoaPods uses Ruby), or managing multiple Ruby versions via rbenv, it's common to find <strong>2-15GB+</strong> of Ruby-related files on your Mac.</p>
+
+        <p>This guide covers every Ruby-related disk consumer on macOS, with exact commands to audit and clean each one safely.</p>
+
+        <div class="toc">
+            <strong>Table of Contents</strong>
+            <a href="#audit">1. Quick Audit — Where Is Your Ruby Disk Space Going?</a>
+            <a href="#gem-cache">2. RubyGems Cache — Downloaded .gem Files</a>
+            <a href="#old-gems">3. Cleaning Old Gem Versions</a>
+            <a href="#gem-docs">4. Gem Documentation — The Silent Space Consumer</a>
+            <a href="#bundler">5. Bundler Cache & Vendor Directories</a>
+            <a href="#ruby-versions">6. Multiple Ruby Versions (rbenv / chruby / rvm)</a>
+            <a href="#native-extensions">7. Native Extension Build Artifacts</a>
+            <a href="#rails">8. Rails-Specific Cleanup</a>
+            <a href="#cocoapods-gems">9. CocoaPods & Ruby — The iOS Connection</a>
+            <a href="#automation">10. Automate Ruby Cleanup</a>
+            <a href="#cheatsheet">11. Ruby Cleanup Cheatsheet</a>
+            <a href="#faq">12. FAQ</a>
+        </div>
+
+        <!-- Section 1: Audit -->
+        <h2 id="audit">1. Quick Audit — Where Is Your Ruby Disk Space Going?</h2>
+
+<pre><code>#!/bin/bash
+echo "=== Ruby Disk Usage Audit ==="
+echo ""
+
+echo "--- System Ruby ---"
+du -sh /Library/Ruby 2>/dev/null || echo "  Not found"
+
+echo ""
+echo "--- rbenv ---"
+du -sh ~/.rbenv/versions 2>/dev/null || echo "  rbenv versions not found"
+du -sh ~/.rbenv/cache 2>/dev/null || echo "  rbenv cache not found"
+ls ~/.rbenv/versions 2>/dev/null | while read v; do
+    du -sh ~/.rbenv/versions/$v
+done
+
+echo ""
+echo "--- chruby / ruby-install ---"
+du -sh ~/.rubies 2>/dev/null || echo "  chruby not found"
+du -sh ~/src 2>/dev/null || echo "  ruby-install src not found"
+
+echo ""
+echo "--- rvm ---"
+du -sh ~/.rvm 2>/dev/null || echo "  rvm not found"
+
+echo ""
+echo "--- RubyGems Cache ---"
+gem_cache=$(gem environment gemdir 2>/dev/null)/cache
+du -sh "$gem_cache" 2>/dev/null || echo "  Gem cache not found"
+
+echo ""
+echo "--- Bundler Cache ---"
+du -sh ~/.bundle/cache 2>/dev/null || echo "  Bundler global cache not found"
+du -sh ~/Library/Caches/com.apple.developers.bundler 2>/dev/null || echo "  No macOS Bundler cache"
+
+echo ""
+echo "--- vendor/bundle directories ---"
+echo "  Scanning common project locations..."
+find ~/Developer ~/Projects ~/code ~/workspace 2>/dev/null -name "vendor" -type d -maxdepth 4 | while read dir; do
+    if [[ -d "$dir/bundle" ]]; then
+        size=$(du -sh "$dir/bundle" 2>/dev/null | awk '{print $1}')
+        echo "  $size  $dir/bundle"
+    fi
+done | sort -hr | head -10
+
+echo ""
+echo "--- Gem Documentation ---"
+du -sh "$(gem environment gemdir 2>/dev/null)/doc" 2>/dev/null || echo "  Gem docs not found"
+
+echo ""
+echo "=== Quick Estimate ==="
+total=0
+for d in ~/.rbenv/versions ~/.rbenv/cache ~/.rvm ~/.rubies; do
+    if [[ -d "$d" ]]; then
+        size=$(du -sk "$d" 2>/dev/null | awk '{print $1}')
+        total=$((total + size))
+    fi
+done
+gem_dir=$(gem environment gemdir 2>/dev/null)
+if [[ -d "$gem_dir" ]]; then
+    size=$(du -sk "$gem_dir" 2>/dev/null | awk '{print $1}')
+    total=$((total + size))
+fi
+echo "Estimated Ruby disk usage: $((total / 1024)) MB"</code></pre>
+
+        <div class="tip">
+            <strong>Tip:</strong> iOS/macOS developers who use CocoaPods have Ruby installed even if they're not "Ruby developers." Check for rbenv or system Ruby gem directories — CocoaPods dependencies can consume 500MB-2GB.
+        </div>
+
+        <!-- Section 2: Gem Cache -->
+        <h2 id="gem-cache">2. RubyGems Cache — Downloaded .gem Files</h2>
+
+        <p>Every time you install a gem, RubyGems downloads the <code class="inline-code">.gem</code> file and caches it. These cached files are never automatically cleaned up:</p>
+
+<pre><code># Find your gem cache directory
+gem environment gemdir
+# Example: ~/.rbenv/versions/3.3.0/lib/ruby/gems/3.3.0
+
+# Check cache size
+du -sh "$(gem environment gemdir)/cache"
+
+# List cached gems by size
+ls -lhS "$(gem environment gemdir)/cache" | head -20
+
+# Count cached gems
+ls "$(gem environment gemdir)/cache" | wc -l</code></pre>
+
+        <h3>Clean the Gem Cache</h3>
+
+<pre><code># Remove all cached .gem files (safe — gems are already installed)
+rm -rf "$(gem environment gemdir)/cache"/*
+
+# Or use gem cleanup to remove old versions AND their caches
+gem cleanup --dryrun    # Preview what would be removed
+gem cleanup             # Actually remove old gem versions</code></pre>
+
+        <p>If you have multiple Ruby versions via rbenv, each has its own cache:</p>
+
+<pre><code># Clean gem caches for ALL rbenv Ruby versions
+for version_dir in ~/.rbenv/versions/*/; do
+    cache="$version_dir/lib/ruby/gems/*/cache"
+    for c in $cache; do
+        if [[ -d "$c" ]]; then
+            size=$(du -sh "$c" 2>/dev/null | awk '{print $1}')
+            echo "Cleaning $c ($size)"
+            rm -rf "$c"/*
+        fi
+    done
+done</code></pre>
+
+        <!-- Section 3: Old Gems -->
+        <h2 id="old-gems">3. Cleaning Old Gem Versions</h2>
+
+        <p>When gems are updated, old versions remain installed. The <code class="inline-code">gem cleanup</code> command removes these:</p>
+
+<pre><code># Preview which gems would be removed
+gem cleanup --dryrun
+
+# Example output:
+# Cleaning up installed gems...
+# Dry Run Mode: Would uninstall nokogiri-1.15.4
+# Dry Run Mode: Would uninstall rails-7.0.8
+# Dry Run Mode: Would uninstall bundler-2.4.22
+# ...
+
+# Actually clean up (removes old versions, keeps latest)
+gem cleanup
+
+# Remove a specific gem entirely
+gem uninstall gem_name
+
+# Remove a specific version
+gem uninstall gem_name --version '1.0.0'
+
+# List all installed gems with sizes
+gem list | while read line; do
+    name=$(echo "$line" | awk '{print $1}')
+    dir="$(gem environment gemdir)/gems/$name"
+    if [[ -d "$dir" ]]; then
+        du -sh "$dir" 2>/dev/null
+    fi
+done | sort -hr | head -20</code></pre>
+
+        <div class="warning">
+            <strong>Warning:</strong> Don't run <code class="inline-code">gem cleanup</code> if you have projects that depend on specific older gem versions without Bundler. With Bundler (which most modern projects use), <code class="inline-code">gem cleanup</code> is safe because Bundler manages exact versions via <code class="inline-code">Gemfile.lock</code>.
+        </div>
+
+        <!-- Section 4: Gem Docs -->
+        <h2 id="gem-docs">4. Gem Documentation — The Silent Space Consumer</h2>
+
+        <p>By default, <code class="inline-code">gem install</code> generates RDoc and ri documentation for every gem. Most developers never use this documentation (they use online docs instead), but it consumes significant space:</p>
+
+<pre><code># Check documentation size
+du -sh "$(gem environment gemdir)/doc"
+
+# List documentation by size
+du -sh "$(gem environment gemdir)/doc"/* | sort -hr | head -20
+
+# Remove all gem documentation
+rm -rf "$(gem environment gemdir)/doc"/*</code></pre>
+
+        <h3>Disable Documentation Forever</h3>
+
+<pre><code># Create or edit ~/.gemrc to skip documentation on future installs
+echo "gem: --no-document" >> ~/.gemrc
+
+# Verify
+cat ~/.gemrc
+# Should contain: gem: --no-document
+
+# This skips both RDoc and ri documentation for all future gem installs
+# Saves ~30-50% of gem install disk usage</code></pre>
+
+        <div class="tip">
+            <strong>Highly recommended:</strong> Adding <code class="inline-code">gem: --no-document</code> to your <code class="inline-code">~/.gemrc</code> is one of the simplest ways to reduce Ruby disk usage going forward. Most developers get their documentation from rubydoc.info or docs.ruby-lang.org instead.
+        </div>
+
+        <!-- Section 5: Bundler -->
+        <h2 id="bundler">5. Bundler Cache & Vendor Directories</h2>
+
+        <p>Bundler manages per-project gem dependencies and maintains its own caching system:</p>
+
+        <h3>5.1 Global Bundler Cache</h3>
+
+<pre><code># Check Bundler's global cache
+du -sh ~/.bundle/cache 2>/dev/null
+
+# Bundler config location
+ls -la ~/.bundle/
+
+# Clean Bundler's cache
+bundle cache --all    # In a project — caches gems in vendor/cache
+bundle clean          # Remove unused gems from the current bundle
+bundle clean --force  # Force removal, even if gems are still in Gemfile</code></pre>
+
+        <h3>5.2 Vendor/Bundle Directories <span class="size-badge">500MB-3GB per project</span></h3>
+
+        <p>If you use <code class="inline-code">bundle install --path vendor/bundle</code> (or have the <code class="inline-code">BUNDLE_PATH</code> set), gems are installed per-project. This is great for isolation but can use massive disk space across many projects:</p>
+
+<pre><code># Find all vendor/bundle directories
+find ~ -path "*/vendor/bundle" -type d -maxdepth 6 2>/dev/null | while read dir; do
+    du -sh "$dir" 2>/dev/null
+done | sort -hr
+
+# Clean vendor/bundle in the current project
+cd /path/to/project
+rm -rf vendor/bundle
+bundle install  # Reinstalls from cache or network
+
+# Check if Bundler is configured to use vendor/bundle globally
+bundle config path
+# If set, consider unsetting it to use the default gem directory instead:
+bundle config unset path</code></pre>
+
+        <h3>5.3 Bundler Tmp and Build Artifacts</h3>
+
+<pre><code># Bundler sometimes leaves build artifacts
+find ~ -path "*/.bundle/tmp" -type d -maxdepth 5 2>/dev/null -exec du -sh {} \;
+
+# Clean project-level Bundler temp files
+find ~/Developer -name ".bundle" -type d -maxdepth 4 2>/dev/null | while read dir; do
+    if [[ -d "$dir/tmp" ]]; then
+        du -sh "$dir/tmp"
+        rm -rf "$dir/tmp"
+    fi
+done</code></pre>
+
+        <!-- Section 6: Ruby Versions -->
+        <h2 id="ruby-versions">6. Multiple Ruby Versions (rbenv / chruby / rvm)</h2>
+
+        <p>Each installed Ruby version is 150-500MB. With gems installed per-version, the total per Ruby version often reaches 500MB-2GB.</p>
+
+        <h3>6.1 rbenv</h3>
+
+<pre><code># List installed versions with sizes
+for v in ~/.rbenv/versions/*/; do
+    du -sh "$v"
+done
+
+# See which version you're currently using
+rbenv version
+
+# List all installed versions
+rbenv versions
+
+# Remove old versions you no longer need
+rbenv uninstall 3.1.4
+rbenv uninstall 3.2.2
+
+# Clean rbenv's download cache
+du -sh ~/.rbenv/cache 2>/dev/null
+rm -rf ~/.rbenv/cache/*
+
+# Clean rbenv shims (harmless)
+rbenv rehash</code></pre>
+
+        <h3>6.2 chruby / ruby-install</h3>
+
+<pre><code># List installed versions
+ls -la ~/.rubies/
+
+# Check sizes
+du -sh ~/.rubies/*
+
+# Remove old versions
+rm -rf ~/.rubies/ruby-3.1.4
+
+# ruby-install keeps source tarballs
+du -sh ~/src 2>/dev/null
+ls ~/src/ 2>/dev/null
+
+# Clean source tarballs
+rm -rf ~/src/ruby-*</code></pre>
+
+        <h3>6.3 rvm</h3>
+
+<pre><code># RVM is known for heavy disk usage
+du -sh ~/.rvm
+
+# List installed Rubies
+rvm list
+
+# Remove old versions
+rvm remove 3.1.4
+
+# Clean rvm caches and archives
+rvm cleanup all
+
+# Clean downloaded source archives
+du -sh ~/.rvm/archives
+rm -rf ~/.rvm/archives/*
+
+# Clean rvm logs
+rm -rf ~/.rvm/log/*</code></pre>
+
+        <div class="tip">
+            <strong>Recommendation:</strong> If you're using rvm and disk space is a concern, consider migrating to rbenv or chruby. rvm is significantly heavier (often 1-3GB for the tool itself plus installed rubies). rbenv is much leaner.
+        </div>
+
+        <!-- Section 7: Native Extensions -->
+        <h2 id="native-extensions">7. Native Extension Build Artifacts</h2>
+
+        <p>Gems with native C extensions (like nokogiri, ffi, pg, mysql2) leave build artifacts behind:</p>
+
+<pre><code># Find native extension build logs and artifacts
+find "$(gem environment gemdir)/extensions" -type f 2>/dev/null | head -20
+du -sh "$(gem environment gemdir)/extensions" 2>/dev/null
+
+# Gem build temp files
+find "$(gem environment gemdir)/gems" -name "tmp" -type d 2>/dev/null | while read dir; do
+    du -sh "$dir"
+done
+
+# Clean gem build artifacts while keeping gems functional
+# This rebuilds native extensions from source
+gem pristine --all --only-executables
+
+# Clean all and rebuild (takes longer but more thorough)
+gem pristine --all</code></pre>
+
+        <!-- Section 8: Rails -->
+        <h2 id="rails">8. Rails-Specific Cleanup</h2>
+
+        <p>Rails projects accumulate additional disk usage beyond gems:</p>
+
+<pre><code># Rails log files (can grow to gigabytes if not rotated)
+du -sh log/ 2>/dev/null
+# Clean logs
+rake log:clear
+# Or manually
+cat /dev/null > log/development.log
+cat /dev/null > log/test.log
+
+# Rails tmp directory (caches, pids, sessions)
+du -sh tmp/ 2>/dev/null
+rake tmp:clear
+
+# Asset precompilation artifacts
+du -sh public/assets 2>/dev/null
+rake assets:clobber
+
+# Spring process files (Rails process manager)
+du -sh tmp/pids 2>/dev/null
+spring stop
+
+# Bootsnap cache
+du -sh tmp/cache/bootsnap 2>/dev/null
+rm -rf tmp/cache/bootsnap
+
+# ActiveStorage local files (development uploads)
+du -sh storage/ 2>/dev/null
+# Be careful — this is actual user-uploaded content in development</code></pre>
+
+        <h3>Find All Rails Projects and Their Log Sizes</h3>
+
+<pre><code>find ~/Developer -name "Gemfile" -maxdepth 4 2>/dev/null | while read gemfile; do
+    project_dir=$(dirname "$gemfile")
+    if [[ -f "$project_dir/config/environment.rb" ]]; then
+        log_size=$(du -sk "$project_dir/log" 2>/dev/null | awk '{print $1}')
+        tmp_size=$(du -sk "$project_dir/tmp" 2>/dev/null | awk '{print $1}')
+        total=$(( (log_size + tmp_size) / 1024 ))
+        if [[ $total -gt 10 ]]; then
+            echo "${total}MB  $(basename $project_dir)  (log:${log_size}K tmp:${tmp_size}K)"
+        fi
+    fi
+done | sort -hr</code></pre>
+
+        <!-- Section 9: CocoaPods Gems -->
+        <h2 id="cocoapods-gems">9. CocoaPods & Ruby — The iOS Connection</h2>
+
+        <p>CocoaPods is a Ruby gem, so iOS/macOS developers have Ruby gem overhead even if they don't consider themselves Ruby developers:</p>
+
+<pre><code># Check CocoaPods gem size
+gem contents cocoapods 2>/dev/null | head -5
+du -sh "$(gem environment gemdir)/gems/cocoapods-"* 2>/dev/null
+
+# CocoaPods has many dependencies — check total
+gem dependency cocoapods --pipe 2>/dev/null | wc -l
+
+# If you've switched to Swift Package Manager and no longer need CocoaPods:
+gem uninstall cocoapods
+gem uninstall cocoapods-core cocoapods-downloader cocoapods-plugins cocoapods-search cocoapods-trunk
+gem cleanup
+
+# Also clean CocoaPods-specific directories (covered in our CocoaPods guide)
+# rm -rf ~/Library/Caches/CocoaPods
+# rm -rf ~/.cocoapods/repos</code></pre>
+
+        <div class="tip">
+            <strong>See also:</strong> Our dedicated <a href="cocoapods-cache-cleanup-mac.html">CocoaPods Cache Cleanup Guide</a> covers CocoaPods-specific directories in much more detail.
+        </div>
+
+        <!-- Section 10: Automation -->
+        <h2 id="automation">10. Automate Ruby Cleanup</h2>
+
+<pre><code>#!/bin/bash
+# ruby-cleanup.sh — Safe Ruby cache cleanup for macOS
+
+set -euo pipefail
+echo "💎 Ruby Cache Cleanup — $(date)"
+echo "================================="
+freed=0
+
+cleanup() {
+    local path="$1"
+    local desc="$2"
+    if [[ -d "$path" ]]; then
+        size=$(du -sk "$path" 2>/dev/null | awk '{print $1}')
+        if [[ $size -gt 0 ]]; then
+            echo "  Cleaning $desc: $((size/1024))MB"
+            rm -rf "$path"/*
+            freed=$((freed + size))
+        fi
+    fi
+}
+
+# Gem caches for all rbenv versions
+echo ""
+echo "--- Gem Caches ---"
+for cache_dir in ~/.rbenv/versions/*/lib/ruby/gems/*/cache; do
+    if [[ -d "$cache_dir" ]]; then
+        cleanup "$cache_dir" "$(echo $cache_dir | grep -oP 'versions/[^/]+')"
+    fi
+done
+
+# Gem documentation for all versions
+echo ""
+echo "--- Gem Documentation ---"
+for doc_dir in ~/.rbenv/versions/*/lib/ruby/gems/*/doc; do
+    if [[ -d "$doc_dir" ]]; then
+        cleanup "$doc_dir" "gem docs $(echo $doc_dir | grep -oP 'versions/[^/]+')"
+    fi
+done
+
+# rbenv download cache
+echo ""
+echo "--- rbenv Cache ---"
+cleanup ~/.rbenv/cache "rbenv download cache"
+
+# Bundler cache
+echo ""
+echo "--- Bundler Cache ---"
+cleanup ~/.bundle/cache "Bundler global cache"
+
+# Clean old gem versions (for current Ruby)
+echo ""
+echo "--- Old Gem Versions ---"
+echo "  Running gem cleanup..."
+gem cleanup 2>/dev/null || true
+
+echo ""
+echo "================================="
+echo "Total freed: $((freed/1024))MB"
+echo ""
+echo "Tip: Add 'gem: --no-document' to ~/.gemrc to prevent doc generation"</code></pre>
+
+        <!-- Section 11: Cheatsheet -->
+        <h2 id="cheatsheet">11. Ruby Cleanup Cheatsheet</h2>
+
+        <table>
+            <tr>
+                <th>Component</th>
+                <th>Typical Size</th>
+                <th>Cleanup Command</th>
+                <th>Safe?</th>
+            </tr>
+            <tr>
+                <td>Gem Cache (.gem files)</td>
+                <td>200MB-2GB</td>
+                <td><code class="inline-code">rm -rf $(gem env gemdir)/cache/*</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Old Gem Versions</td>
+                <td>500MB-3GB</td>
+                <td><code class="inline-code">gem cleanup</code></td>
+                <td>Yes (with Bundler)</td>
+            </tr>
+            <tr>
+                <td>Gem Documentation</td>
+                <td>200MB-1GB</td>
+                <td><code class="inline-code">rm -rf $(gem env gemdir)/doc/*</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>vendor/bundle per project</td>
+                <td>500MB-3GB</td>
+                <td><code class="inline-code">rm -rf vendor/bundle</code></td>
+                <td>Yes (re-bundle)</td>
+            </tr>
+            <tr>
+                <td>Unused Ruby versions</td>
+                <td>300MB-2GB each</td>
+                <td><code class="inline-code">rbenv uninstall X.X.X</code></td>
+                <td>Check project .ruby-version</td>
+            </tr>
+            <tr>
+                <td>rbenv download cache</td>
+                <td>50-500MB</td>
+                <td><code class="inline-code">rm -rf ~/.rbenv/cache/*</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>rvm archives</td>
+                <td>100MB-1GB</td>
+                <td><code class="inline-code">rm -rf ~/.rvm/archives/*</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Rails logs</td>
+                <td>10MB-5GB</td>
+                <td><code class="inline-code">rake log:clear</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Rails tmp/cache</td>
+                <td>50-500MB</td>
+                <td><code class="inline-code">rake tmp:clear</code></td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Bundler tmp</td>
+                <td>10-200MB</td>
+                <td><code class="inline-code">rm -rf .bundle/tmp</code></td>
+                <td>Yes</td>
+            </tr>
+        </table>
+
+        <!-- Section 12: FAQ -->
+        <h2 id="faq">12. FAQ</h2>
+
+        <details>
+            <summary>Is it safe to remove the gem cache directory?</summary>
+            <p>Yes. The cache directory (<code class="inline-code">$(gem environment gemdir)/cache</code>) contains only downloaded <code class="inline-code">.gem</code> files — copies of what was downloaded from rubygems.org. Your installed gems (in the <code class="inline-code">gems/</code> directory) are unaffected. If you ever need these cached files again (for <code class="inline-code">gem pristine</code> or offline installs), they'll be re-downloaded automatically.</p>
+        </details>
+
+        <details>
+            <summary>Will gem cleanup break my projects?</summary>
+            <p>Not if you use Bundler (which all modern Ruby projects do). <code class="inline-code">gem cleanup</code> removes old versions of gems, keeping only the latest. Your projects' <code class="inline-code">Gemfile.lock</code> specifies exact versions, and <code class="inline-code">bundle install</code> will re-install any needed versions. Run <code class="inline-code">gem cleanup --dryrun</code> first to preview what would be removed.</p>
+        </details>
+
+        <details>
+            <summary>How much space does disabling gem documentation save?</summary>
+            <p>Adding <code class="inline-code">gem: --no-document</code> to <code class="inline-code">~/.gemrc</code> typically saves 30-50% of total gem installation size going forward. For a fresh Ruby install with Rails and common gems, that's often 200-500MB saved. For existing installations, you can remove the doc directory to reclaim the space retroactively.</p>
+        </details>
+
+        <details>
+            <summary>Should I use rbenv or rvm?</summary>
+            <p>For disk space efficiency, rbenv is significantly lighter than rvm. rvm installs a lot of supporting infrastructure (~1-3GB baseline), while rbenv is minimal. chruby is even lighter still. If you're only managing a few Ruby versions and disk space is a concern, rbenv or chruby are the better choices. See our <a href="version-manager-cache-cleanup-mac.html">Version Manager Cleanup Guide</a> for detailed rbenv cleanup instructions.</p>
+        </details>
+
+        <details>
+            <summary>Can I remove system Ruby on macOS?</summary>
+            <p>macOS Sonoma and later no longer ship with a system Ruby. If you're on an older macOS version, don't modify or remove the system Ruby (<code class="inline-code">/usr/bin/ruby</code>) — it's used by system tools. Instead, install Ruby via rbenv or chruby and manage disk space for those separately. System Ruby's gems at <code class="inline-code">/Library/Ruby/Gems</code> can be cleaned with <code class="inline-code">sudo gem cleanup</code>, but be cautious about removing gems that macOS utilities depend on.</p>
+        </details>
+
+        <details>
+            <summary>Can ClearDisk monitor Ruby and gem disk usage?</summary>
+            <p>Yes! <a href="https://github.com/bysiber/cleardisk">ClearDisk</a> is a free macOS menu bar app that monitors 44+ developer cache locations in real time, including RubyGems cache directories and Bundler storage. It shows you at a glance how much space your development tools are consuming. Download it from the <a href="https://github.com/bysiber/cleardisk">GitHub repository</a>.</p>
+        </details>
+
+        <div class="cta">
+            <h3>Monitor All Your Developer Caches Automatically</h3>
+            <p>ClearDisk lives in your menu bar and monitors 44+ cache paths — Ruby gems, Bundler, Python, Node, Xcode, Docker, and more — so you always know where your disk space is going.</p>
+            <a href="https://github.com/bysiber/cleardisk" class="cta-button">Get ClearDisk — Free & Open Source</a>
+        </div>
+
+        <p><strong>Related guides:</strong></p>
+        <ul>
+            <li><a href="free-disk-space-mac-developer.html">The Complete Guide to Freeing Disk Space on Mac for Developers</a></li>
+            <li><a href="version-manager-cache-cleanup-mac.html">Version Manager Cache Cleanup on Mac (rbenv, chruby, and more)</a></li>
+            <li><a href="cocoapods-cache-cleanup-mac.html">CocoaPods Cache Cleanup on Mac</a></li>
+            <li><a href="homebrew-cleanup-guide-mac.html">Homebrew Cleanup Guide for Mac</a></li>
+            <li><a href="mac-disk-cleaner-comparison.html">Mac Disk Cleaner Comparison</a></li>
+        </ul>
+
+        <p style="margin-top: 30px; color: #86868b; font-size: 0.9em;">
+            <strong>About ClearDisk:</strong> A free, open-source macOS menu bar utility that monitors developer cache disk usage in real time. 
+            Supports 44+ cache paths including Xcode, node_modules, CocoaPods, Gradle, Docker, pip, Cargo, Homebrew, and more. 
+            <a href="https://github.com/bysiber/cleardisk">View on GitHub</a>.
+        </p>
+    </div>
+
+    <footer>
+        &copy; 2025 ClearDisk. Free and open-source macOS developer tool.
+        <br><a href="https://github.com/bysiber/cleardisk">GitHub</a> · <a href="../index.html">Home</a> · <a href="index.html">Blog</a>
+    </footer>
+</body>
+</html>
