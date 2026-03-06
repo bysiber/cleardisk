@@ -84,10 +84,9 @@ That's it. Homebrew handles everything, including the quarantine flag.
 
 1. Download the latest DMG from [**Releases**](https://github.com/bysiber/cleardisk/releases/latest)
 2. Open the DMG and drag ClearDisk to Applications
-3. **⚠️ IMPORTANT:** Run this in Terminal (required to open the app):
-   ```bash
-   xattr -cr /Applications/ClearDisk.app
-   ```
+3. **First launch:** macOS will block it because it's not notarized. Choose one:
+   - **GUI:** Open the app once (it will be blocked), then go to **System Settings > Privacy & Security**, scroll down and click **"Open Anyway"**
+   - **Terminal (if GUI doesn't work):** `xattr -cr /Applications/ClearDisk.app`
 4. Open ClearDisk from Applications
 
 ### Build from Source
@@ -103,7 +102,7 @@ open /Applications/ClearDisk.app
 
 That's it. Click the disk icon in your menu bar.
 
-> **Why `xattr -cr`?** ClearDisk is not code-signed ($99/yr Apple Developer fee). This removes the macOS Gatekeeper quarantine flag. You can verify every line of source code yourself -- it's fully open.
+> **Why the Gatekeeper warning?** ClearDisk is not notarized with Apple ($99/yr Developer fee). The app is fully open-source -- you can verify every line of code yourself.
 
 Requires macOS 14+ (Apple Silicon). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
 
