@@ -49,7 +49,8 @@ struct MainView: View {
     
     enum CacheCleanMode {
         case safe
-        case all
+        case moderate
+        case everything
     }
     
     enum ProjectFilterMode: String, CaseIterable {
@@ -1327,9 +1328,15 @@ struct MainView: View {
     
     // MARK: - Clean Caches Sub-Screen
     var cleanCachesScreen: some View {
-        let cachesToShow = cacheCleanMode == .safe
-            ? diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
-            : diskMonitor.devCaches
+        let cachesToShow: [DevCache]
+        switch cacheCleanMode {
+        case .safe:
+            cachesToShow = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }
+        case .moderate:
+            cachesToShow = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+        case .everything:
+            cachesToShow = diskMonitor.devCaches
+        }
         let selectedSize = cachesToShow.filter { selectedCacheIDs.contains($0.id) }.reduce(Int64(0)) { $0 + $1.size }
         let selectedCount = cachesToShow.filter { selectedCacheIDs.contains($0.id) }.count
         
@@ -1367,7 +1374,7 @@ struct MainView: View {
                     cacheCleanMode = .safe
                     selectedCacheIDs = []
                 }) {
-                    Text("Safe Only")
+                    Text("Safe")
                         .font(.system(size: 10, weight: cacheCleanMode == .safe ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .safe ? .green : .secondary)
                         .padding(.horizontal, 8)
@@ -1379,16 +1386,31 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 
                 Button(action: {
-                    cacheCleanMode = .all
+                    cacheCleanMode = .moderate
                     selectedCacheIDs = []
                 }) {
-                    Text("All")
-                        .font(.system(size: 10, weight: cacheCleanMode == .all ? .semibold : .regular))
-                        .foregroundColor(cacheCleanMode == .all ? .red : .secondary)
+                    Text("Moderate")
+                        .font(.system(size: 10, weight: cacheCleanMode == .moderate ? .semibold : .regular))
+                        .foregroundColor(cacheCleanMode == .moderate ? .orange : .secondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .contentShape(Rectangle())
-                        .background(cacheCleanMode == .all ? Color.red.opacity(0.1) : Color.clear)
+                        .background(cacheCleanMode == .moderate ? Color.orange.opacity(0.1) : Color.clear)
+                        .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: {
+                    cacheCleanMode = .everything
+                    selectedCacheIDs = []
+                }) {
+                    Text("Everything")
+                        .font(.system(size: 10, weight: cacheCleanMode == .everything ? .semibold : .regular))
+                        .foregroundColor(cacheCleanMode == .everything ? .red : .secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                        .background(cacheCleanMode == .everything ? Color.red.opacity(0.1) : Color.clear)
                         .cornerRadius(4)
                 }
                 .buttonStyle(.plain)
@@ -1470,8 +1492,8 @@ struct MainView: View {
                             .buttonStyle(.plain)
                         }
                         
-                        // Risky warning (only in All mode)
-                        if cacheCleanMode == .all {
+                        // Risky warning (only in Everything mode)
+                        if cacheCleanMode == .everything {
                             let riskySelected = diskMonitor.devCaches.filter { $0.riskLevel == "risky" && selectedCacheIDs.contains($0.id) }
                             if !riskySelected.isEmpty {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -1534,7 +1556,7 @@ struct MainView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(selectedCount > 0 && !isCleaning ? Color.green : Color.gray.opacity(0.3))
+                .background(selectedCount > 0 && !isCleaning ? cleanButtonColor : Color.gray.opacity(0.3))
                 .foregroundColor(selectedCount > 0 && !isCleaning ? .white : .secondary)
                 .cornerRadius(8)
             }
@@ -1545,6 +1567,14 @@ struct MainView: View {
             .padding(.top, 4)
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+    }
+    
+    var cleanButtonColor: Color {
+        switch cacheCleanMode {
+        case .safe: return .green
+        case .moderate: return .orange
+        case .everything: return .red
+        }
     }
     
     // MARK: - Clean Projects Sub-Screen
