@@ -453,7 +453,7 @@ struct MainView: View {
                 }
                 Button(action: { activeScreen = .settings }) {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
@@ -1310,22 +1310,22 @@ struct MainView: View {
             // Navigation bar
             HStack {
                 Button(action: { activeScreen = .main }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                         Text("Back")
-                            .font(.system(size: 12))
+                            .font(.system(size: 13))
                     }
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
                 Spacer()
                 Text("Settings")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                 Spacer()
                 // Invisible balancer
                 Text("Back__")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .hidden()
             }
             .padding(.horizontal, 12)
