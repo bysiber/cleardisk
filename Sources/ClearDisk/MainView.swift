@@ -45,6 +45,7 @@ struct MainView: View {
         case main
         case cleanCaches
         case cleanProjects
+        case settings
     }
     
     enum CacheCleanMode {
@@ -65,6 +66,8 @@ struct MainView: View {
                 cleanCachesScreen
             case .cleanProjects:
                 cleanProjectsScreen
+            case .settings:
+                settingsScreen
             case .main:
                 mainScreen
             }
@@ -239,11 +242,7 @@ struct MainView: View {
                     
                     Divider()
                     
-                    // Permission warnings (if any)
-                    if diskMonitor.notificationPermission == .denied {
-                        permissionBanner
-                        Divider()
-                    }
+
                     
                     // Cleanable summary card (only when there's stuff to clean)
                     let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
@@ -452,6 +451,12 @@ struct MainView: View {
                     ProgressView()
                         .scaleEffect(0.7)
                 }
+                Button(action: { activeScreen = .settings }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
                 Button(action: { diskMonitor.scan() }) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 12))
@@ -1296,6 +1301,154 @@ struct MainView: View {
         case .granted: return "Enabled"
         case .denied: return "Denied"
         case .unknown: return "Checking..."
+        }
+    }
+    
+    // MARK: - Settings Screen
+    var settingsScreen: some View {
+        VStack(spacing: 0) {
+            // Navigation bar
+            HStack {
+                Button(action: { activeScreen = .main }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Back")
+                            .font(.system(size: 12))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                Spacer()
+                Text("Settings")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                // Invisible balancer
+                Text("Back__")
+                    .font(.system(size: 12))
+                    .hidden()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            
+            Divider()
+            
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Notifications section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Notifications", systemImage: "bell.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        
+                        Text("ClearDisk sends alerts when your disk usage reaches 80% or 90%.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        
+                        HStack {
+                            switch diskMonitor.notificationPermission {
+                            case .granted:
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 14))
+                                Text("Notifications enabled")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Button("Open Settings") {
+                                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                }
+                                .font(.system(size: 11))
+                                .controlSize(.small)
+                            case .denied:
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                                Text("Notifications disabled")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Button("Enable in Settings") {
+                                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                }
+                                .font(.system(size: 11))
+                                .controlSize(.small)
+                            case .unknown:
+                                Image(systemName: "questionmark.circle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.system(size: 14))
+                                Text("Permission not requested")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Button("Enable Notifications") {
+                                    diskMonitor.setupNotifications()
+                                }
+                                .font(.system(size: 11))
+                                .controlSize(.small)
+                            }
+                        }
+                        
+                        if diskMonitor.notificationPermission == .denied {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.orange)
+                                Text("To enable notifications, open System Settings > Notifications > ClearDisk and turn on \"Allow Notifications\".")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(8)
+                            .background(Color.orange.opacity(0.08))
+                            .cornerRadius(6)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+                    
+                    // About section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("About", systemImage: "info.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        
+                        HStack {
+                            Text("Version")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("1.6.4")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundColor(.primary)
+                        }
+                        
+                        HStack {
+                            Text("GitHub")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Button("bysiber/ClearDisk") {
+                                if let url = URL(string: "https://github.com/bysiber/ClearDisk") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .font(.system(size: 11))
+                            .controlSize(.small)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+                }
+                .padding(12)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .onAppear {
+            diskMonitor.checkNotificationStatus()
         }
     }
     
