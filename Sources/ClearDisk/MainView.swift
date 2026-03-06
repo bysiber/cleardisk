@@ -1420,7 +1420,7 @@ struct MainView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text("1.6.4")
+                            Text("1.6.6")
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundColor(.primary)
                         }
@@ -1951,7 +1951,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.6.4")
+                Text("ClearDisk v1.6.6")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
