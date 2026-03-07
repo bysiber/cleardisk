@@ -1,4 +1,6 @@
 import SwiftUI
+import Charts
+import ServiceManagement
 
 // MARK: - Layout Constants
 enum Layout {
@@ -26,6 +28,9 @@ struct MainView: View {
     @State private var isCleaning = false
     @State private var isExpanded = false
     @State private var expandedGroups: Set<String> = []
+    @State private var fileToDelete: LargeFile?
+    @State private var showDeleteFileConfirm = false
+    @AppStorage("launchAtLogin") private var launchAtLogin = true
 
     
     enum Tab: String, CaseIterable {
@@ -163,6 +168,19 @@ struct MainView: View {
                 ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
                 : ""
             Text("Clean \(toClean.count) selected cache(s)?\nThis will move \(formatBytes(totalSize)) to Trash.\n\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
+        }
+        .alert("Delete File", isPresented: $showDeleteFileConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Move to Trash", role: .destructive) {
+                if let file = fileToDelete {
+                    diskMonitor.largeFiles.removeAll { $0.id == file.id }
+                    diskMonitor.deleteLargeFile(file)
+                }
+            }
+        } message: {
+            if let file = fileToDelete {
+                Text("Move \"\(file.name)\" to Trash?\n\nSize: \(formatBytes(file.size))\nPath: \(file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))\n\nYou can recover it from Trash.")
+            }
         }
     }
     
@@ -626,6 +644,17 @@ struct MainView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 5)
             }
+            
+            // Storage History Chart (safe: only shows with valid data)
+            if diskMonitor.usageHistory.count >= 2, diskMonitor.totalSpace > 0 {
+                Divider()
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                
+                storageHistoryChart
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -672,6 +701,110 @@ struct MainView: View {
         case "Photos": return .mint
         default: return .gray
         }
+    }
+    
+    // MARK: - Storage History Chart
+    var storageHistoryChart: some View {
+        let history = diskMonitor.usageHistory
+        let gbValues = history.map { Double($0.usedBytes) / 1_073_741_824 }
+        let minGB = (gbValues.min() ?? 0)
+        let maxGB = (gbValues.max() ?? 100)
+        let range = max(maxGB - minGB, 1.0) // At least 1 GB range
+        let yMin = max(0, minGB - range * 0.3)
+        let yMax = maxGB + range * 0.3
+        
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "chart.xyaxis.line")
+                    .font(.system(size: 11))
+                    .foregroundColor(.accentColor)
+                Text("Storage Trend")
+                    .font(.system(size: 11, weight: .semibold))
+                Spacer()
+                Text("\(diskMonitor.historySpanDays)d history")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+            }
+            
+            Chart {
+                ForEach(Array(history.enumerated()), id: \.offset) { _, snapshot in
+                    let date = Date(timeIntervalSince1970: snapshot.timestamp)
+                    let usedGB = Double(snapshot.usedBytes) / 1_073_741_824
+                    
+                    LineMark(
+                        x: .value("Time", date),
+                        y: .value("Used", usedGB)
+                    )
+                    .foregroundStyle(storageColor)
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    
+                    AreaMark(
+                        x: .value("Time", date),
+                        y: .value("Used", usedGB)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [storageColor.opacity(0.25), storageColor.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.catmullRom)
+                }
+            }
+            .chartYScale(domain: yMin...yMax)
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(Color.gray.opacity(0.15))
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(date, format: .dateTime.month(.abbreviated).day())
+                                .font(.system(size: 8))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(Color.gray.opacity(0.15))
+                    AxisValueLabel {
+                        if let gb = value.as(Double.self) {
+                            Text("\(Int(gb)) GB")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 100)
+            
+            // Growth info
+            if diskMonitor.dailyGrowthRate != 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: diskMonitor.dailyGrowthRate > 0 ? "arrow.up.right" : "arrow.down.right")
+                        .font(.system(size: 9))
+                        .foregroundColor(diskMonitor.dailyGrowthRate > 0 ? .orange : .green)
+                    Text(diskMonitor.dailyGrowthRate > 0
+                         ? "+\(formatBytes(diskMonitor.dailyGrowthRate))/day"
+                         : "\(formatBytes(abs(diskMonitor.dailyGrowthRate)))/day freed")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    if let days = diskMonitor.forecastDaysUntilFull {
+                        Spacer()
+                        Text("~\(days)d until full")
+                            .font(.system(size: 10))
+                            .foregroundColor(days <= 30 ? .red : .orange)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.02))
+        .cornerRadius(8)
     }
     
     // MARK: - Developer Tab
@@ -1190,6 +1323,16 @@ struct MainView: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(.secondary)
             Button(action: {
+                fileToDelete = file
+                showDeleteFileConfirm = true
+            }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.red)
+            .help("Move to Trash")
+            Button(action: {
                 diskMonitor.revealInFinder(file.path)
             }) {
                 Image(systemName: "folder")
@@ -1410,6 +1553,34 @@ struct MainView: View {
                     .background(Color.primary.opacity(0.03))
                     .cornerRadius(8)
                     
+                    // Launch at Login section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("General", systemImage: "gearshape.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        
+                        Toggle(isOn: $launchAtLogin) {
+                            Text("Launch at Login")
+                                .font(.system(size: 12))
+                        }
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .onChange(of: launchAtLogin) { _, newValue in
+                            do {
+                                if newValue {
+                                    try SMAppService.mainApp.register()
+                                } else {
+                                    try SMAppService.mainApp.unregister()
+                                }
+                            } catch {
+                                print("Failed to update login item: \(error)")
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+                    
                     // About section
                     VStack(alignment: .leading, spacing: 10) {
                         Label("About", systemImage: "info.circle.fill")
@@ -1449,6 +1620,10 @@ struct MainView: View {
         }
         .onAppear {
             diskMonitor.checkNotificationStatus()
+            // Register login item if enabled (handles first launch)
+            if launchAtLogin {
+                try? SMAppService.mainApp.register()
+            }
         }
     }
     
