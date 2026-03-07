@@ -362,7 +362,9 @@ class DiskMonitor: ObservableObject {
         "Yarn Cache": "Cached Yarn packages. Re-downloads on yarn install.",
         "pnpm Store": "Content-addressable package store. Re-downloads on pnpm install.",
         "Bun Cache": "Cached Bun packages. Re-downloads on bun install.",
+        "Deno Cache": "Cached Deno modules and compiled scripts. Re-downloads on deno run.",
         "pip Cache": "Downloaded Python wheels and sdists. Re-downloads on pip install.",
+        "UV Cache": "Cached Python packages from uv (fast pip alternative). Re-downloads on uv pip install.",
         "Conda Packages": "Cached Conda environments and packages. Re-downloads on conda install.",
         "Gradle Cache": "Downloaded JARs, build outputs, and wrapper dists. Re-downloads on gradle build.",
         "Maven Cache": "Local Maven repository (.m2). Re-downloads on mvn build.",
@@ -372,6 +374,9 @@ class DiskMonitor: ObservableObject {
         "Composer Cache": "Cached PHP packages. Re-downloads on composer install.",
         "Go Modules": "Go module download cache. Re-downloads on go mod download.",
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
+        "Playwright Browsers": "Downloaded browser binaries for Playwright testing. Re-downloads on npx playwright install.",
+        "Puppeteer Browsers": "Downloaded Chromium binaries for Puppeteer. Re-downloads on npx puppeteer install.",
+        "Prisma Engines": "Prisma ORM query engine binaries. Re-downloads on npx prisma generate.",
         "Flutter/Pub Cache": "Cached Dart/Flutter packages. Re-downloads on flutter pub get.",
         "JetBrains Cache": "IDE caches (IntelliJ, WebStorm, etc). Rebuilds on IDE restart.",
         "Ruby Gems": "Installed gems and docs. Reinstall with bundle install.",
@@ -382,6 +387,7 @@ class DiskMonitor: ObservableObject {
         // AI Tools
         "Claude Desktop": "Claude Desktop conversation cache and temp files. Can grow very large. Re-downloads on next launch.",
         "Claude Code": "Claude Code CLI session history and configs. Re-creates on next session.",
+        "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
         "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
         "Cursor Cache": "Cursor editor cache, workspace storage, and extensions data. Re-builds on next launch.",
@@ -468,9 +474,11 @@ class DiskMonitor: ObservableObject {
             ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe", nil),
             ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe", nil),
             ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe", nil),
+            ("Deno Cache", "bolt.fill", "\(home)/.deno", "safe", nil),
             // Python
             ("pip Cache", "cube.fill", "\(home)/Library/Caches/pip", "safe", nil),
             ("Conda Packages", "flask.fill", "\(home)/.conda/pkgs", "safe", nil),
+            ("UV Cache", "bolt.horizontal.fill", "\(home)/.cache/uv", "safe", nil),
             // Java/Android
             ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe", nil),
             ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe", nil),
@@ -484,6 +492,10 @@ class DiskMonitor: ObservableObject {
             // Go/Rust
             ("Go Modules", "leaf.fill", "\(home)/go/pkg/mod/cache", "safe", nil),
             ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe", nil),
+            // Testing
+            ("Playwright Browsers", "theatermasks.fill", "\(home)/Library/Caches/ms-playwright", "safe", nil),
+            ("Puppeteer Browsers", "theatermasks", "\(home)/.cache/puppeteer", "safe", nil),
+            ("Prisma Engines", "cylinder.fill", "\(home)/.cache/prisma", "safe", nil),
             // Mobile
             ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe", nil),
             // IDEs
@@ -503,6 +515,7 @@ class DiskMonitor: ObservableObject {
             // AI Tools
             ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "caution", "AI Tools"),
             ("Claude Code", "terminal.fill", "\(home)/.claude", "caution", "AI Tools"),
+            ("HuggingFace Cache", "brain.head.profile", "\(home)/.cache/huggingface", "caution", "AI Tools"),
             ("Ollama Models", "brain", "\(home)/.ollama/models", "risky", "AI Tools"),
             ("ChatGPT Desktop", "bubble.right.fill", "\(home)/Library/Group Containers/group.com.openai.chat", "caution", "AI Tools"),
             ("Cursor Cache", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "caution", "AI Tools"),
