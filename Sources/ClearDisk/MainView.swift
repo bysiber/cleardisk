@@ -1591,7 +1591,7 @@ struct MainView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text("1.6.6")
+                            Text("1.6.8")
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundColor(.primary)
                         }
@@ -1609,6 +1609,26 @@ struct MainView: View {
                             .font(.system(size: 11))
                             .controlSize(.small)
                         }
+                        
+                        Divider()
+                        
+                        HStack {
+                            Text("Updates")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Button("Check for Updates") {
+                                if let url = URL(string: "https://github.com/bysiber/cleardisk/releases/latest") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .font(.system(size: 11))
+                            .controlSize(.small)
+                        }
+                        
+                        Text("Opens GitHub releases page. No network requests from ClearDisk.")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary.opacity(0.7))
                     }
                     .padding(12)
                     .background(Color.primary.opacity(0.03))
