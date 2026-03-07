@@ -1591,7 +1591,7 @@ struct MainView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text("1.6.8")
+                            Text("1.6.9")
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundColor(.primary)
                         }
