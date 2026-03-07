@@ -18,6 +18,7 @@ class DiskMonitor: ObservableObject {
     @Published var riskyCleanable: Int64 = 0 // risky caches (e.g. Docker data)
     @Published var forecastDaysUntilFull: Int? = nil // nil = not enough data
     @Published var dailyGrowthRate: Int64 = 0 // bytes per day
+    @Published var usageHistory: [UsageSnapshot] = [] // for chart display
     
     // Savings tracking
     @Published var totalSavedAllTime: Int64 = 0 // cumulative bytes cleaned
@@ -181,6 +182,7 @@ class DiskMonitor: ObservableObject {
     
     private func calculateForecast() {
         let history = loadHistory()
+        DispatchQueue.main.async { [weak self] in self?.usageHistory = history }
         
         // Need at least 2 days of data spread across at least 24 hours
         guard history.count >= 2 else {
@@ -639,6 +641,29 @@ class DiskMonitor: ObservableObject {
     
     // MARK: - Cleanup Actions
     
+    func deleteLargeFile(_ file: LargeFile) {
+        let savedSize = file.size
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let url = URL(fileURLWithPath: file.path)
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.totalSavedAllTime += savedSize
+                    UserDefaults.standard.set(self.totalSavedAllTime, forKey: self.savedKey)
+                    self.lastCleanedAmount = savedSize
+                    self.showRecoveredBanner = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                        self?.showRecoveredBanner = false
+                    }
+                    self.scan()
+                }
+            } catch {
+                print("Failed to trash large file \(file.path): \(error)")
+            }
+        }
+    }
+
     /// Move items to Trash instead of permanent delete — user can recover for 30 days
     /// NEVER falls back to permanent delete. If trash fails, it fails safely.
     private func moveToTrash(path: String) -> Bool {
