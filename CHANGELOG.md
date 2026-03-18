@@ -2,6 +2,15 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.7.0] - 2026-03-18
+### Added
+- **Game Engines**: Unity Cache (Asset Store), Unity Hub Cache, Godot Export Templates, Godot Cache
+- **Version Managers**: nvm Node Versions, pyenv Versions (with `caution` risk — reinstall with `pyenv install`), mise Installs
+- **Python Ecosystem**: Poetry Cache (`~/Library/Caches/pypoetry`), pipenv Virtualenvs — merged from PR #13 by @IT-HONGREAT
+- **JVM/Build Tools**: SBT/Ivy Cache (`~/.ivy2/cache`), Gradle Wrapper distributions (`~/.gradle/wrapper/dists`), Bazel Cache (`~/.cache/bazel`)
+- **Cloud CLIs**: AWS CLI SSO cache (`~/.aws/sso/cache`)
+- Total cache paths increased from 44 to 63
+
 ## [1.6.4] - 2026-03-05
 ### Added
 - **Terraform/OpenTofu cache support** - Monitor `~/.terraform.d` plugin cache and per-project `.terraform` artifact directories (Issue #10, PR #11)
