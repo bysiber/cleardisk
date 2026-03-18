@@ -367,7 +367,6 @@ class DiskMonitor: ObservableObject {
         "UV Cache": "Cached Python packages from uv (fast pip alternative). Re-downloads on uv pip install.",
         "Conda Packages": "Cached Conda environments and packages. Re-downloads on conda install.",
         "Poetry Cache": "Cached Poetry dependencies and wheels. Re-downloads on poetry install.",
-        "pyenv Versions": "Python versions installed via pyenv. Reinstall with pyenv install <version>.",
         "pipenv Virtualenvs": "Pipenv virtual environments. Recreate with pipenv install.",
         "Gradle Cache": "Downloaded JARs, build outputs, and wrapper dists. Re-downloads on gradle build.",
         "Maven Cache": "Local Maven repository (.m2). Re-downloads on mvn build.",
@@ -395,6 +394,21 @@ class DiskMonitor: ObservableObject {
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
         "Cursor Cache": "Cursor editor cache, workspace storage, and extensions data. Re-builds on next launch.",
         "Windsurf Cache": "Windsurf editor cache and workspace data. Re-builds on next launch.",
+        // Game Engines
+        "Unity Cache": "Unity Asset Store downloaded packages. Re-downloads from Unity Package Manager.",
+        "Unity Hub Cache": "Unity Hub metadata and editor versions download cache. Re-populates automatically.",
+        "Godot Export Templates": "Godot export templates for each engine version. Re-download from Godot → Export → Manage Export Templates.",
+        "Godot Cache": "Godot editor temp and shader cache. Rebuilds automatically on next launch.",
+        // Version Managers
+        "nvm Node Versions": "Node.js versions managed by nvm. Removing a version uninstalls it — reinstall with nvm install X.Y.Z.",
+        "pyenv Versions": "Python versions managed by pyenv. Removing uninstalls that version — reinstall with pyenv install X.Y.Z.",
+        "mise Installs": "Language runtimes installed by mise (Node, Python, Ruby, Go, etc.). Removing uninstalls them. Reinstall with mise install.",
+        // Extra JVM / Build
+        "SBT/Ivy Cache": "Scala/Java dependencies cached by sbt and Ivy. Re-downloads on next sbt compile.",
+        "Gradle Wrapper": "Gradle distribution binaries downloaded by wrapper scripts. Re-downloads on next gradle build.",
+        "Bazel Cache": "Bazel build and repository caches. Re-populates on next bazel build.",
+        // Cloud CLIs
+        "AWS CLI Cache": "AWS SSO login tokens and temporary credential cache. Re-generates on next aws sso login.",
         // IDEs (VS Code)
         "VS Code Cache": "VS Code application cache. Safe to delete, rebuilds automatically.",
         "VS Code Data": "VS Code compiled JavaScript cache. Safe to delete, recompiles on launch.",
@@ -483,8 +497,7 @@ class DiskMonitor: ObservableObject {
             ("Conda Packages", "flask.fill", "\(home)/.conda/pkgs", "safe", nil),
             ("UV Cache", "bolt.horizontal.fill", "\(home)/.cache/uv", "safe", nil),
             ("Poetry Cache", "shippingbox.fill", "\(home)/Library/Caches/pypoetry", "safe", nil),
-            ("pyenv Versions", "leaf.fill", "\(home)/.pyenv/versions", "caution", nil),
-            ("pipenv Virtualenvs", "shippingbox.and.arrow.backward.fill", "\(home)/.local/share/virtualenvs", "caution", nil),
+            ("pipenv Virtualenvs", "text.badge.checkmark", "\(home)/.local/share/virtualenvs", "caution", nil),
             // Java/Android
             ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe", nil),
             ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe", nil),
@@ -526,6 +539,21 @@ class DiskMonitor: ObservableObject {
             ("ChatGPT Desktop", "bubble.right.fill", "\(home)/Library/Group Containers/group.com.openai.chat", "caution", "AI Tools"),
             ("Cursor Cache", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "caution", "AI Tools"),
             ("Windsurf Cache", "wind", "\(home)/Library/Application Support/Windsurf", "caution", "AI Tools"),
+            // Game Engines
+            ("Unity Cache", "gamecontroller.fill", "\(home)/Library/Unity/Asset Store-5.x", "caution", "Game Engines"),
+            ("Unity Hub Cache", "gamecontroller", "\(home)/Library/Application Support/Unity/Hub", "caution", "Game Engines"),
+            ("Godot Export Templates", "wand.and.stars", "\(home)/Library/Application Support/Godot/godot/templates", "caution", "Game Engines"),
+            ("Godot Cache", "wand.and.stars.fill", "\(home)/Library/Caches/Godot", "safe", "Game Engines"),
+            // Version Managers (removing = losing that language version)
+            ("nvm Node Versions", "number.circle.fill", "\(home)/.nvm/versions", "caution", "Version Managers"),
+            ("pyenv Versions", "number.square.fill", "\(home)/.pyenv/versions", "caution", "Version Managers"),
+            ("mise Installs", "square.stack.3d.up.fill", "\(home)/.local/share/mise/installs", "caution", "Version Managers"),
+            // Extra JVM / Build
+            ("SBT/Ivy Cache", "s.circle.fill", "\(home)/.ivy2/cache", "safe", nil),
+            ("Gradle Wrapper", "gearshape.2.fill", "\(home)/.gradle/wrapper/dists", "safe", nil),
+            ("Bazel Cache", "building.columns.fill", "\(home)/.cache/bazel", "safe", nil),
+            // Cloud CLIs
+            ("AWS CLI Cache", "cloud.fill", "\(home)/.aws/sso/cache", "safe", nil),
         ]
     }
 
