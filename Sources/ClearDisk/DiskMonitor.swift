@@ -494,7 +494,7 @@ class DiskMonitor: ObservableObject {
             ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe", nil),
             ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe", nil),
             ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe", nil),
-            ("Deno Cache", "bolt.fill", "\(home)/.deno", "safe", nil),
+            ("Deno Cache", "bolt.fill", "\(home)/Library/Caches/deno", "safe", nil),
             // Python
             ("pip Cache", "cube.fill", "\(home)/Library/Caches/pip", "safe", nil),
             ("Conda Packages", "flask.fill", "\(home)/.conda/pkgs", "safe", nil),
@@ -521,7 +521,7 @@ class DiskMonitor: ObservableObject {
             // Mobile
             ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe", nil),
             // IDEs
-            ("JetBrains Cache", "laptopcomputer", "\(home)/.cache/JetBrains", "safe", nil),
+            ("JetBrains Cache", "laptopcomputer", "\(home)/Library/Caches/JetBrains", "safe", nil),
             // Ruby
             ("Ruby Gems", "diamond.fill", "\(home)/.gem", "safe", "Ruby"),
             ("rbenv Versions", "diamond.fill", "\(home)/.rbenv/versions", "caution", "Ruby"),
