@@ -395,8 +395,11 @@ class DiskMonitor: ObservableObject {
         "Cursor Cache": "Cursor editor cache, workspace storage, and extensions data. Re-builds on next launch.",
         "Windsurf Cache": "Windsurf editor cache and workspace data. Re-builds on next launch.",
         // Game Engines
-        "Unity Cache": "Unity Asset Store downloaded packages. Re-downloads from Unity Package Manager.",
-        "Unity Hub Cache": "Unity Hub metadata and editor versions download cache. Re-populates automatically.",
+        "Unity Asset Store": "Unity Asset Store downloaded packages. Re-downloads from Unity Package Manager.",
+        "UnityHub Templates": "Unity project starter templates downloaded by Unity Hub. Re-download from Hub when needed. Can be 300MB+.",
+        "Unity Build Cache": "Unity build artifacts and shader compile cache. Rebuilds automatically on next build.",
+        "Unity Logs": "Unity Editor and player log files (crash reports, debug output). Safe to delete anytime.",
+        "UnityHub Cache": "Electron/browser cache used by Unity Hub UI. Rebuilds automatically on next launch.",
         "Godot Export Templates": "Godot export templates for each engine version. Re-download from Godot → Export → Manage Export Templates.",
         "Godot Cache": "Godot editor temp and shader cache. Rebuilds automatically on next launch.",
         // Version Managers
@@ -540,9 +543,12 @@ class DiskMonitor: ObservableObject {
             ("Cursor Cache", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "caution", "AI Tools"),
             ("Windsurf Cache", "wind", "\(home)/Library/Application Support/Windsurf", "caution", "AI Tools"),
             // Game Engines
-            ("Unity Cache", "gamecontroller.fill", "\(home)/Library/Unity/Asset Store-5.x", "caution", "Game Engines"),
-            ("Unity Hub Cache", "gamecontroller", "\(home)/Library/Application Support/Unity/Hub", "caution", "Game Engines"),
-            ("Godot Export Templates", "wand.and.stars", "\(home)/Library/Application Support/Godot/godot/templates", "caution", "Game Engines"),
+            ("Unity Asset Store", "gamecontroller.fill", "\(home)/Library/Unity/Asset Store-5.x", "caution", "Game Engines"),
+            ("UnityHub Templates", "square.and.arrow.down.fill", "\(home)/Library/Application Support/UnityHub/Templates", "caution", "Game Engines"),
+            ("Unity Build Cache", "internaldrive.fill", "\(home)/Library/Caches/Unity", "safe", "Game Engines"),
+            ("Unity Logs", "doc.text.fill", "\(home)/Library/Logs/Unity", "safe", "Game Engines"),
+            ("UnityHub Cache", "gamecontroller", "\(home)/Library/Application Support/UnityHub/Cache", "safe", "Game Engines"),
+            ("Godot Export Templates", "wand.and.stars", "\(home)/Library/Application Support/Godot/export_templates", "caution", "Game Engines"),
             ("Godot Cache", "wand.and.stars.fill", "\(home)/Library/Caches/Godot", "safe", "Game Engines"),
             // Version Managers (removing = losing that language version)
             ("nvm Node Versions", "number.circle.fill", "\(home)/.nvm/versions", "caution", "Version Managers"),
