@@ -649,6 +649,8 @@ class DiskMonitor: ObservableObject {
             "\(home)/Documents",
             "\(home)/Desktop",
             "\(home)/Movies",
+            "\(home)/Music",
+            "\(home)/Pictures",
         ]
         
         for dir in scanDirs {
