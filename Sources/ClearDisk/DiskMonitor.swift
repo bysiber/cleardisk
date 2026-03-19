@@ -654,17 +654,18 @@ class DiskMonitor: ObservableObject {
         ]
         
         for dir in scanDirs {
-            findLargeFiles(in: dir, threshold: threshold, results: &files, maxDepth: 3, currentDepth: 0)
+            let folderName = (dir as NSString).lastPathComponent
+            findLargeFiles(in: dir, folder: folderName, threshold: threshold, results: &files, maxDepth: 3, currentDepth: 0)
         }
         
         files.sort { $0.size > $1.size }
         
         DispatchQueue.main.async { [weak self] in
-            self?.largeFiles = Array(files.prefix(20))
+            self?.largeFiles = Array(files.prefix(60))
         }
     }
     
-    private func findLargeFiles(in path: String, threshold: Int64, results: inout [LargeFile], maxDepth: Int, currentDepth: Int) {
+    private func findLargeFiles(in path: String, folder: String, threshold: Int64, results: inout [LargeFile], maxDepth: Int, currentDepth: Int) {
         guard currentDepth < maxDepth else { return }
         let fm = FileManager.default
         
@@ -678,7 +679,7 @@ class DiskMonitor: ObservableObject {
             guard fm.fileExists(atPath: fullPath, isDirectory: &isDir) else { continue }
             
             if isDir.boolValue {
-                findLargeFiles(in: fullPath, threshold: threshold, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
+                findLargeFiles(in: fullPath, folder: folder, threshold: threshold, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             } else {
                 // Use allocatedSize for accurate reporting (consistent with directorySize)
                 if let values = try? URL(fileURLWithPath: fullPath).resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]),
@@ -687,7 +688,8 @@ class DiskMonitor: ObservableObject {
                     results.append(LargeFile(
                         name: item,
                         path: fullPath,
-                        size: Int64(size)
+                        size: Int64(size),
+                        folder: folder
                     ))
                 }
             }
@@ -1008,6 +1010,7 @@ struct LargeFile: Identifiable {
     let name: String
     let path: String
     let size: Int64
+    let folder: String // e.g. "Downloads", "Music"
 }
 
 struct ProjectArtifact: Identifiable {

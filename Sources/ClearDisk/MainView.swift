@@ -30,6 +30,7 @@ struct MainView: View {
     @State private var expandedGroups: Set<String> = []
     @State private var fileToDelete: LargeFile?
     @State private var showDeleteFileConfirm = false
+    @State private var expandedLargeFileFolder: String? = nil
     @AppStorage("launchAtLogin") private var launchAtLogin = true
 
     
@@ -1278,7 +1279,7 @@ struct MainView: View {
     
     // MARK: - Large Files Tab
     var largeFilesContent: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 4) {
             if diskMonitor.largeFiles.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "doc.badge.clock")
@@ -1287,78 +1288,34 @@ struct MainView: View {
                     Text("No files larger than 100 MB found")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
-                    Text("Scanning Downloads, Documents, Desktop, Movies")
+                    Text("Scanned: Downloads, Documents, Desktop, Movies, Music, Pictures")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
             } else {
-                ForEach(diskMonitor.largeFiles) { file in
-                    largeFileRow(file)
+                let folderOrder = ["Downloads", "Documents", "Desktop", "Movies", "Music", "Pictures"]
+                let grouped = Dictionary(grouping: diskMonitor.largeFiles, by: { $0.folder })
+                ForEach(folderOrder, id: \.self) { folderName in
+                    if let files = grouped[folderName], !files.isEmpty {
+                        LargeFileFolderCard(
+                            folderName: folderName,
+                            files: files,
+                            expandedFolder: $expandedLargeFileFolder,
+                            onDelete: { file in
+                                fileToDelete = file
+                                showDeleteFileConfirm = true
+                            },
+                            onReveal: { file in diskMonitor.revealInFinder(file.path) }
+                        )
+                    }
                 }
             }
         }
         .padding(.vertical, 4)
     }
-    
-    func largeFileRow(_ file: LargeFile) -> some View {
-        HStack {
-            Image(systemName: fileIcon(for: file.name))
-                .font(.system(size: 14))
-                .frame(width: 24)
-                .foregroundColor(.orange)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(file.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer()
-            Text(formatBytes(file.size))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.secondary)
-            Button(action: {
-                fileToDelete = file
-                showDeleteFileConfirm = true
-            }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(.red)
-            .help("Move to Trash")
-            Button(action: {
-                diskMonitor.revealInFinder(file.path)
-            }) {
-                Image(systemName: "folder")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(.blue)
-            .help("Show in Finder")
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-    }
-    
-    func fileIcon(for name: String) -> String {
-        let ext = (name as NSString).pathExtension.lowercased()
-        switch ext {
-        case "mp4", "mov", "avi", "mkv": return "film.fill"
-        case "dmg", "iso", "img": return "externaldrive.fill"
-        case "zip", "tar", "gz", "rar", "7z": return "doc.zipper"
-        case "app": return "app.fill"
-        case "pdf": return "doc.richtext.fill"
-        case "png", "jpg", "jpeg", "heic", "tiff": return "photo.fill"
-        default: return "doc.fill"
-        }
-    }
-    
+
     // MARK: - Onboarding View
     var onboardingView: some View {
         ZStack {
@@ -2159,5 +2116,127 @@ struct MainView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Large File Folder Card
+struct LargeFileFolderCard: View {
+    let folderName: String
+    let files: [LargeFile]
+    @Binding var expandedFolder: String?
+    let onDelete: (LargeFile) -> Void
+    let onReveal: (LargeFile) -> Void
+
+    var isOpen: Bool { expandedFolder == folderName }
+    var totalSize: Int64 { files.reduce(Int64(0)) { $0 + $1.size } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    expandedFolder = isOpen ? nil : folderName
+                }
+            }) {
+                HStack(spacing: 10) {
+                    Image(systemName: folderIcon)
+                        .font(.system(size: 14))
+                        .foregroundColor(.orange)
+                        .frame(width: 20)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(folderName)
+                            .font(.system(size: 12, weight: .medium))
+                        Text("\(files.count) file\(files.count == 1 ? "" : "s")")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text(formatBytes(totalSize))
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.orange)
+                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isOpen {
+                Divider().padding(.horizontal, 12)
+                ForEach(files.sorted { $0.size > $1.size }) { file in
+                    fileRowView(file)
+                }
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(6)
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.15), lineWidth: 0.5))
+        .padding(.horizontal, 4)
+    }
+
+    private var folderIcon: String {
+        switch folderName {
+                case "Downloads": return "arrow.down.circle.fill"
+        case "Documents": return "doc.fill"
+        case "Desktop": return "menubar.dock.rectangle"
+        case "Movies": return "film.fill"
+        case "Music": return "music.note"
+        case "Pictures": return "photo.fill"
+        default: return "folder.fill"
+        }
+    }
+
+    private func fileIconName(_ name: String) -> String {
+        let ext = (name as NSString).pathExtension.lowercased()
+        switch ext {
+        case "mp4", "mov", "avi", "mkv": return "film.fill"
+        case "dmg", "iso", "img": return "externaldrive.fill"
+        case "zip", "tar", "gz", "rar", "7z": return "doc.zipper"
+        case "app": return "app.fill"
+        case "pdf": return "doc.richtext.fill"
+        case "png", "jpg", "jpeg", "heic", "tiff": return "photo.fill"
+        default: return "doc.fill"
+        }
+    }
+
+    private func fileRowView(_ file: LargeFile) -> some View {
+        HStack {
+            Image(systemName: fileIconName(file.name))
+                .font(.system(size: 14))
+                .frame(width: 24)
+                .foregroundColor(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(file.name)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            Text(formatBytes(file.size))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.secondary)
+            Button(action: { onDelete(file) }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.red)
+            .help("Move to Trash")
+            Button(action: { onReveal(file) }) {
+                Image(systemName: "folder")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.blue)
+            .help("Show in Finder")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
     }
 }
