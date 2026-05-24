@@ -130,20 +130,20 @@ struct MainView: View {
                 : ""
             Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
         }
-        .alert("Clean Project Artifact", isPresented: $showCleanArtifactConfirm) {
-            Button("Cancel", role: .cancel) { }
-            Button("Move to Trash", role: .destructive) {
-                if let artifact = artifactToClean {
-                    isCleaning = true
-                    diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
-                    diskMonitor.cleanProjectArtifact(artifact)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
+        .sheet(isPresented: $showCleanArtifactConfirm) {
+            CleanCacheConfirmSheet(
+                artifact: artifactToClean,
+                onCancel: { showCleanArtifactConfirm = false },
+                onConfirm: {
+                    if let artifact = artifactToClean {
+                        isCleaning = true
+                        diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
+                        diskMonitor.cleanProjectArtifact(artifact)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
+                    }
+                    showCleanArtifactConfirm = false
                 }
-            }
-        } message: {
-            if let artifact = artifactToClean {
-                Text("Delete \(artifact.artifactName) from \(artifact.projectName)?\n\nThis will move \(formatBytes(artifact.size)) to Trash.\n\nType: \(artifact.projectType)\nPath: \(artifact.artifactPath)\n\nRe-run your build/install command to restore.")
-            }
+            )
         }
         .alert("Clean Selected Caches", isPresented: $showCleanSelectedCachesConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -438,19 +438,19 @@ struct MainView: View {
                         activeScreen = .cleanProjects
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "folder.badge.minus")
+                            Image(systemName: "sparkles")
                                 .font(.system(size: 10))
-                            Text("Clean Projects")
+                            Text("Sweep Project Caches")
                                 .font(.system(size: 10, weight: .medium))
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .frame(maxWidth: .infinity)
-                        .background(Color.cyan.opacity(0.15))
+                        .background(Color.mint.opacity(0.18))
                         .cornerRadius(6)
                     }
                     .buttonStyle(.plain)
-                    .foregroundColor(.cyan)
+                    .foregroundColor(.mint)
                 }
             }
         }
@@ -1115,7 +1115,7 @@ struct MainView: View {
                     Image(systemName: "folder.badge.questionmark")
                         .font(.system(size: 32))
                         .foregroundColor(.secondary)
-                    Text("No stale project artifacts found")
+                    Text("No project caches found")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                     Text("Scans ~/Documents, ~/Developer, ~/Projects, ~/Code, ~/Desktop")
@@ -1130,10 +1130,18 @@ struct MainView: View {
                 VStack(spacing: 4) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Project Build Artifacts")
+                            Text("Per-Project Caches")
                                 .font(.system(size: 12, weight: .semibold))
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.shield.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.green)
+                                Text("Cleaning removes cache only — your source code stays intact")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
                             Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
-                                .font(.system(size: 10))
+                                .font(.system(size: 9))
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
@@ -1245,14 +1253,14 @@ struct MainView: View {
                             .scaleEffect(0.5)
                             .frame(width: 14, height: 14)
                     } else {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
+                        Image(systemName: "wand.and.sparkles")
+                            .font(.system(size: 12))
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.red)
+                .foregroundColor(.mint)
                 .disabled(isCleaning)
-                .help("Clean \(artifact.artifactName)")
+                .help("Clean \(artifact.artifactName) cache only — your source code is kept")
                 
                 Button(action: {
                     diskMonitor.revealInFinder(artifact.projectPath)
@@ -1902,7 +1910,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
                 Spacer()
-                Text("Clean Projects")
+                Text("Sweep Project Caches")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Text("Back__")
@@ -2059,10 +2067,10 @@ struct MainView: View {
                             .scaleEffect(0.7)
                             .frame(width: 14, height: 14)
                     } else {
-                        Image(systemName: "trash.fill")
+                        Image(systemName: "wand.and.sparkles")
                             .font(.system(size: 12))
                     }
-                    Text(isCleaning ? "Removing..." : "Remove Selected (\(formatBytes(selectedSize)))")
+                    Text(isCleaning ? "Cleaning..." : "Clean Selected Caches (\(formatBytes(selectedSize)))")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
@@ -2238,5 +2246,91 @@ struct LargeFileFolderCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
+    }
+}
+
+// MARK: - Custom Confirmation Sheet (no app icon, unlike .alert)
+struct CleanCacheConfirmSheet: View {
+    let artifact: ProjectArtifact?
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.mint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Clean Cache Only")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Source code is never touched")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            
+            if let artifact = artifact {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Clean **\(artifact.artifactName)** cache from **\(artifact.projectName)**?")
+                        .font(.system(size: 12))
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.shield.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 11))
+                        Text("Only the cache directory is moved to Trash. Your source files stay.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Divider().padding(.vertical, 2)
+                    
+                    detailRow(label: "Frees", value: formatBytes(artifact.size), valueColor: .mint, bold: true)
+                    detailRow(label: "Type",  value: artifact.projectType)
+                    detailRow(label: "Path",  value: artifact.artifactPath, mono: true)
+                    
+                    Text("Re-run your build/install command to regenerate.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .padding(.top, 2)
+                }
+                .padding(10)
+                .background(Color.gray.opacity(0.08))
+                .cornerRadius(6)
+            }
+            
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button(action: onConfirm) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                        Text("Clean Cache")
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 440)
+    }
+    
+    @ViewBuilder
+    private func detailRow(label: String, value: String, valueColor: Color = .primary, mono: Bool = false, bold: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label + ":")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(width: 48, alignment: .leading)
+            Text(value)
+                .font(.system(size: 11, weight: bold ? .semibold : .regular, design: mono ? .monospaced : .default))
+                .foregroundColor(valueColor)
+                .textSelection(.enabled)
+                .lineLimit(3)
+            Spacer()
+        }
     }
 }

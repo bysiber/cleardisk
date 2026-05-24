@@ -824,19 +824,52 @@ class DiskMonitor: ObservableObject {
     // MARK: - Project Artifact Scanner (inspired by kondo/npkill)
     
     /// Known project types: (marker file, artifact directory name, project type label)
-    static let projectTypes: [(marker: String, artifact: String, label: String)] = [
-        ("package.json", "node_modules", "Node.js"),
-        ("Cargo.toml", "target", "Rust"),
-        ("Package.swift", ".build", "Swift PM"),
-        ("go.mod", "vendor", "Go"),
-        ("build.gradle", "build", "Gradle"),
-        ("build.gradle.kts", "build", "Gradle (Kotlin)"),
-        ("pom.xml", "target", "Maven"),
-        ("composer.json", "vendor", "PHP/Composer"),
-        ("Gemfile", "vendor/bundle", "Ruby"),
-        ("pubspec.yaml", ".dart_tool", "Flutter/Dart"),
-        ("CMakeLists.txt", "build", "CMake"),
-        ("main.tf", ".terraform", "Terraform"),
+    struct ProjectType {
+        let markers: [String]   // ANY one present = project of this type. Supports glob like "*.csproj".
+        let artifacts: [String] // EACH existing one becomes a row. Supports glob like "*.egg-info".
+        let label: String
+    }
+
+    static let projectTypes: [ProjectType] = [
+        // JavaScript / TypeScript ecosystem — many possible per-project caches
+        ProjectType(
+            markers: ["package.json", "pnpm-workspace.yaml", "bun.lockb", "yarn.lock", "deno.json"],
+            artifacts: ["node_modules", ".next", ".nuxt", ".svelte-kit", ".angular", ".turbo", ".vite", ".parcel-cache", ".yarn/cache", ".cache", ".expo", "dist", "build", "out", "coverage", "storybook-static"],
+            label: "Node.js / JS"
+        ),
+        // Python — none of this was covered per-project before. NOTE: .env intentionally NOT listed (it is user config / secrets, not a cache).
+        ProjectType(
+            markers: ["pyproject.toml", "requirements.txt", "setup.py", "setup.cfg", "Pipfile", "poetry.lock", "uv.lock"],
+            artifacts: [".venv", "venv", "env", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox", "dist", "build", "*.egg-info", ".eggs", "htmlcov", "coverage"],
+            label: "Python"
+        ),
+        ProjectType(markers: ["Cargo.toml"], artifacts: ["target"], label: "Rust"),
+        ProjectType(markers: ["Package.swift"], artifacts: [".build", ".swiftpm"], label: "Swift PM"),
+        // CocoaPods / Carthage — per-project, often hundreds of MB
+        ProjectType(markers: ["Podfile"], artifacts: ["Pods"], label: "CocoaPods"),
+        ProjectType(markers: ["Cartfile", "Cartfile.private"], artifacts: ["Carthage/Build", "Carthage/Checkouts"], label: "Carthage"),
+        // Xcode project (in-project build/DerivedData; global DerivedData already covered in Caches tab)
+        ProjectType(markers: ["*.xcodeproj", "*.xcworkspace"], artifacts: ["build", "DerivedData"], label: "Xcode"),
+        ProjectType(markers: ["go.mod"], artifacts: ["vendor"], label: "Go"),
+        ProjectType(markers: ["build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"], artifacts: ["build", ".gradle", "app/build", "out"], label: "Gradle"),
+        ProjectType(markers: ["pom.xml"], artifacts: ["target"], label: "Maven"),
+        ProjectType(markers: ["composer.json"], artifacts: ["vendor"], label: "PHP/Composer"),
+        ProjectType(markers: ["Gemfile"], artifacts: ["vendor/bundle", ".bundle", "tmp/cache"], label: "Ruby"),
+        ProjectType(markers: ["pubspec.yaml"], artifacts: [".dart_tool", "build"], label: "Flutter/Dart"),
+        ProjectType(markers: ["CMakeLists.txt"], artifacts: ["build", "cmake-build-debug", "cmake-build-release"], label: "CMake"),
+        ProjectType(markers: ["main.tf"], artifacts: [".terraform"], label: "Terraform"),
+        // .NET / C#
+        ProjectType(markers: ["*.sln", "*.csproj", "*.fsproj", "*.vbproj"], artifacts: ["bin", "obj", "packages"], label: ".NET"),
+        // Game engines — sen Godot kullan\u0131yorsun, Unity/Unreal de buraya
+        ProjectType(markers: ["project.godot"], artifacts: [".godot", ".import"], label: "Godot"),
+        ProjectType(markers: ["ProjectSettings/ProjectVersion.txt", "Assembly-CSharp.csproj"], artifacts: ["Library", "Temp", "Logs", "obj", "Build", "Builds"], label: "Unity"),
+        // Unreal — NOTE: "Saved/" intentionally NOT listed; it contains user editor preferences (Saved/Config/), autosaves, and crash logs the user may need.
+        ProjectType(markers: ["*.uproject"], artifacts: ["Binaries", "Intermediate", "DerivedDataCache", "Build"], label: "Unreal"),
+        // Niche but big when used
+        ProjectType(markers: ["stack.yaml", "*.cabal"], artifacts: [".stack-work", "dist-newstyle", "dist"], label: "Haskell"),
+        ProjectType(markers: ["mix.exs"], artifacts: ["_build", "deps", ".elixir_ls"], label: "Elixir"),
+        ProjectType(markers: ["build.zig"], artifacts: ["zig-out", "zig-cache", ".zig-cache"], label: "Zig"),
+        ProjectType(markers: ["shard.yml"], artifacts: ["lib", ".crystal"], label: "Crystal"),
     ]
     
     /// Directories to scan for projects
@@ -867,7 +900,7 @@ class DiskMonitor: ObservableObject {
         artifacts.sort { $0.size > $1.size }
         
         DispatchQueue.main.async { [weak self] in
-            self?.projectArtifacts = Array(artifacts.prefix(50)) // top 50 biggest
+            self?.projectArtifacts = Array(artifacts.prefix(100)) // top 100 biggest (raised from 50 with more project types)
         }
     }
     
@@ -876,37 +909,56 @@ class DiskMonitor: ObservableObject {
         let fm = FileManager.default
         
         guard let contents = try? fm.contentsOfDirectory(atPath: path) else { return }
+        let contentsSet = Set(contents)
         
-        // Check if this directory IS a project root (has a marker file)
+        // Try every project type. A type matches if any marker exists. Each matching artifact yields its own row.
+        var anyArtifactFound = false
         for pt in DiskMonitor.projectTypes {
-            let markerPath = (path as NSString).appendingPathComponent(pt.marker)
-            let artifactPath = (path as NSString).appendingPathComponent(pt.artifact)
+            let hasMarker = pt.markers.contains { DiskMonitor.entryExists(in: path, contents: contentsSet, name: $0) }
+            guard hasMarker else { continue }
             
-            if fm.fileExists(atPath: markerPath) && fm.fileExists(atPath: artifactPath) {
-                let size = directorySize(path: artifactPath)
-                if size > 10_485_760 { // > 10 MB
+            for art in pt.artifacts {
+                let artifactPaths = DiskMonitor.resolveEntries(in: path, contents: contentsSet, name: art)
+                for artifactPath in artifactPaths {
+                    // Safety guard: only ever treat directories as cache artifacts. A literal-named entry that
+                    // happens to be a regular file (e.g. an .env file or a stray same-named text file) must not be
+                    // surfaced or moved to Trash from this scanner.
+                    var isDir: ObjCBool = false
+                    guard fm.fileExists(atPath: artifactPath, isDirectory: &isDir), isDir.boolValue else { continue }
+                    let size = directorySize(path: artifactPath)
+                    guard size > 10_485_760 else { continue } // > 10 MB
                     let projectName = (path as NSString).lastPathComponent
                     let lastModified = lastAccessDate(path: artifactPath)
                     let days = daysSince(lastModified)
-                    
+                    let displayArtifactName = (artifactPath as NSString).lastPathComponent
+
                     results.append(ProjectArtifact(
                         projectName: projectName,
                         projectPath: path,
                         artifactPath: artifactPath,
-                        artifactName: pt.artifact,
+                        artifactName: displayArtifactName,
                         projectType: pt.label,
                         size: size,
                         lastModified: lastModified,
                         daysSinceModified: days
                     ))
+                    anyArtifactFound = true
                 }
-                // Don't recurse into artifact directories
-                return
             }
         }
+        // If we identified at least one project artifact at this level, treat this dir as a project root
+        // and don't recurse into its subdirectories (keeps scans fast and avoids nested duplicate hits).
+        if anyArtifactFound { return }
         
-        // Skip node_modules, .git, etc. when recursing
-        let skipDirs: Set<String> = ["node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__", ".venv", "venv", ".terraform"]
+        // Skip known artifact / VCS dirs when recursing
+        let skipDirs: Set<String> = [
+            "node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__",
+            ".venv", "venv", "env", ".terraform", ".next", ".nuxt", ".svelte-kit", ".angular", ".turbo", ".vite",
+            ".parcel-cache", ".yarn", ".gradle", "Carthage", "DerivedData", "bin", "obj", ".godot", ".import",
+            "Library", "Temp", "Logs", "Binaries", "Intermediate", "Saved", "DerivedDataCache",
+            ".stack-work", "dist-newstyle", "_build", "deps", "zig-out", "zig-cache", ".zig-cache",
+            ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", ".nox", ".eggs"
+        ]
         
         for item in contents {
             if item.hasPrefix(".") && item != ".build" { continue }
@@ -918,6 +970,50 @@ class DiskMonitor: ObservableObject {
                 findProjectArtifacts(in: fullPath, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             }
         }
+    }
+    
+    // MARK: - Marker / artifact lookup helpers (support simple glob like "*.csproj")
+    
+    /// Checks whether a file/dir matching `name` (literal or simple glob with one `*`) exists directly inside `parent`.
+    /// Handles relative paths with `/` by traversing component-by-component.
+    private static func entryExists(in parent: String, contents: Set<String>, name: String) -> Bool {
+        if name.contains("/") {
+            // e.g. "ProjectSettings/ProjectVersion.txt" — fall back to literal lookup
+            return FileManager.default.fileExists(atPath: (parent as NSString).appendingPathComponent(name))
+        }
+        if name.contains("*") {
+            return contents.contains { globMatch($0, pattern: name) }
+        }
+        return contents.contains(name)
+    }
+    
+    /// Returns the full paths of all entries inside `parent` that match `name` (literal or simple glob).
+    private static func resolveEntries(in parent: String, contents: Set<String>, name: String) -> [String] {
+        if name.contains("/") {
+            let full = (parent as NSString).appendingPathComponent(name)
+            return FileManager.default.fileExists(atPath: full) ? [full] : []
+        }
+        if name.contains("*") {
+            return contents.filter { globMatch($0, pattern: name) }
+                           .map { (parent as NSString).appendingPathComponent($0) }
+        }
+        return contents.contains(name) ? [(parent as NSString).appendingPathComponent(name)] : []
+    }
+    
+    /// Minimal glob: supports a single `*` either as prefix (`*.ext`) or suffix (`prefix*`).
+    /// Falls back to NSPredicate LIKE for any other patterns.
+    private static func globMatch(_ name: String, pattern: String) -> Bool {
+        if !pattern.contains("*") { return name == pattern }
+        let starCount = pattern.filter { $0 == "*" }.count
+        if starCount == 1 {
+            if pattern.hasPrefix("*") {
+                return name.hasSuffix(String(pattern.dropFirst()))
+            }
+            if pattern.hasSuffix("*") {
+                return name.hasPrefix(String(pattern.dropLast()))
+            }
+        }
+        return NSPredicate(format: "SELF LIKE %@", pattern).evaluate(with: name)
     }
     
     /// Clean a single project artifact (move to trash)
@@ -939,18 +1035,22 @@ class DiskMonitor: ObservableObject {
         
         guard let enumerator = fm.enumerator(
             at: URL(fileURLWithPath: path),
-            includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey],
+            includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey, .linkCountKey],
             options: [],  // Don't skip hidden files — caches often contain them
             errorHandler: nil
         ) else { return 0 }
         
         for case let fileURL as URL in enumerator {
-            guard let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey]),
+            guard let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey, .linkCountKey]),
                   values.isRegularFile == true else { continue }
             // Use totalFileAllocatedSize (accounts for sparse files like Docker.raw)
             // Falls back to fileAllocatedSize if total isn't available
             let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0
-            totalSize += Int64(size)
+            // Hardlink-aware: a file with N hard links only frees `size / N` bytes when one link is removed.
+            // This is critical for pnpm / Bun / Yarn Berry / Cargo registry stores that hardlink into project caches —
+            // otherwise we wildly overestimate how much disk space cleaning would actually free.
+            let links = max(values.linkCount ?? 1, 1)
+            totalSize += Int64(size / links)
         }
         
         return totalSize
@@ -1026,9 +1126,13 @@ struct ProjectArtifact: Identifiable {
     
     var typeIcon: String {
         switch projectType {
-        case "Node.js": return "cube.box.fill"
+        case "Node.js / JS": return "cube.box.fill"
+        case "Python": return "ladybug.fill"
         case "Rust": return "wrench.fill"
         case "Swift PM": return "swift"
+        case "CocoaPods": return "shippingbox.fill"
+        case "Carthage": return "tram.fill"
+        case "Xcode": return "hammer.fill"
         case "Go": return "leaf.fill"
         case "Gradle", "Gradle (Kotlin)": return "gearshape.fill"
         case "Maven": return "building.columns.fill"
@@ -1036,6 +1140,15 @@ struct ProjectArtifact: Identifiable {
         case "Ruby": return "diamond.fill"
         case "Flutter/Dart": return "bird.fill"
         case "CMake": return "hammer.fill"
+        case "Terraform": return "cloud.fill"
+        case ".NET": return "square.grid.2x2.fill"
+        case "Godot": return "gamecontroller.fill"
+        case "Unity": return "cube.transparent"
+        case "Unreal": return "cube.transparent.fill"
+        case "Haskell": return "lambda"
+        case "Elixir": return "drop.fill"
+        case "Zig": return "bolt.fill"
+        case "Crystal": return "sparkles"
         default: return "folder.fill"
         }
     }
