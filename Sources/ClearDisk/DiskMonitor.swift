@@ -865,7 +865,7 @@ class DiskMonitor: ObservableObject {
         
         // Sort by size: biggest first (user can change sort in UI)
         artifacts.sort { $0.size > $1.size }
-        
+
         DispatchQueue.main.async { [weak self] in
             self?.projectArtifacts = Array(artifacts.prefix(50)) // top 50 biggest
         }
@@ -877,33 +877,39 @@ class DiskMonitor: ObservableObject {
         
         guard let contents = try? fm.contentsOfDirectory(atPath: path) else { return }
         
-        // Check if this directory IS a project root (has a marker file)
+        // Check ALL project types — a directory can match more than one (e.g. a
+        // Rust+JS project with both Cargo.toml+target and package.json+node_modules),
+        // so don't stop at the first match or one artifact would shadow the other.
+        var matchedProjectRoot = false
+        var seenArtifacts = Set<String>() // dedupe artifacts shared by >1 type (e.g. "target": Rust & Maven)
         for pt in DiskMonitor.projectTypes {
             let markerPath = (path as NSString).appendingPathComponent(pt.marker)
             let artifactPath = (path as NSString).appendingPathComponent(pt.artifact)
-            
-            if fm.fileExists(atPath: markerPath) && fm.fileExists(atPath: artifactPath) {
-                let size = directorySize(path: artifactPath)
-                if size > 10_485_760 { // > 10 MB
-                    let projectName = (path as NSString).lastPathComponent
-                    let lastModified = lastAccessDate(path: artifactPath)
-                    let days = daysSince(lastModified)
-                    
-                    results.append(ProjectArtifact(
-                        projectName: projectName,
-                        projectPath: path,
-                        artifactPath: artifactPath,
-                        artifactName: pt.artifact,
-                        projectType: pt.label,
-                        size: size,
-                        lastModified: lastModified,
-                        daysSinceModified: days
-                    ))
-                }
-                // Don't recurse into artifact directories
-                return
+
+            guard fm.fileExists(atPath: markerPath) && fm.fileExists(atPath: artifactPath) else { continue }
+            matchedProjectRoot = true
+            guard seenArtifacts.insert(artifactPath).inserted else { continue }
+
+            let size = directorySize(path: artifactPath)
+            if size > 10_485_760 { // > 10 MB
+                let projectName = (path as NSString).lastPathComponent
+                let lastModified = lastAccessDate(path: artifactPath)
+                let days = daysSince(lastModified)
+
+                results.append(ProjectArtifact(
+                    projectName: projectName,
+                    projectPath: path,
+                    artifactPath: artifactPath,
+                    artifactName: pt.artifact,
+                    projectType: pt.label,
+                    size: size,
+                    lastModified: lastModified,
+                    daysSinceModified: days
+                ))
             }
         }
+        // Don't recurse into a detected project root (avoids double-counting workspace members).
+        if matchedProjectRoot { return }
         
         // Skip node_modules, .git, etc. when recursing
         let skipDirs: Set<String> = ["node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__", ".venv", "venv", ".terraform"]
