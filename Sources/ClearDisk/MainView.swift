@@ -24,6 +24,8 @@ struct MainView: View {
     @State private var selectedArtifactIDs: Set<UUID> = []
     @State private var selectedCacheIDs: Set<UUID> = []
     @State private var showCleanSelectedCachesConfirm = false
+    @State private var showCleanHistorySheet = false
+    @State private var showClearHistoryConfirm = false
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
     @State private var isExpanded = false
@@ -79,6 +81,21 @@ struct MainView: View {
             }
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .sheet(isPresented: $showCleanHistorySheet) {
+            ProjectCleanHistorySheet(
+                entries: diskMonitor.projectCleanHistory,
+                onClose: { showCleanHistorySheet = false },
+                onClearAll: { showClearHistoryConfirm = true }
+            )
+        }
+        .alert("Clear History?", isPresented: $showClearHistoryConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear", role: .destructive) {
+                diskMonitor.clearProjectCleanHistory()
+            }
+        } message: {
+            Text("This only removes the local history log. It does NOT restore any previously cleaned caches.")
+        }
         .alert("Clean Cache", isPresented: $showCleanConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
@@ -1145,9 +1162,34 @@ struct MainView: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
-                        Text(formatBytes(totalArtifacts))
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundColor(.orange)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(formatBytes(totalArtifacts))
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundColor(.orange)
+                            Button(action: { showCleanHistorySheet = true }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 9, weight: .semibold))
+                                    Text("History")
+                                        .font(.system(size: 10, weight: .medium))
+                                    if !diskMonitor.projectCleanHistory.isEmpty {
+                                        Text("\(diskMonitor.projectCleanHistory.count)")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 0)
+                                            .background(Color.mint.opacity(0.25))
+                                            .cornerRadius(6)
+                                    }
+                                }
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color.mint.opacity(0.12))
+                                .cornerRadius(5)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.mint)
+                            .help("View previously cleaned project caches")
+                        }
                     }
                     // Sort picker
                     HStack(spacing: 0) {
@@ -1913,9 +1955,26 @@ struct MainView: View {
                 Text("Sweep Project Caches")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Text("Back__")
-                    .font(.system(size: 12))
-                    .hidden()
+                Button(action: { showCleanHistorySheet = true }) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("History")
+                            .font(.system(size: 12))
+                        if !diskMonitor.projectCleanHistory.isEmpty {
+                            Text("\(diskMonitor.projectCleanHistory.count)")
+                                .font(.system(size: 9, weight: .semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.mint.opacity(0.25))
+                                .foregroundColor(.mint)
+                                .cornerRadius(7)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                .help("View previously cleaned project caches")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -2332,5 +2391,161 @@ struct CleanCacheConfirmSheet: View {
                 .lineLimit(3)
             Spacer()
         }
+    }
+}
+
+// MARK: - Project Clean History Sheet
+struct ProjectCleanHistorySheet: View {
+    let entries: [ProjectCleanHistoryEntry]
+    let onClose: () -> Void
+    let onClearAll: () -> Void
+    
+    private var totalFreed: Int64 {
+        entries.reduce(Int64(0)) { $0 + $1.size }
+    }
+    
+    private static let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .short
+        return df
+    }()
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.mint)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Cleanup History")
+                        .font(.system(size: 14, weight: .semibold))
+                    if entries.isEmpty {
+                        Text("No cleanups recorded yet")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("\(entries.count) cleanup\(entries.count == 1 ? "" : "s") · \(formatBytes(totalFreed)) freed")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+                if !entries.isEmpty {
+                    Button(action: onClearAll) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10))
+                            Text("Clear")
+                                .font(.system(size: 11))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.red.opacity(0.8))
+                    .help("Clear local history log (does not affect Trash)")
+                }
+                Button(action: onClose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            
+            Divider()
+            
+            if entries.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 28))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("Nothing here yet")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Cleaned project caches will appear here.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 50)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(entries) { entry in
+                            historyRow(entry)
+                            Divider().opacity(0.4)
+                        }
+                    }
+                }
+            }
+            
+            Divider()
+            HStack {
+                Text("Source code is never touched — only listed cache directories were moved to Trash.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+        }
+        .frame(width: 540, height: 480)
+    }
+    
+    @ViewBuilder
+    private func historyRow(_ entry: ProjectCleanHistoryEntry) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14))
+                .foregroundColor(.mint)
+                .padding(.top, 2)
+            
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(entry.projectName)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Text(entry.artifactName)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.secondary.opacity(0.12))
+                        .cornerRadius(4)
+                    Text(entry.projectType)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.purple)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.purple.opacity(0.12))
+                        .cornerRadius(4)
+                    Spacer()
+                    Text(formatBytes(entry.size))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.mint)
+                }
+                Text(entry.projectPath)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(Self.dateFormatter.string(from: entry.cleanedAt))
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary.opacity(0.8))
+            }
+            
+            Button(action: {
+                NSWorkspace.shared.selectFile(entry.projectPath, inFileViewerRootedAtPath: "")
+            }) {
+                Image(systemName: "folder")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Show project in Finder")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 }

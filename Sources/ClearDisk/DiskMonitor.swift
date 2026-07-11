@@ -26,6 +26,11 @@ class DiskMonitor: ObservableObject {
     @Published var showRecoveredBanner: Bool = false // transient banner after cleanup
     private let savedKey = "ClearDisk.totalSaved"
     
+    // Per-project cache cleanup history (persisted)
+    @Published var projectCleanHistory: [ProjectCleanHistoryEntry] = []
+    private let projectHistoryKey = "ClearDisk.projectCleanHistory"
+    private let historyMaxEntries = 200
+    
     // Permission & access status
     @Published var notificationPermission: PermissionState = .unknown
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
@@ -49,6 +54,34 @@ class DiskMonitor: ObservableObject {
     
     func loadSavedTotal() {
         totalSavedAllTime = Int64(UserDefaults.standard.integer(forKey: savedKey))
+        loadProjectCleanHistory()
+    }
+    
+    // MARK: - Project Clean History
+    func loadProjectCleanHistory() {
+        guard let data = UserDefaults.standard.data(forKey: projectHistoryKey) else { return }
+        if let decoded = try? JSONDecoder().decode([ProjectCleanHistoryEntry].self, from: data) {
+            projectCleanHistory = decoded
+        }
+    }
+    
+    private func saveProjectCleanHistory() {
+        if let data = try? JSONEncoder().encode(projectCleanHistory) {
+            UserDefaults.standard.set(data, forKey: projectHistoryKey)
+        }
+    }
+    
+    func appendProjectCleanHistory(_ entry: ProjectCleanHistoryEntry) {
+        projectCleanHistory.insert(entry, at: 0)
+        if projectCleanHistory.count > historyMaxEntries {
+            projectCleanHistory = Array(projectCleanHistory.prefix(historyMaxEntries))
+        }
+        saveProjectCleanHistory()
+    }
+    
+    func clearProjectCleanHistory() {
+        projectCleanHistory.removeAll()
+        UserDefaults.standard.removeObject(forKey: projectHistoryKey)
     }
     
     private func addToSavings(_ bytes: Int64) {
@@ -1019,10 +1052,20 @@ class DiskMonitor: ObservableObject {
     /// Clean a single project artifact (move to trash)
     func cleanProjectArtifact(_ artifact: ProjectArtifact) {
         let savedSize = artifact.size
+        let historyEntry = ProjectCleanHistoryEntry(
+            projectName: artifact.projectName,
+            projectPath: artifact.projectPath,
+            artifactName: artifact.artifactName,
+            artifactPath: artifact.artifactPath,
+            projectType: artifact.projectType,
+            size: artifact.size,
+            cleanedAt: Date()
+        )
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             _ = self?.moveToTrash(path: artifact.artifactPath)
             DispatchQueue.main.async {
                 self?.addToSavings(savedSize)
+                self?.appendProjectCleanHistory(historyEntry)
                 self?.scan()
             }
         }
@@ -1162,6 +1205,18 @@ struct ProjectArtifact: Identifiable {
 struct UsageSnapshot: Codable {
     let timestamp: Double // Unix timestamp
     let usedBytes: Int64
+}
+
+// History entry for a cleaned per-project cache artifact
+struct ProjectCleanHistoryEntry: Codable, Identifiable {
+    var id = UUID()
+    let projectName: String
+    let projectPath: String
+    let artifactName: String
+    let artifactPath: String
+    let projectType: String
+    let size: Int64
+    let cleanedAt: Date
 }
 
 // MARK: - Formatting
