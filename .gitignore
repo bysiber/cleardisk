@@ -17,6 +17,7 @@ ClearDisk.app/
 *~
 cleardisk
 *.dmg
+dist/
 demo/
 *.gif
 *.mp4
