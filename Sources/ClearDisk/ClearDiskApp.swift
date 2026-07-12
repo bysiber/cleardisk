@@ -15,8 +15,15 @@ struct ClearDiskApp {
     }
 }
 
+extension Notification.Name {
+    /// Fired whenever the popover closes — including the `.transient` auto-close that happens when
+    /// the user clicks another app. The SwiftUI tree listens and tears down any open modal, so the
+    /// popover can never come back with a stranded presentation blocking input.
+    static let clearDiskPopoverDidClose = Notification.Name("ClearDisk.popoverDidClose")
+}
+
 // MARK: - App Delegate
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
@@ -41,6 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover = NSPopover()
         popover.contentSize = NSSize(width: Layout.popoverWidth, height: Layout.popoverHeight)
         popover.behavior = .transient
+        popover.delegate = self
         popover.contentViewController = NSHostingController(
             rootView: MainView(diskMonitor: diskMonitor)
         )
@@ -111,9 +119,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func closePopover() {
         popover.performClose(nil)
+    }
+
+    /// Covers every way the popover can go away, including the transient auto-close on focus loss.
+    func popoverDidClose(_ notification: Notification) {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
         }
+        NotificationCenter.default.post(name: .clearDiskPopoverDidClose, object: nil)
     }
 }

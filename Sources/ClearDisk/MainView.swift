@@ -89,29 +89,15 @@ struct MainView: View {
             }
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
-        .sheet(item: $activeProjectSheet) { sheet in
-            switch sheet {
-            case .history:
-                ProjectCleanHistorySheet(
-                    entries: diskMonitor.projectCleanHistory,
-                    onClose: { activeProjectSheet = nil },
-                    onClearAll: { showClearHistoryConfirm = true }
-                )
-            case .cleanConfirm:
-                CleanCacheConfirmSheet(
-                    artifact: artifactToClean,
-                    onCancel: { activeProjectSheet = nil },
-                    onConfirm: {
-                        if let artifact = artifactToClean {
-                            isCleaning = true
-                            diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
-                            diskMonitor.cleanProjectArtifact(artifact)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
-                        }
-                        activeProjectSheet = nil
-                    }
-                )
+        .overlay {
+            if let sheet = activeProjectSheet {
+                projectSheetOverlay(sheet)
             }
+        }
+        // A popover that vanishes out from under a presentation leaves SwiftUI's state stranded,
+        // and the UI comes back unclickable. Whatever was open dies with the popover.
+        .onReceive(NotificationCenter.default.publisher(for: .clearDiskPopoverDidClose)) { _ in
+            dismissAllPresentations()
         }
         .alert("Clear History?", isPresented: $showClearHistoryConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -231,6 +217,57 @@ struct MainView: View {
         }
     }
     
+    /// The project sheets are drawn INSIDE the popover instead of with `.sheet`.
+    /// A real sheet detaches an AppKit window from the popover; the `.transient` popover then closes
+    /// the moment focus moves elsewhere (e.g. the user switches to Finder) while SwiftUI still
+    /// believes the sheet is up — it returns as an invisible layer that swallows every click.
+    /// An overlay lives in the popover's own view tree, so there is nothing to strand.
+    @ViewBuilder
+    private func projectSheetOverlay(_ sheet: ActiveProjectSheet) -> some View {
+        ZStack {
+            Color.black.opacity(0.45)
+                .onTapGesture { activeProjectSheet = nil }
+
+            switch sheet {
+            case .history:
+                ProjectCleanHistorySheet(
+                    entries: diskMonitor.projectCleanHistory,
+                    onClose: { activeProjectSheet = nil },
+                    onClearAll: { showClearHistoryConfirm = true }
+                )
+            case .cleanConfirm:
+                CleanCacheConfirmSheet(
+                    artifact: artifactToClean,
+                    onCancel: { activeProjectSheet = nil },
+                    onConfirm: {
+                        if let artifact = artifactToClean {
+                            isCleaning = true
+                            diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
+                            diskMonitor.cleanProjectArtifact(artifact)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
+                        }
+                        activeProjectSheet = nil
+                    }
+                )
+            }
+        }
+        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .background(Color(NSColor.windowBackgroundColor).opacity(0.001)) // catch stray clicks
+    }
+
+    /// Closes every modal layer. Called when the popover goes away so it can never reopen
+    /// into a half-presented state.
+    private func dismissAllPresentations() {
+        activeProjectSheet = nil
+        showCleanConfirm = false
+        showCleanAllConfirm = false
+        showCleanSafeConfirm = false
+        showCleanSelectedCachesConfirm = false
+        showClearHistoryConfirm = false
+        showDeleteFileConfirm = false
+        diskMonitor.cleanFailure = nil
+    }
+
     // MARK: - Main Screen
     var mainScreen: some View {
         ZStack {
