@@ -122,7 +122,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             if let button = statusItem.button {
                 diskMonitor.scan()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                
+
+                // An .accessory app never becomes active on its own, so the popover opens as an
+                // INACTIVE window — macOS then renders its vibrancy washed out and the text is hard
+                // to read until the first click makes it key. Activate and take key up front so the
+                // popover looks the same the moment it appears as it does after you click it.
+                NSApp.activate(ignoringOtherApps: true)
+                popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+
+
                 // Close popover on outside click
                 eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                     self?.closePopover()
