@@ -228,31 +228,43 @@ struct MainView: View {
             Color.black.opacity(0.45)
                 .onTapGesture { activeProjectSheet = nil }
 
-            switch sheet {
-            case .history:
-                ProjectCleanHistorySheet(
-                    entries: diskMonitor.projectCleanHistory,
-                    onClose: { activeProjectSheet = nil },
-                    onClearAll: { showClearHistoryConfirm = true }
-                )
-            case .cleanConfirm:
-                CleanCacheConfirmSheet(
-                    artifact: artifactToClean,
-                    onCancel: { activeProjectSheet = nil },
-                    onConfirm: {
-                        if let artifact = artifactToClean {
-                            isCleaning = true
-                            diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
-                            diskMonitor.cleanProjectArtifact(artifact)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
+            Group {
+                switch sheet {
+                case .history:
+                    ProjectCleanHistorySheet(
+                        entries: diskMonitor.projectCleanHistory,
+                        onClose: { activeProjectSheet = nil },
+                        onClearAll: { showClearHistoryConfirm = true }
+                    )
+                case .cleanConfirm:
+                    CleanCacheConfirmSheet(
+                        artifact: artifactToClean,
+                        onCancel: { activeProjectSheet = nil },
+                        onConfirm: {
+                            if let artifact = artifactToClean {
+                                isCleaning = true
+                                diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
+                                diskMonitor.cleanProjectArtifact(artifact)
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
+                            }
+                            activeProjectSheet = nil
                         }
-                        activeProjectSheet = nil
-                    }
-                )
+                    )
+                }
             }
+            // A sheet window used to give these views their size and background. Inside the popover
+            // they are a card: never wider than the popover, never taller than it, and drawing the
+            // material a window would have drawn for them.
+            .frame(width: Layout.popoverWidth - 28)
+            .frame(maxHeight: Layout.popoverHeight - 72)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 18, y: 6)
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.001)) // catch stray clicks
     }
 
     /// Closes every modal layer. Called when the popover goes away so it can never reopen
@@ -1361,12 +1373,14 @@ struct MainView: View {
                             .scaleEffect(0.5)
                             .frame(width: 14, height: 14)
                     } else {
-                        Image(systemName: "wand.and.sparkles")
-                            .font(.system(size: 12))
+                        // Same affordance as the Developer tab: this moves a directory to the Trash,
+                        // so it reads as a trash action, not as a "magic optimize".
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.mint)
+                .foregroundColor(.red)
                 .disabled(isCleaning)
                 .help("Clean \(artifact.artifactName) cache only — your source code is kept")
                 
@@ -1664,7 +1678,7 @@ struct MainView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                             Spacer()
-                            Text("1.7.1")
+                            Text(AppInfo.version)
                                 .font(.system(size: 12, design: .monospaced))
                                 .foregroundColor(.primary)
                         }
@@ -2192,7 +2206,8 @@ struct MainView: View {
                             .scaleEffect(0.7)
                             .frame(width: 14, height: 14)
                     } else {
-                        Image(systemName: "wand.and.sparkles")
+                        // Matches the Developer tab's bulk clean button.
+                        Image(systemName: "trash.fill")
                             .font(.system(size: 12))
                     }
                     Text(isCleaning ? "Cleaning..." : "Clean Selected Caches (\(formatBytes(selectedSize)))")
@@ -2236,7 +2251,7 @@ struct MainView: View {
                         .foregroundColor(.green)
                 }
             } else {
-                Text("ClearDisk v1.7.1")
+                Text("ClearDisk \(AppInfo.displayVersion)")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
             }
@@ -2440,9 +2455,9 @@ struct CleanCacheConfirmSheet: View {
             }
         }
         .padding(18)
-        .frame(width: 440)
+        // Width comes from the popover overlay that hosts this view (see projectSheetOverlay).
     }
-    
+
     @ViewBuilder
     private func detailRow(label: String, value: String, valueColor: Color = .primary, mono: Bool = false, bold: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 6) {
@@ -2556,9 +2571,10 @@ struct ProjectCleanHistorySheet: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
         }
-        .frame(width: 540, height: 480)
+        // Size and background come from the popover overlay that hosts this view — a fixed width
+        // here would be wider than the popover itself and get clipped.
     }
-    
+
     @ViewBuilder
     private func historyRow(_ entry: ProjectCleanHistoryEntry) -> some View {
         HStack(alignment: .top, spacing: 10) {

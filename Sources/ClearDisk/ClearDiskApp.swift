@@ -15,6 +15,20 @@ struct ClearDiskApp {
     }
 }
 
+/// The app's identity, read back from the bundle that `scripts/build_app.sh` generates.
+/// The version is declared exactly once — in build_app.sh — so the UI can never disagree with the
+/// bundle. Running via `swift run` has no Info.plist, hence the "dev" fallback.
+enum AppInfo {
+    static let version: String =
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+
+    static let buildNumber: String =
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+
+    /// e.g. "v1.8.0"
+    static var displayVersion: String { "v\(version)" }
+}
+
 extension Notification.Name {
     /// Fired whenever the popover closes — including the `.transient` auto-close that happens when
     /// the user clicks another app. The SwiftUI tree listens and tears down any open modal, so the

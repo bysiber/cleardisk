@@ -3,6 +3,15 @@
 set -e
 
 APP_NAME="ClearDisk"
+
+# ---------------------------------------------------------------------------
+# THE version. Bump it here and nowhere else: it is baked into Info.plist below,
+# and the app reads it back at runtime (see AppInfo in ClearDiskApp.swift), so the
+# UI, the About box and the bundle can never drift apart.
+VERSION="1.8.0"
+BUILD_NUMBER="19"
+# ---------------------------------------------------------------------------
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$(dirname "$SCRIPT_DIR")"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
@@ -25,8 +34,8 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "App icon copied."
 fi
 
-# Create Info.plist
-cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
+# Create Info.plist (unquoted heredoc so $VERSION / $BUILD_NUMBER expand)
+cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -46,9 +55,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'EOF'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.7.1</string>
+    <string>${VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>18</string>
+    <string>${BUILD_NUMBER}</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>

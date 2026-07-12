@@ -2,6 +2,23 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.8.0] - 2026-07-12
+### Added
+- **Project scanner expanded from 11 to 23 project types** — Python, CocoaPods, Carthage, Xcode, .NET/C#, Godot, Unity, Unreal, Haskell, Elixir, Zig, Crystal, plus the modern JS caches (`.next`, `.nuxt`, `.svelte-kit`, `.angular`, `.turbo`, `.vite`, `.yarn/cache`). A project now lists each of its caches as a separate row.
+- **Cleanup history** — every cleaned project cache is logged (what, where, how big, when) and can be reviewed or cleared from the Projects tab.
+- **Failed cleans are now reported.** If a directory cannot be moved to the Trash, the app says so — and offers to open Full Disk Access settings when the cause is permissions.
+
+### Fixed
+- **Phantom savings**: a clean whose `trashItem` failed still reported "Recovered X!", credited the savings and wrote a history entry, while the files were untouched on disk. Only bytes that actually reach the Trash are counted now, measured from disk rather than assumed.
+- **Unclickable UI after reopening the popover**: presenting a `.sheet` from inside a `.transient` NSPopover strands SwiftUI's presentation state when the popover auto-closes on focus loss. The project sheets are drawn inside the popover now, and every modal is torn down when the popover closes.
+- **Duplicate artifact rows**: a directory matching two project types (a Unity project is also a .NET project; a JS+Python monorepo shares `dist/`, `build/`, `coverage/`) was listed once per type, double-counting its size and failing the second clean. Each directory is surfaced once.
+- **Data-loss guards**: `env/`, `venv/`, `.venv/` are only ever offered when a real virtualenv is proven (`pyvenv.cfg` / `bin/activate`), and Crystal's `lib/` only when a `shard.lock` proves `shards install` ran. Unity `Builds/` and Unreal `Saved/` are no longer touched — those are user output, not caches.
+- The large-file scanner no longer looks inside media library packages (`.photoslibrary`, `.fcpbundle`, `.imovielibrary`, …), where deleting a single file corrupts the whole library.
+
+### Changed
+- The version is declared once, in `scripts/build_app.sh`, and read back from the bundle at runtime.
+- Project cache actions use the same trash icon as the Developer tab — they perform the same destructive action.
+
 ## [1.7.0] - 2026-03-18
 ### Added
 - **Game Engines**: Unity Cache (Asset Store), Unity Hub Cache, Godot Export Templates, Godot Cache

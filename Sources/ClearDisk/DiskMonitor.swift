@@ -702,7 +702,7 @@ class DiskMonitor: ObservableObject {
     /// Packages that look like folders but are really one app-managed library. Trashing a single
     /// file inside one corrupts the whole library, so the scanner must never look inside them.
     private static let mediaLibraryExtensions: Set<String> = [
-        "photoslibrary", "aplibrary", "migratedaplibrary", "pkg",
+        "photoslibrary", "aplibrary", "migratedaplibrary",
         "fcpbundle", "imovielibrary", "theater", "tvlibrary", "logicx", "band",
     ]
 
@@ -917,8 +917,6 @@ class DiskMonitor: ObservableObject {
         ProjectType(markers: ["pubspec.yaml"], artifacts: [".dart_tool", "build"], label: "Flutter/Dart"),
         ProjectType(markers: ["CMakeLists.txt"], artifacts: ["build", "cmake-build-debug", "cmake-build-release"], label: "CMake"),
         ProjectType(markers: ["main.tf"], artifacts: [".terraform"], label: "Terraform"),
-        // .NET / C#
-        ProjectType(markers: ["*.sln", "*.csproj", "*.fsproj", "*.vbproj"], artifacts: ["bin", "obj", "packages"], label: ".NET"),
         // Game engines — sen Godot kullan\u0131yorsun, Unity/Unreal de buraya
         ProjectType(markers: ["project.godot"], artifacts: [".godot", ".import"], label: "Godot"),
         // Unity — NOTE: "Build"/"Builds" intentionally NOT listed; those hold EXPORTED player builds the
@@ -927,6 +925,9 @@ class DiskMonitor: ObservableObject {
         // Unreal — NOTE: "Saved/" and "Build/" intentionally NOT listed; Saved holds editor prefs, autosaves
         // and crash logs, and Build/ holds packaged/exported builds — both are user output, not caches.
         ProjectType(markers: ["*.uproject"], artifacts: ["Binaries", "Intermediate", "DerivedDataCache"], label: "Unreal"),
+        // .NET / C# — MUST stay below the game engines: a Unity project ships an Assembly-CSharp.csproj,
+        // so it matches these markers too, and the first type to claim a directory is the one that names it.
+        ProjectType(markers: ["*.sln", "*.csproj", "*.fsproj", "*.vbproj"], artifacts: ["bin", "obj", "packages"], label: ".NET"),
         // Niche but big when used
         ProjectType(markers: ["stack.yaml", "*.cabal"], artifacts: [".stack-work", "dist-newstyle", "dist"], label: "Haskell"),
         ProjectType(markers: ["mix.exs"], artifacts: ["_build", "deps", ".elixir_ls"], label: "Elixir"),
@@ -999,13 +1000,21 @@ class DiskMonitor: ObservableObject {
         
         // Try every project type. A type matches if any marker exists. Each matching artifact yields its own row.
         var anyArtifactFound = false
+        // One directory legitimately matches several project types: a Unity project also carries a
+        // *.csproj (so it is a .NET project too), and a JS+Python monorepo root shares dist/, build/
+        // and coverage/. Without this, the same directory is listed once per matching type — the size
+        // is counted twice in the totals, and cleaning the second row fails on an already-trashed path.
+        var seenArtifactPaths = Set<String>()
         for pt in DiskMonitor.projectTypes {
             let hasMarker = pt.markers.contains { DiskMonitor.entryExists(in: path, contents: contentsSet, name: $0) }
             guard hasMarker else { continue }
-            
+
             for art in pt.artifacts {
                 let artifactPaths = DiskMonitor.resolveEntries(in: path, contents: contentsSet, name: art)
                 for artifactPath in artifactPaths {
+                    // First project type to claim a directory wins its label.
+                    guard seenArtifactPaths.insert(artifactPath).inserted else { continue }
+
                     // Safety guard: only ever treat directories as cache artifacts. A literal-named entry that
                     // happens to be a regular file (e.g. an .env file or a stray same-named text file) must not be
                     // surfaced or moved to Trash from this scanner.
@@ -1048,7 +1057,7 @@ class DiskMonitor: ObservableObject {
         // Skip known artifact / VCS dirs when recursing
         let skipDirs: Set<String> = [
             "node_modules", ".git", "target", ".build", "build", "vendor", ".dart_tool", "Pods", "__pycache__",
-            ".venv", "venv", "env", ".terraform", ".next", ".nuxt", ".svelte-kit", ".angular", ".turbo", ".vite",
+            ".venv", "venv", "env", "lib", ".terraform", ".next", ".nuxt", ".svelte-kit", ".angular", ".turbo", ".vite",
             ".parcel-cache", ".yarn", ".gradle", "Carthage", "DerivedData", "bin", "obj", ".godot", ".import",
             "Library", "Temp", "Logs", "Binaries", "Intermediate", "Saved", "DerivedDataCache",
             ".stack-work", "dist-newstyle", "_build", "deps", "zig-out", "zig-cache", ".zig-cache",
