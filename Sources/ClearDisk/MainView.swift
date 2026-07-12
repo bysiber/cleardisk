@@ -8,6 +8,15 @@ enum Layout {
     static let popoverHeight: CGFloat = 700
 }
 
+// MARK: - Project sheet routing
+// Single source of truth for the project screen's sheets. Using one `.sheet(item:)` instead of
+// several stacked `.sheet(isPresented:)` modifiers avoids the SwiftUI bug where only one presents.
+private enum ActiveProjectSheet: Int, Identifiable {
+    case history
+    case cleanConfirm
+    var id: Int { rawValue }
+}
+
 // MARK: - Main View
 struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
@@ -15,7 +24,7 @@ struct MainView: View {
     @State private var showCleanConfirm = false
     @State private var showCleanAllConfirm = false
     @State private var showCleanSafeConfirm = false
-    @State private var showCleanArtifactConfirm = false
+    @State private var activeProjectSheet: ActiveProjectSheet?
     @State private var cacheToClean: DevCache?
     @State private var artifactToClean: ProjectArtifact?
     @State private var projectSortMode: ProjectSortMode = .size
@@ -24,7 +33,6 @@ struct MainView: View {
     @State private var selectedArtifactIDs: Set<UUID> = []
     @State private var selectedCacheIDs: Set<UUID> = []
     @State private var showCleanSelectedCachesConfirm = false
-    @State private var showCleanHistorySheet = false
     @State private var showClearHistoryConfirm = false
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
@@ -81,12 +89,29 @@ struct MainView: View {
             }
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
-        .sheet(isPresented: $showCleanHistorySheet) {
-            ProjectCleanHistorySheet(
-                entries: diskMonitor.projectCleanHistory,
-                onClose: { showCleanHistorySheet = false },
-                onClearAll: { showClearHistoryConfirm = true }
-            )
+        .sheet(item: $activeProjectSheet) { sheet in
+            switch sheet {
+            case .history:
+                ProjectCleanHistorySheet(
+                    entries: diskMonitor.projectCleanHistory,
+                    onClose: { activeProjectSheet = nil },
+                    onClearAll: { showClearHistoryConfirm = true }
+                )
+            case .cleanConfirm:
+                CleanCacheConfirmSheet(
+                    artifact: artifactToClean,
+                    onCancel: { activeProjectSheet = nil },
+                    onConfirm: {
+                        if let artifact = artifactToClean {
+                            isCleaning = true
+                            diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
+                            diskMonitor.cleanProjectArtifact(artifact)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
+                        }
+                        activeProjectSheet = nil
+                    }
+                )
+            }
         }
         .alert("Clear History?", isPresented: $showClearHistoryConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -147,21 +172,6 @@ struct MainView: View {
                 : ""
             Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
         }
-        .sheet(isPresented: $showCleanArtifactConfirm) {
-            CleanCacheConfirmSheet(
-                artifact: artifactToClean,
-                onCancel: { showCleanArtifactConfirm = false },
-                onConfirm: {
-                    if let artifact = artifactToClean {
-                        isCleaning = true
-                        diskMonitor.projectArtifacts.removeAll { $0.id == artifact.id }
-                        diskMonitor.cleanProjectArtifact(artifact)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
-                    }
-                    showCleanArtifactConfirm = false
-                }
-            )
-        }
         .alert("Clean Selected Caches", isPresented: $showCleanSelectedCachesConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
@@ -199,6 +209,25 @@ struct MainView: View {
             if let file = fileToDelete {
                 Text("Move \"\(file.name)\" to Trash?\n\nSize: \(formatBytes(file.size))\nPath: \(file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))\n\nYou can recover it from Trash.")
             }
+        }
+        // A clean that frees nothing must say so. Previously the failure was only printed to
+        // stdout, so the app showed "Recovered X!" while the files were still on disk.
+        .alert(
+            "Couldn't Move to Trash",
+            isPresented: Binding(
+                get: { diskMonitor.cleanFailure != nil },
+                set: { if !$0 { diskMonitor.cleanFailure = nil } }
+            ),
+            presenting: diskMonitor.cleanFailure
+        ) { failure in
+            if failure.isPermission {
+                Button("Open Privacy Settings") { diskMonitor.openFullDiskAccessSettings() }
+            }
+            Button("OK", role: .cancel) { }
+        } message: { failure in
+            Text(failure.isPermission
+                 ? "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)\n\nClearDisk needs Full Disk Access to move files to the Trash. Grant it in System Settings → Privacy & Security → Full Disk Access, then quit and reopen ClearDisk."
+                 : "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)")
         }
     }
     
@@ -1166,7 +1195,7 @@ struct MainView: View {
                             Text(formatBytes(totalArtifacts))
                                 .font(.system(size: 13, weight: .bold, design: .monospaced))
                                 .foregroundColor(.orange)
-                            Button(action: { showCleanHistorySheet = true }) {
+                            Button(action: { activeProjectSheet = .history }) {
                                 HStack(spacing: 3) {
                                     Image(systemName: "clock.arrow.circlepath")
                                         .font(.system(size: 9, weight: .semibold))
@@ -1288,7 +1317,7 @@ struct MainView: View {
                     .foregroundColor(.secondary)
                 Button(action: {
                     artifactToClean = artifact
-                    showCleanArtifactConfirm = true
+                    activeProjectSheet = .cleanConfirm
                 }) {
                     if isCleaning {
                         ProgressView()
@@ -1955,7 +1984,7 @@ struct MainView: View {
                 Text("Sweep Project Caches")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button(action: { showCleanHistorySheet = true }) {
+                Button(action: { activeProjectSheet = .history }) {
                     HStack(spacing: 3) {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 11, weight: .semibold))

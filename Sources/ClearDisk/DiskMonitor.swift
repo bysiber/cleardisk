@@ -34,8 +34,11 @@ class DiskMonitor: ObservableObject {
     // Permission & access status
     @Published var notificationPermission: PermissionState = .unknown
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
-    @Published var scanErrors: [String] = [] // non-fatal errors during scan
     @Published var hasCompletedFirstScan: Bool = false
+
+    /// Set when a clean could not free the space it promised, so the UI can say so.
+    /// Swallowing a failed trash is what let the app report "Recovered X!" while nothing moved.
+    @Published var cleanFailure: CleanFailure?
     
     // Track notification state to avoid spam
     private var lastNotifiedThreshold: Int = 0
@@ -151,7 +154,6 @@ class DiskMonitor: ObservableObject {
         isScanning = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             // Reset scan status
-            let errors: [String] = []
             var inaccessible: [String] = []
             
             self?.scanDiskSpace()
@@ -173,7 +175,6 @@ class DiskMonitor: ObservableObject {
                 self?.isScanning = false
                 self?.isScanInProgress = false
                 self?.inaccessiblePaths = inaccessible
-                self?.scanErrors = errors
                 self?.hasCompletedFirstScan = true
                 self?.calculateCleanable()
                 self?.recordUsageSnapshot()
@@ -608,7 +609,7 @@ class DiskMonitor: ObservableObject {
         for entry in devPaths {
             let size = directorySize(path: entry.path)
             if size > 1_048_576 { // Only show if > 1MB
-                let lastAccessed = lastAccessDate(path: entry.path)
+                let lastAccessed = lastModifiedDate(path: entry.path)
                 let daysSinceAccess = daysSince(lastAccessed)
                 let suggestion = generateSuggestion(name: entry.name, size: size, daysSinceAccess: daysSinceAccess)
                 let desc = DiskMonitor.cacheDescriptions[entry.name] ?? ""
@@ -642,7 +643,7 @@ class DiskMonitor: ObservableObject {
         }
     }
     
-    private func lastAccessDate(path: String) -> Date? {
+    private func lastModifiedDate(path: String) -> Date? {
         let fm = FileManager.default
         // Check modification date of the directory itself or its most recent child
         guard let attrs = try? fm.attributesOfItem(atPath: path) else { return nil }
@@ -698,20 +699,29 @@ class DiskMonitor: ObservableObject {
         }
     }
     
+    /// Packages that look like folders but are really one app-managed library. Trashing a single
+    /// file inside one corrupts the whole library, so the scanner must never look inside them.
+    private static let mediaLibraryExtensions: Set<String> = [
+        "photoslibrary", "aplibrary", "migratedaplibrary", "pkg",
+        "fcpbundle", "imovielibrary", "theater", "tvlibrary", "logicx", "band",
+    ]
+
     private func findLargeFiles(in path: String, folder: String, threshold: Int64, results: inout [LargeFile], maxDepth: Int, currentDepth: Int) {
         guard currentDepth < maxDepth else { return }
         let fm = FileManager.default
-        
+
         guard let contents = try? fm.contentsOfDirectory(atPath: path) else { return }
-        
+
         for item in contents {
             if item.hasPrefix(".") { continue }
             let fullPath = (path as NSString).appendingPathComponent(item)
-            
+
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: fullPath, isDirectory: &isDir) else { continue }
-            
+
             if isDir.boolValue {
+                let ext = (item as NSString).pathExtension.lowercased()
+                if DiskMonitor.mediaLibraryExtensions.contains(ext) { continue }
                 findLargeFiles(in: fullPath, folder: folder, threshold: threshold, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             } else {
                 // Use allocatedSize for accurate reporting (consistent with directorySize)
@@ -732,96 +742,100 @@ class DiskMonitor: ObservableObject {
     // MARK: - Cleanup Actions
     
     func deleteLargeFile(_ file: LargeFile) {
-        let savedSize = file.size
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let url = URL(fileURLWithPath: file.path)
-            do {
-                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.totalSavedAllTime += savedSize
-                    UserDefaults.standard.set(self.totalSavedAllTime, forKey: self.savedKey)
-                    self.lastCleanedAmount = savedSize
-                    self.showRecoveredBanner = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-                        self?.showRecoveredBanner = false
-                    }
-                    self.scan()
-                }
-            } catch {
-                print("Failed to trash large file \(file.path): \(error)")
+            guard let self else { return }
+            let failure = self.moveToTrash(path: file.path)
+            DispatchQueue.main.async {
+                self.finishClean(title: file.name, freed: failure == nil ? file.size : 0, failure: failure)
             }
         }
     }
 
-    /// Move items to Trash instead of permanent delete — user can recover for 30 days
+    /// Records the outcome of a clean. Credits ONLY the bytes that actually reached the Trash and
+    /// surfaces the first failure, so a refused delete can never show up as "Recovered X!".
+    /// Always re-scans: on failure the item is still on disk and must reappear in the list.
+    private func finishClean(title: String, freed: Int64, failure: String?) {
+        if freed > 0 { addToSavings(freed) }
+        if let failure {
+            cleanFailure = CleanFailure(title: title, reason: failure, isPermission: Self.isPermissionError(failure))
+        }
+        scan()
+    }
+
+    private static func isPermissionError(_ reason: String) -> Bool {
+        let r = reason.lowercased()
+        return r.contains("permission") || r.contains("not permitted") || r.contains("privileges")
+    }
+
+    /// Move items to Trash instead of permanent delete — user can recover for 30 days.
     /// NEVER falls back to permanent delete. If trash fails, it fails safely.
-    private func moveToTrash(path: String) -> Bool {
-        let url = URL(fileURLWithPath: path)
+    /// Returns `nil` on success, or a human-readable reason on failure.
+    private func moveToTrash(path: String) -> String? {
+        let fm = FileManager.default
         do {
-            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-            return true
+            try fm.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
         } catch {
-            print("trashItem failed for \(path): \(error) — NOT deleting permanently (safe delete policy)")
-            return false
+            return (error as NSError).localizedDescription
         }
+        // trashItem can return without throwing yet leave the item in place (TCC / volume edge
+        // cases). Trust the filesystem, not the return value — otherwise we report phantom savings.
+        if fm.fileExists(atPath: path) {
+            return "\((path as NSString).lastPathComponent) is still on disk after the move to Trash."
+        }
+        return nil
     }
     
+    /// Trashes every entry inside `path` (the directory itself is kept — it's a live cache dir).
+    /// Returns the bytes that actually left, measured from disk rather than assumed: partial
+    /// failures are normal (a file held open by Xcode or Docker) and must not be counted as freed.
+    private func emptyDirectoryToTrash(path: String, sizeBefore: Int64) -> (freed: Int64, failure: String?) {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(atPath: path) else {
+            return (0, "\((path as NSString).lastPathComponent) could not be opened.")
+        }
+        var failure: String?
+        for item in contents {
+            let fullPath = (path as NSString).appendingPathComponent(item)
+            if let reason = moveToTrash(path: fullPath), failure == nil { failure = reason }
+        }
+        let remaining = directorySize(path: path)
+        return (max(0, sizeBefore - remaining), failure)
+    }
+
     func cleanDevCache(_ cache: DevCache) {
-        let savedSize = cache.size
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let fm = FileManager.default
-            if let contents = try? fm.contentsOfDirectory(atPath: cache.path) {
-                for item in contents {
-                    let fullPath = (cache.path as NSString).appendingPathComponent(item)
-                    _ = self?.moveToTrash(path: fullPath)
-                }
-            }
+            guard let self else { return }
+            let result = self.emptyDirectoryToTrash(path: cache.path, sizeBefore: cache.size)
             DispatchQueue.main.async {
-                self?.addToSavings(savedSize)
-                self?.scan()
+                self.finishClean(title: cache.name, freed: result.freed, failure: result.failure)
             }
         }
     }
-    
+
     /// Clean only safe caches (excludes risky caches like Docker)
     func cleanSafeCaches() {
-        let safeCaches = devCaches.filter { $0.riskLevel != "risky" }
-        let totalSize = safeCaches.reduce(Int64(0)) { $0 + $1.size }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            for cache in safeCaches {
-                let fm = FileManager.default
-                if let contents = try? fm.contentsOfDirectory(atPath: cache.path) {
-                    for item in contents {
-                        let fullPath = (cache.path as NSString).appendingPathComponent(item)
-                        _ = self?.moveToTrash(path: fullPath)
-                    }
-                }
-            }
-            DispatchQueue.main.async {
-                self?.addToSavings(totalSize)
-                self?.scan()
-            }
-        }
+        cleanCaches(devCaches.filter { $0.riskLevel != "risky" }, title: "Safe caches")
     }
-    
+
     /// Clean ALL caches including risky ones (requires explicit user confirmation)
     func cleanAllDevCaches() {
-        let totalSize = devCaches.reduce(Int64(0)) { $0 + $1.size }
+        cleanCaches(devCaches, title: "All developer caches")
+    }
+
+    /// `caches` is snapshotted by the caller on the main thread — never read the @Published
+    /// `devCaches` from the background queue.
+    private func cleanCaches(_ caches: [DevCache], title: String) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let caches = self?.devCaches else { return }
+            guard let self else { return }
+            var freed: Int64 = 0
+            var failure: String?
             for cache in caches {
-                let fm = FileManager.default
-                if let contents = try? fm.contentsOfDirectory(atPath: cache.path) {
-                    for item in contents {
-                        let fullPath = (cache.path as NSString).appendingPathComponent(item)
-                        _ = self?.moveToTrash(path: fullPath)
-                    }
-                }
+                let result = self.emptyDirectoryToTrash(path: cache.path, sizeBefore: cache.size)
+                freed += result.freed
+                if failure == nil { failure = result.failure }
             }
             DispatchQueue.main.async {
-                self?.addToSavings(totalSize)
-                self?.scan()
+                self.finishClean(title: title, freed: freed, failure: failure)
             }
         }
     }
@@ -829,18 +843,23 @@ class DiskMonitor: ObservableObject {
     func emptyTrash() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let trashPath = "\(home)/.Trash"
-        let savedSize = trashSize()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
             let fm = FileManager.default
+            let sizeBefore = self.directorySize(path: trashPath)
             if let contents = try? fm.contentsOfDirectory(atPath: trashPath) {
                 for item in contents {
                     let fullPath = (trashPath as NSString).appendingPathComponent(item)
                     try? fm.removeItem(atPath: fullPath) // Trash empty = permanent delete (intended)
                 }
             }
+            let remaining = self.directorySize(path: trashPath)
             DispatchQueue.main.async {
-                self?.addToSavings(savedSize)
-                self?.scan()
+                self.finishClean(
+                    title: "Trash",
+                    freed: max(0, sizeBefore - remaining),
+                    failure: remaining > 0 ? "Some items in the Trash could not be removed." : nil
+                )
             }
         }
     }
@@ -852,6 +871,13 @@ class DiskMonitor: ObservableObject {
     
     func revealInFinder(_ path: String) {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+    }
+
+    /// Opens System Settings on the pane where the user can let ClearDisk move files to the Trash.
+    func openFullDiskAccessSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
     }
     
     // MARK: - Project Artifact Scanner (inspired by kondo/npkill)
@@ -895,15 +921,42 @@ class DiskMonitor: ObservableObject {
         ProjectType(markers: ["*.sln", "*.csproj", "*.fsproj", "*.vbproj"], artifacts: ["bin", "obj", "packages"], label: ".NET"),
         // Game engines — sen Godot kullan\u0131yorsun, Unity/Unreal de buraya
         ProjectType(markers: ["project.godot"], artifacts: [".godot", ".import"], label: "Godot"),
-        ProjectType(markers: ["ProjectSettings/ProjectVersion.txt", "Assembly-CSharp.csproj"], artifacts: ["Library", "Temp", "Logs", "obj", "Build", "Builds"], label: "Unity"),
-        // Unreal — NOTE: "Saved/" intentionally NOT listed; it contains user editor preferences (Saved/Config/), autosaves, and crash logs the user may need.
-        ProjectType(markers: ["*.uproject"], artifacts: ["Binaries", "Intermediate", "DerivedDataCache", "Build"], label: "Unreal"),
+        // Unity — NOTE: "Build"/"Builds" intentionally NOT listed; those hold EXPORTED player builds the
+        // user ships/keeps (and that take a long time to re-export), not regenerable caches.
+        ProjectType(markers: ["ProjectSettings/ProjectVersion.txt", "Assembly-CSharp.csproj"], artifacts: ["Library", "Temp", "Logs", "obj"], label: "Unity"),
+        // Unreal — NOTE: "Saved/" and "Build/" intentionally NOT listed; Saved holds editor prefs, autosaves
+        // and crash logs, and Build/ holds packaged/exported builds — both are user output, not caches.
+        ProjectType(markers: ["*.uproject"], artifacts: ["Binaries", "Intermediate", "DerivedDataCache"], label: "Unreal"),
         // Niche but big when used
         ProjectType(markers: ["stack.yaml", "*.cabal"], artifacts: [".stack-work", "dist-newstyle", "dist"], label: "Haskell"),
         ProjectType(markers: ["mix.exs"], artifacts: ["_build", "deps", ".elixir_ls"], label: "Elixir"),
         ProjectType(markers: ["build.zig"], artifacts: ["zig-out", "zig-cache", ".zig-cache"], label: "Zig"),
+        // Crystal — deps live in lib/, source in src/ (Crystal convention). lib/ is only cleaned when a
+        // shard.lock proves `shards install` ran (see hasCacheProof), so a hand-written lib/ is never touched.
         ProjectType(markers: ["shard.yml"], artifacts: ["lib", ".crystal"], label: "Crystal"),
     ]
+
+    /// Artifact directory names that collide with common user/source folder names. These are only ever
+    /// surfaced as deletable caches when `hasCacheProof` finds definitive evidence of what they really are.
+    static let ambiguousArtifactNames: Set<String> = ["env", "venv", ".venv", "lib"]
+
+    /// Definitive proof that an ambiguously-named directory is a regenerable cache and not user data/source.
+    /// Returns `true` for any non-ambiguous name (no extra proof required).
+    static func hasCacheProof(artifactPath: String, projectPath: String, name: String) -> Bool {
+        let fm = FileManager.default
+        switch name {
+        case "env", "venv", ".venv":
+            // A real Python virtualenv always contains pyvenv.cfg (python -m venv / virtualenv 20+) or a
+            // bin/activate script. A bare env/ or venv/ without either is user data — leave it alone.
+            return fm.fileExists(atPath: (artifactPath as NSString).appendingPathComponent("pyvenv.cfg"))
+                || fm.fileExists(atPath: (artifactPath as NSString).appendingPathComponent("bin/activate"))
+        case "lib":
+            // Crystal deps only: require a shard.lock in the project root (proof `shards install` ran).
+            return fm.fileExists(atPath: (projectPath as NSString).appendingPathComponent("shard.lock"))
+        default:
+            return true
+        }
+    }
     
     /// Directories to scan for projects
     private func projectScanRoots() -> [String] {
@@ -958,12 +1011,21 @@ class DiskMonitor: ObservableObject {
                     // surfaced or moved to Trash from this scanner.
                     var isDir: ObjCBool = false
                     guard fm.fileExists(atPath: artifactPath, isDirectory: &isDir), isDir.boolValue else { continue }
+
+                    // Ambiguous names (env/venv/.venv/lib) collide with real user/source folders. Only surface
+                    // them when there is definitive proof they are a regenerable cache (see hasCacheProof).
+                    let artifactLeaf = (artifactPath as NSString).lastPathComponent
+                    if DiskMonitor.ambiguousArtifactNames.contains(artifactLeaf),
+                       !DiskMonitor.hasCacheProof(artifactPath: artifactPath, projectPath: path, name: artifactLeaf) {
+                        continue
+                    }
+
                     let size = directorySize(path: artifactPath)
                     guard size > 10_485_760 else { continue } // > 10 MB
                     let projectName = (path as NSString).lastPathComponent
-                    let lastModified = lastAccessDate(path: artifactPath)
+                    let lastModified = lastModifiedDate(path: artifactPath)
                     let days = daysSince(lastModified)
-                    let displayArtifactName = (artifactPath as NSString).lastPathComponent
+                    let displayArtifactName = artifactLeaf
 
                     results.append(ProjectArtifact(
                         projectName: projectName,
@@ -1051,22 +1113,28 @@ class DiskMonitor: ObservableObject {
     
     /// Clean a single project artifact (move to trash)
     func cleanProjectArtifact(_ artifact: ProjectArtifact) {
-        let savedSize = artifact.size
-        let historyEntry = ProjectCleanHistoryEntry(
-            projectName: artifact.projectName,
-            projectPath: artifact.projectPath,
-            artifactName: artifact.artifactName,
-            artifactPath: artifact.artifactPath,
-            projectType: artifact.projectType,
-            size: artifact.size,
-            cleanedAt: Date()
-        )
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            _ = self?.moveToTrash(path: artifact.artifactPath)
+            guard let self else { return }
+            let failure = self.moveToTrash(path: artifact.artifactPath)
             DispatchQueue.main.async {
-                self?.addToSavings(savedSize)
-                self?.appendProjectCleanHistory(historyEntry)
-                self?.scan()
+                // Only log history for a cache that actually reached the Trash — otherwise the
+                // history claims a cleanup that never happened.
+                if failure == nil {
+                    self.appendProjectCleanHistory(ProjectCleanHistoryEntry(
+                        projectName: artifact.projectName,
+                        projectPath: artifact.projectPath,
+                        artifactName: artifact.artifactName,
+                        artifactPath: artifact.artifactPath,
+                        projectType: artifact.projectType,
+                        size: artifact.size,
+                        cleanedAt: Date()
+                    ))
+                }
+                self.finishClean(
+                    title: "\(artifact.projectName) › \(artifact.artifactName)",
+                    freed: failure == nil ? artifact.size : 0,
+                    failure: failure
+                )
             }
         }
     }
@@ -1156,6 +1224,15 @@ struct LargeFile: Identifiable {
     let folder: String // e.g. "Downloads", "Music"
 }
 
+/// A clean that did not free what it promised — the item is still on disk.
+/// Surfaced to the user instead of being swallowed, so "Recovered X!" always means it really went.
+struct CleanFailure: Identifiable {
+    let id = UUID()
+    let title: String      // what we tried to clean
+    let reason: String     // the system's own explanation
+    let isPermission: Bool // true → the fix is granting Full Disk Access
+}
+
 struct ProjectArtifact: Identifiable {
     let id = UUID()
     let projectName: String // e.g. "my-react-app"
@@ -1177,7 +1254,7 @@ struct ProjectArtifact: Identifiable {
         case "Carthage": return "tram.fill"
         case "Xcode": return "hammer.fill"
         case "Go": return "leaf.fill"
-        case "Gradle", "Gradle (Kotlin)": return "gearshape.fill"
+        case "Gradle": return "gearshape.fill"
         case "Maven": return "building.columns.fill"
         case "PHP/Composer": return "music.note.list"
         case "Ruby": return "diamond.fill"
