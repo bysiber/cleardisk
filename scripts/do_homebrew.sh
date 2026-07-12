@@ -58,6 +58,10 @@ fi
 ok "sha256: $SHA"
 
 # Note: #{version} below is Ruby interpolation evaluated by Homebrew, not by bash.
+#
+# `depends_on macos: :sonoma` is a MINIMUM, and it must stay in the bare-symbol form: the old
+# `">= :sonoma"` string comparison is deprecated and made Homebrew print a warning on every
+# install (issue #20 / PR #21).
 CASK=$(cat << CASKEOF
 cask "cleardisk" do
   version "$VERSION"
@@ -68,7 +72,7 @@ cask "cleardisk" do
   desc "Free, open-source macOS app to find and clean developer caches"
   homepage "https://github.com/$REPO"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "$APP_NAME.app"
 
