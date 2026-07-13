@@ -2,6 +2,10 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.8.1] - 2026-07-13
+### Fixed
+- **No menu bar icon; the app appears to do nothing** (#22, #16). `NSApplication.delegate` is a *weak* reference, and nothing else in the app retained `AppDelegate` — every other reference to it captured `self` weakly. Held only by a local in `main()`, ARC was free to release it after its last use, before or during `app.run()`, taking the status item and the popover with it. The process kept running (some users still saw notification banners) but there was no menu bar icon and clicks went nowhere. Whether it happened at all depended on the optimiser, which is why it reproduced on some Macs and not others. The delegate is now held for the life of the process.
+
 ## [1.8.0] - 2026-07-12
 ### Added
 - **Project scanner expanded from 11 to 23 project types** — Python, CocoaPods, Carthage, Xcode, .NET/C#, Godot, Unity, Unreal, Haskell, Elixir, Zig, Crystal, plus the modern JS caches (`.next`, `.nuxt`, `.svelte-kit`, `.angular`, `.turbo`, `.vite`, `.yarn/cache`). A project now lists each of its caches as a separate row.

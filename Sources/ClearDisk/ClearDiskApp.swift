@@ -6,9 +6,20 @@ import Combine
 // MARK: - App Entry Point
 @main
 struct ClearDiskApp {
+    /// `NSApplication.delegate` is a **weak** reference (NSApplication.h: `@property (nullable, weak)`),
+    /// and nothing else in this app retains the delegate — the Combine sink, the refresh timer and the
+    /// event monitor all capture it weakly. Held only by a local in `main()`, ARC is free to release it
+    /// after its last use, which is the assignment below — i.e. before or during `app.run()`.
+    ///
+    /// When that happens the delegate takes the status item and the popover down with it: the process
+    /// stays alive but there is no menu bar icon and nothing responds to clicks. Whether it happens at
+    /// all depends on the optimiser, so it reproduces on some Macs and not others (#16, #22).
+    ///
+    /// A static holds it for the life of the process.
+    private static let delegate = AppDelegate()
+
     static func main() {
         let app = NSApplication.shared
-        let delegate = AppDelegate()
         app.delegate = delegate
         app.setActivationPolicy(.accessory) // Menu bar only, no dock icon
         app.run()

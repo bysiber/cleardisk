@@ -8,8 +8,8 @@ APP_NAME="ClearDisk"
 # THE version. Bump it here and nowhere else: it is baked into Info.plist below,
 # and the app reads it back at runtime (see AppInfo in ClearDiskApp.swift), so the
 # UI, the About box and the bundle can never drift apart.
-VERSION="1.8.0"
-BUILD_NUMBER="19"
+VERSION="1.8.1"
+BUILD_NUMBER="20"
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
