@@ -95,7 +95,7 @@ fi
 ok "https://github.com/$REPO/releases/tag/$TAG"
 echo
 if [ -n "$DRAFT" ]; then
-    echo "Draft created. Publish it on GitHub, THEN run ./scripts/do_homebrew.sh"
+    echo "Draft created. Publish it on GitHub, THEN run ./scripts/brew_update.sh"
 else
-    echo "Next:  ./scripts/do_homebrew.sh   # point the cask at this release"
+    echo "Next:  ./scripts/brew_update.sh   # point the cask at this release"
 fi

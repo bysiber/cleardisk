@@ -3,7 +3,7 @@
 #
 #   do_dmg.sh       build the .app and package dist/ClearDisk-v<version>.dmg
 #   do_gh.sh        tag + publish the GitHub release with that DMG attached
-#   do_homebrew.sh  point the Homebrew cask at the published DMG
+#   brew_update.sh  point the Homebrew cask at the published DMG
 #
 # Run them in that order. The cask points at the release URL, so the DMG must be
 # uploaded before the cask is updated or `brew install` 404s.

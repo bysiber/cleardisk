@@ -6,7 +6,7 @@
 #   ./scripts/do_dmg.sh                  # version comes from scripts/build_app.sh
 #   ./scripts/do_dmg.sh --version 1.8.0  # only to double-check; must match build_app.sh
 #
-# Writes the DMG plus a <dmg>.sha256 sidecar that do_homebrew.sh picks up automatically.
+# Writes the DMG plus a <dmg>.sha256 sidecar that brew_update.sh picks up automatically.
 
 source "$(cd "$(dirname "$0")" && pwd)/_release_lib.sh"
 
