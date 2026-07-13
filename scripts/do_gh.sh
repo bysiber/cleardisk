@@ -56,8 +56,11 @@ else
     [ -n "$NOTES" ] || die "No '## [$VERSION]' section in CHANGELOG.md. Add one, or pass --notes-file."
 fi
 
-# Downloaded DMGs are ad-hoc signed, not notarized, so Gatekeeper will block a double-click.
-# Every release must say how to get past it, or users file "app is damaged" issues.
+# Two things bite every release and both must be spelled out here.
+#   1. Recent Homebrew refuses casks from untrusted third-party taps, so `brew trust` is required.
+#   2. Downloaded DMGs are ad-hoc signed and not notarized, so Gatekeeper blocks them. The old
+#      right-click → Open bypass no longer exists: Apple removed it in macOS 15, and the only
+#      routes left are System Settings → Open Anyway, or clearing the quarantine attribute.
 NOTES="$NOTES
 
 ---
@@ -65,12 +68,17 @@ NOTES="$NOTES
 
 \`\`\`sh
 brew tap $(dirname "$TAP_REPO")/cleardisk
+brew trust $(dirname "$TAP_REPO")/cleardisk
 brew install --cask cleardisk
 \`\`\`
 
 Or download the DMG below and drag ClearDisk to Applications. The app is ad-hoc signed and not
-notarized, so on first launch macOS will refuse to open it: **right-click the app → Open**, then
-confirm. (Homebrew handles this for you.)"
+notarized, so macOS blocks it on first launch. To open it:
+
+- **System Settings → Privacy & Security**, scroll down, click **Open Anyway**, or
+- \`xattr -cr /Applications/ClearDisk.app\` in Terminal.
+
+(Homebrew does this for you.)"
 
 info "Tagging $TAG"
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then

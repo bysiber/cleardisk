@@ -75,10 +75,15 @@ ClearDisk scans **63 developer cache paths** in one tool. Lives in your menu bar
 
 ```bash
 brew tap bysiber/cleardisk
+brew trust bysiber/cleardisk
 brew install --cask cleardisk
 ```
 
 That's it. Homebrew handles everything, including the quarantine flag.
+
+> `brew trust` is required: recent Homebrew refuses to load casks from third-party taps until you
+> explicitly trust them (`Error: Refusing to load cask ... from untrusted tap`). See
+> [Tap Trust](https://docs.brew.sh/Tap-Trust).
 
 ### Download DMG
 
