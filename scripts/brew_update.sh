@@ -34,7 +34,7 @@ cask "cleardisk" do
   desc "Free, open-source macOS app to find and clean developer caches"
   homepage "https://github.com/bysiber/cleardisk"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "ClearDisk.app"
 
