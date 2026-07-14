@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build ClearDisk.app bundle
-set -e
+# Build ClearDisk.app bundle (universal: arm64 + x86_64)
+set -euo pipefail
 
 APP_NAME="ClearDisk"
 
@@ -8,25 +8,84 @@ APP_NAME="ClearDisk"
 # THE version. Bump it here and nowhere else: it is baked into Info.plist below,
 # and the app reads it back at runtime (see AppInfo in ClearDiskApp.swift), so the
 # UI, the About box and the bundle can never drift apart.
-VERSION="1.8.1"
-BUILD_NUMBER="20"
+VERSION="1.8.2"
+BUILD_NUMBER="21"
 # ---------------------------------------------------------------------------
+
+# Architectures for the release binary. One DMG runs on Apple Silicon and Intel.
+# Override for a faster host-only build: ARCHES=arm64 ./scripts/build_app.sh
+ARCHES=(${ARCHES:-arm64 x86_64})
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$(dirname "$SCRIPT_DIR")"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
+BINARY_OUT="$MACOS_DIR/$APP_NAME"
 
-echo "Building $APP_NAME..."
+triple_for_arch() {
+    printf '%s-apple-macosx' "$1"
+}
+
+binary_path_for_arch() {
+    local arch="$1"
+    printf '%s/.build/%s/release/%s' "$BUILD_DIR" "$(triple_for_arch "$arch")" "$APP_NAME"
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || {
+        echo "error: '$1' is required but not installed." >&2
+        exit 1
+    }
+}
+
+assert_universal() {
+    local info
+    info="$(lipo -info "$BINARY_OUT")"
+    echo "$info"
+    echo "$info" | grep -q 'arm64' || {
+        echo "error: fat binary missing arm64 slice: $info" >&2
+        exit 1
+    }
+    echo "$info" | grep -q 'x86_64' || {
+        echo "error: fat binary missing x86_64 slice: $info" >&2
+        exit 1
+    }
+}
+
+require_cmd swift
+require_cmd lipo
+require_cmd codesign
+require_cmd file
+
+echo "Building $APP_NAME (${ARCHES[*]})..."
 cd "$BUILD_DIR"
-swift build -c release 2>&1
+
+BUILT_BINS=()
+for arch in "${ARCHES[@]}"; do
+    triple="$(triple_for_arch "$arch")"
+    echo "  -> swift build -c release --triple $triple"
+    swift build -c release --triple "$triple" 2>&1
+    bin="$(binary_path_for_arch "$arch")"
+    if [ ! -f "$bin" ]; then
+        echo "error: expected binary missing after $arch build: $bin" >&2
+        exit 1
+    fi
+    BUILT_BINS+=("$bin")
+done
 
 echo "Creating app bundle..."
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_BUNDLE/Contents/MacOS"
+mkdir -p "$MACOS_DIR"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
-# Copy binary
-cp ".build/release/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+if [ "${#BUILT_BINS[@]}" -eq 1 ]; then
+    cp "${BUILT_BINS[0]}" "$BINARY_OUT"
+else
+    lipo -create "${BUILT_BINS[@]}" -output "$BINARY_OUT"
+    assert_universal
+fi
+
+file "$BINARY_OUT"
 
 # Copy app icon
 if [ -f "Resources/AppIcon.icns" ]; then
@@ -76,4 +135,4 @@ echo "Code signed (ad-hoc)."
 
 echo "Done! App bundle created at: $APP_BUNDLE"
 echo "To run: open $APP_BUNDLE"
-ls -la "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+ls -la "$BINARY_OUT"

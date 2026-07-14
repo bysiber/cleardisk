@@ -32,10 +32,18 @@ elif [ "$VERSION" != "$DECLARED" ]; then
 fi
 
 info "Building $APP_NAME $VERSION (release)"
-"$SCRIPTS_DIR/build_app.sh" >/dev/null
+# Keep build_app stdout visible — it asserts universal slices and prints lipo/file output.
+"$SCRIPTS_DIR/build_app.sh"
 
 APP="$ROOT_DIR/$APP_NAME.app"
 [ -d "$APP" ] || die "$APP was not produced by build_app.sh"
+
+BIN="$APP/Contents/MacOS/$APP_NAME"
+[ -f "$BIN" ] || die "Missing executable: $BIN"
+LIPO_INFO="$(lipo -info "$BIN" 2>/dev/null || true)"
+echo "$LIPO_INFO" | grep -q 'arm64'  || die "Release binary is not universal (missing arm64): $LIPO_INFO"
+echo "$LIPO_INFO" | grep -q 'x86_64' || die "Release binary is not universal (missing x86_64): $LIPO_INFO"
+ok "universal binary: $LIPO_INFO"
 
 # The DMG filename is baked into the Homebrew cask URL, so a stale bundle would ship under the
 # wrong name and every `brew install` would fetch the wrong build. Catch that here, not later.
