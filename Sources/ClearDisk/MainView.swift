@@ -14,6 +14,7 @@ enum Layout {
 private enum ActiveProjectSheet: Int, Identifiable {
     case history
     case cleanConfirm
+    case folders
     var id: Int { rawValue }
 }
 
@@ -34,6 +35,7 @@ struct MainView: View {
     @State private var selectedCacheIDs: Set<UUID> = []
     @State private var showCleanSelectedCachesConfirm = false
     @State private var showClearHistoryConfirm = false
+    @State private var folderAddErrorMessage: String?
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
     @State private var isExpanded = false
@@ -106,6 +108,17 @@ struct MainView: View {
             }
         } message: {
             Text("This only removes the local history log. It does NOT restore any previously cleaned caches.")
+        }
+        .alert(
+            "Couldn't Add Folder",
+            isPresented: Binding(
+                get: { folderAddErrorMessage != nil },
+                set: { if !$0 { folderAddErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(folderAddErrorMessage ?? "")
         }
         .alert("Clean Cache", isPresented: $showCleanConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -250,6 +263,19 @@ struct MainView: View {
                             activeProjectSheet = nil
                         }
                     )
+                case .folders:
+                    ProjectScanFoldersSheet(
+                        defaultLabels: diskMonitor.defaultProjectScanRootLabels,
+                        customRoots: diskMonitor.customProjectRoots,
+                        isAvailable: { diskMonitor.isCustomProjectRootAvailable($0) },
+                        onClose: { activeProjectSheet = nil },
+                        onAdd: { pickCustomProjectFolder() },
+                        onRemove: { path in
+                            diskMonitor.removeCustomProjectRoot(path)
+                            diskMonitor.scan()
+                        },
+                        canAddMore: diskMonitor.customProjectRoots.count < DiskMonitor.maxCustomProjectRoots
+                    )
                 }
             }
             // A sheet window used to give these views their size and background. Inside the popover
@@ -277,6 +303,7 @@ struct MainView: View {
         showCleanSelectedCachesConfirm = false
         showClearHistoryConfirm = false
         showDeleteFileConfirm = false
+        folderAddErrorMessage = nil
         diskMonitor.cleanFailure = nil
     }
 
@@ -1206,17 +1233,35 @@ struct MainView: View {
     var projectsContent: some View {
         VStack(spacing: 2) {
             if diskMonitor.projectArtifacts.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "folder.badge.questionmark")
                         .font(.system(size: 32))
                         .foregroundColor(.secondary)
                     Text("No project caches found")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
-                    Text("Scans ~/Documents, ~/Developer, ~/Projects, ~/Code, ~/Desktop")
+                    Text("Scans default folders under home, plus any custom folders you add (external disks included).")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    HStack(spacing: 8) {
+                        foldersButton
+                        Button(action: { activeProjectSheet = .history }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 9, weight: .semibold))
+                                Text("History")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.mint.opacity(0.12))
+                            .cornerRadius(5)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.mint)
+                    }
                 }
                 .padding(.top, 40)
             } else {
@@ -1244,29 +1289,32 @@ struct MainView: View {
                             Text(formatBytes(totalArtifacts))
                                 .font(.system(size: 13, weight: .bold, design: .monospaced))
                                 .foregroundColor(.orange)
-                            Button(action: { activeProjectSheet = .history }) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 9, weight: .semibold))
-                                    Text("History")
-                                        .font(.system(size: 10, weight: .medium))
-                                    if !diskMonitor.projectCleanHistory.isEmpty {
-                                        Text("\(diskMonitor.projectCleanHistory.count)")
+                            HStack(spacing: 6) {
+                                foldersButton
+                                Button(action: { activeProjectSheet = .history }) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "clock.arrow.circlepath")
                                             .font(.system(size: 9, weight: .semibold))
-                                            .padding(.horizontal, 4)
-                                            .padding(.vertical, 0)
-                                            .background(Color.mint.opacity(0.25))
-                                            .cornerRadius(6)
+                                        Text("History")
+                                            .font(.system(size: 10, weight: .medium))
+                                        if !diskMonitor.projectCleanHistory.isEmpty {
+                                            Text("\(diskMonitor.projectCleanHistory.count)")
+                                                .font(.system(size: 9, weight: .semibold))
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 0)
+                                                .background(Color.mint.opacity(0.25))
+                                                .cornerRadius(6)
+                                        }
                                     }
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Color.mint.opacity(0.12))
+                                    .cornerRadius(5)
                                 }
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(Color.mint.opacity(0.12))
-                                .cornerRadius(5)
+                                .buttonStyle(.plain)
+                                .foregroundColor(.mint)
+                                .help("View previously cleaned project caches")
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.mint)
-                            .help("View previously cleaned project caches")
                         }
                     }
                     // Sort picker
@@ -1301,6 +1349,66 @@ struct MainView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+    
+    private var foldersButton: some View {
+        Button(action: { activeProjectSheet = .folders }) {
+            HStack(spacing: 3) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 9, weight: .semibold))
+                Text("Folders")
+                    .font(.system(size: 10, weight: .medium))
+                if !diskMonitor.customProjectRoots.isEmpty {
+                    Text("\(diskMonitor.customProjectRoots.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 0)
+                        .background(Color.orange.opacity(0.25))
+                        .cornerRadius(6)
+                }
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Color.orange.opacity(0.12))
+            .cornerRadius(5)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.orange)
+        .help("Add custom folders to scan (including external disks)")
+    }
+    
+    private func pickCustomProjectFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Add"
+        panel.message = "Choose a folder to scan for project caches"
+        panel.directoryURL = URL(fileURLWithPath: "/Volumes")
+        
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        
+        if let error = diskMonitor.addCustomProjectRoot(url.path) {
+            folderAddErrorMessage = folderAddErrorDescription(error)
+            return
+        }
+        diskMonitor.scan()
+    }
+    
+    private func folderAddErrorDescription(_ error: DiskMonitor.CustomProjectRootError) -> String {
+        switch error {
+        case .atCapacity:
+            return "You can add up to \(DiskMonitor.maxCustomProjectRoots) custom folders."
+        case .invalid:
+            return "That path is not a folder."
+        case .duplicate:
+            return "That folder is already included in the scan list."
+        case .nested:
+            return "That folder overlaps another scan root. Pick a non-nested path."
+        case .filesystemRoot:
+            return "The filesystem root cannot be added as a scan folder."
+        }
     }
     
     var sortedProjectArtifacts: [ProjectArtifact] {
@@ -2629,5 +2737,146 @@ struct ProjectCleanHistorySheet: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Project Scan Folders Sheet
+struct ProjectScanFoldersSheet: View {
+    let defaultLabels: [String]
+    let customRoots: [String]
+    let isAvailable: (String) -> Bool
+    let onClose: () -> Void
+    let onAdd: () -> Void
+    let onRemove: (String) -> Void
+    let canAddMore: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Scan Folders")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Defaults under home + up to \(DiskMonitor.maxCustomProjectRoots) custom folders")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            
+            Divider()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Default")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Text(defaultLabels.joined(separator: " · "))
+                            .font(.system(size: 11))
+                            .foregroundColor(.primary.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Custom")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("\(customRoots.count)/\(DiskMonitor.maxCustomProjectRoots)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if customRoots.isEmpty {
+                            Text("No custom folders yet. Add a path on an external disk or elsewhere.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(customRoots, id: \.self) { path in
+                                customRootRow(path)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+            }
+            
+            Divider()
+            
+            HStack {
+                Button(action: onAdd) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 12))
+                        Text("Add Folder…")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(canAddMore ? .accentColor : .secondary)
+                .disabled(!canAddMore)
+                .help(canAddMore
+                      ? "Choose a folder to include in the Projects scan"
+                      : "Maximum of \(DiskMonitor.maxCustomProjectRoots) custom folders reached")
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+    }
+    
+    @ViewBuilder
+    private func customRootRow(_ path: String) -> some View {
+        let available = isAvailable(path)
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: available ? "externaldrive.fill" : "externaldrive.badge.xmark")
+                .font(.system(size: 12))
+                .foregroundColor(available ? .orange : .secondary)
+                .padding(.top, 2)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(displayPath(path))
+                    .font(.system(size: 11, design: .monospaced))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                Text(available ? "Available" : "Unavailable — disk may be unmounted")
+                    .font(.system(size: 9))
+                    .foregroundColor(available ? .green : .orange)
+            }
+            
+            Spacer(minLength: 4)
+            
+            Button(action: { onRemove(path) }) {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.red.opacity(0.75))
+            }
+            .buttonStyle(.plain)
+            .help("Remove this folder from the scan list")
+        }
+        .padding(8)
+        .background(Color.primary.opacity(0.04))
+        .cornerRadius(8)
+    }
+    
+    private func displayPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 }

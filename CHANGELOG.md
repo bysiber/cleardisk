@@ -2,6 +2,10 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.9.0] - 2026-07-14
+### Added
+- **Custom project scan folders** — on the Projects tab, add up to 8 extra roots (including paths on external disks under `/Volumes`). Defaults under home still apply; unmounted volumes show as Unavailable and are skipped until remounted.
+
 ## [1.8.2] - 2026-07-14
 ### Changed
 - **Universal binary** — `scripts/build_app.sh` now builds `arm64` and `x86_64` (via `--triple`) and stitches them with `lipo`, so the DMG / `.app` run on both Apple Silicon and Intel Macs (macOS 14+). Release packaging asserts both slices are present. App size docs updated to ~6 MB (was outdated at 590 KB).

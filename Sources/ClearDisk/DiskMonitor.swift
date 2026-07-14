@@ -31,6 +31,19 @@ class DiskMonitor: ObservableObject {
     private let projectHistoryKey = "ClearDisk.projectCleanHistory"
     private let historyMaxEntries = 200
     
+    // Extra roots for the Projects artifact scanner (persisted). Default home folders still apply.
+    @Published var customProjectRoots: [String] = []
+    private let customProjectRootsKey = "ClearDisk.customProjectRoots"
+    static let maxCustomProjectRoots = 8
+    
+    enum CustomProjectRootError: Equatable {
+        case atCapacity
+        case invalid
+        case duplicate
+        case nested
+        case filesystemRoot
+    }
+    
     // Permission & access status
     @Published var notificationPermission: PermissionState = .unknown
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
@@ -58,6 +71,92 @@ class DiskMonitor: ObservableObject {
     func loadSavedTotal() {
         totalSavedAllTime = Int64(UserDefaults.standard.integer(forKey: savedKey))
         loadProjectCleanHistory()
+        loadCustomProjectRoots()
+    }
+    
+    // MARK: - Custom Project Scan Roots
+    func loadCustomProjectRoots() {
+        customProjectRoots = UserDefaults.standard.stringArray(forKey: customProjectRootsKey) ?? []
+    }
+    
+    private func saveCustomProjectRoots() {
+        UserDefaults.standard.set(customProjectRoots, forKey: customProjectRootsKey)
+    }
+    
+    /// Built-in directories under the home folder always scanned for project artifacts.
+    var defaultProjectScanRoots: [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return [
+            "\(home)/Documents",
+            "\(home)/Developer",
+            "\(home)/Projects",
+            "\(home)/Code",
+            "\(home)/repos",
+            "\(home)/src",
+            "\(home)/workspace",
+            "\(home)/Desktop",
+        ]
+    }
+    
+    /// Short labels for the Folders UI (last path component of each default root).
+    var defaultProjectScanRootLabels: [String] {
+        defaultProjectScanRoots.map { ($0 as NSString).lastPathComponent }
+    }
+    
+    static func normalizeProjectRootPath(_ path: String) -> String {
+        var normalized = (path as NSString).standardizingPath
+        while normalized.hasSuffix("/") && normalized.count > 1 {
+            normalized.removeLast()
+        }
+        return normalized
+    }
+    
+    /// Whether a custom root's path currently exists (e.g. external volume still mounted).
+    func isCustomProjectRootAvailable(_ path: String) -> Bool {
+        FileManager.default.fileExists(atPath: Self.normalizeProjectRootPath(path))
+    }
+    
+    @discardableResult
+    func addCustomProjectRoot(_ path: String) -> CustomProjectRootError? {
+        let normalized = Self.normalizeProjectRootPath(path)
+        if normalized.isEmpty || normalized == "/" {
+            return .filesystemRoot
+        }
+        if customProjectRoots.count >= Self.maxCustomProjectRoots {
+            return .atCapacity
+        }
+        // Reject files / non-directories when the path is currently reachable.
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: normalized, isDirectory: &isDir), !isDir.boolValue {
+            return .invalid
+        }
+        
+        let existingCustom = customProjectRoots.map { Self.normalizeProjectRootPath($0) }
+        let defaults = defaultProjectScanRoots.map { Self.normalizeProjectRootPath($0) }
+        let allKnown = existingCustom + defaults
+        
+        if allKnown.contains(normalized) {
+            return .duplicate
+        }
+        for known in allKnown {
+            if isPath(normalized, nestedUnder: known) || isPath(known, nestedUnder: normalized) {
+                return .nested
+            }
+        }
+        
+        customProjectRoots.append(normalized)
+        saveCustomProjectRoots()
+        return nil
+    }
+    
+    func removeCustomProjectRoot(_ path: String) {
+        let normalized = Self.normalizeProjectRootPath(path)
+        customProjectRoots.removeAll { Self.normalizeProjectRootPath($0) == normalized }
+        saveCustomProjectRoots()
+    }
+    
+    private func isPath(_ path: String, nestedUnder ancestor: String) -> Bool {
+        path.hasPrefix(ancestor + "/")
     }
     
     // MARK: - Project Clean History
@@ -959,19 +1058,16 @@ class DiskMonitor: ObservableObject {
         }
     }
     
-    /// Directories to scan for projects
+    /// Directories to scan for projects: defaults under home plus any custom roots.
     private func projectScanRoots() -> [String] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return [
-            "\(home)/Documents",
-            "\(home)/Developer",
-            "\(home)/Projects",
-            "\(home)/Code",
-            "\(home)/repos",
-            "\(home)/src",
-            "\(home)/workspace",
-            "\(home)/Desktop",
-        ]
+        var seen = Set<String>()
+        var roots: [String] = []
+        for path in defaultProjectScanRoots + customProjectRoots {
+            let normalized = Self.normalizeProjectRootPath(path)
+            guard !normalized.isEmpty, seen.insert(normalized).inserted else { continue }
+            roots.append(normalized)
+        }
+        return roots
     }
     
     private func scanProjectArtifacts() {
