@@ -2,6 +2,10 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.8.2] - 2026-07-14
+### Changed
+- **Universal binary** — `scripts/build_app.sh` now builds `arm64` and `x86_64` (via `--triple`) and stitches them with `lipo`, so the DMG / `.app` run on both Apple Silicon and Intel Macs (macOS 14+). Release packaging asserts both slices are present. App size docs updated to ~6 MB (was outdated at 590 KB).
+
 ## [1.8.1] - 2026-07-13
 ### Fixed
 - **No menu bar icon; the app appears to do nothing** (#22, #16). `NSApplication.delegate` is a *weak* reference, and nothing else in the app retained `AppDelegate` — every other reference to it captured `self` weakly. Held only by a local in `main()`, ARC was free to release it after its last use, before or during `app.run()`, taking the status item and the popover with it. The process kept running (some users still saw notification banners) but there was no menu bar icon and clicks went nowhere. Whether it happened at all depended on the optimiser, which is why it reproduced on some Macs and not others. The delegate is now held for the life of the process.
