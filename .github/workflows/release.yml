@@ -71,10 +71,45 @@ jobs:
           name: ClearDisk-dmg
           path: ClearDisk-v*.dmg
 
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=$(grep -m1 -E '^VERSION="[^"]+"' scripts/build_app.sh \
+                    | sed -E 's/^VERSION="([^"]+)".*/\1/')
+
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/        { exit }
+            found                    { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > release-notes.md
+
+          cat >> release-notes.md << 'EOF'
+
+          ---
+          ### Install
+
+          ```sh
+          brew tap bysiber/cleardisk
+          brew trust bysiber/cleardisk
+          brew install --cask cleardisk
+          ```
+
+          Or download the DMG below and drag ClearDisk to Applications.
+          EOF
+
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: ClearDisk-v*.dmg
+          body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew cask
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          SHA=$(shasum -a 256 ClearDisk-v*.dmg | awk '{print $1}')
+          scripts/brew_update.sh --sha256 "$SHA"
