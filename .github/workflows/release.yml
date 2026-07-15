@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["*-pipeline"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: scripts/build_app.sh
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE:     ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD:          ${{ secrets.KEYCHAIN_PWD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PWD" build.keychain
+          security set-keychain-settings -t 3600 -l build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" build.keychain
+          rm cert.p12
+
+      - name: Codesign
+        env:
+          IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          codesign --force --timestamp --options runtime --sign "$IDENTITY" ClearDisk.app
+          codesign -dvvv ClearDisk.app
+
+      - name: Notarize & package
+        env:
+          NOTARY_KEY:    ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          IDENTITY:      ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          echo "$NOTARY_KEY" | base64 --decode > key.p8
+
+          VERSION=$(grep -m1 -E '^VERSION="[^"]+"' scripts/build_app.sh \
+                    | sed -E 's/^VERSION="([^"]+)".*/\1/')
+          DMG="ClearDisk-v${VERSION}.dmg"
+
+          mkdir -p dmg-staging
+          cp -R ClearDisk.app dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          xattr -cr dmg-staging/ClearDisk.app
+          hdiutil create -volname "ClearDisk" -srcfolder dmg-staging -ov -format UDZO "$DMG"
+
+          codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+          xcrun notarytool submit "$DMG" \
+            --key key.p8 --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 20m
+          xcrun stapler staple "$DMG"
+
+          rm key.p8
+          spctl -a -t open --context context:primary-signature -vvv "$DMG"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClearDisk-dmg
+          path: ClearDisk-v*.dmg
+
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=$(grep -m1 -E '^VERSION="[^"]+"' scripts/build_app.sh \
+                    | sed -E 's/^VERSION="([^"]+)".*/\1/')
+
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/        { exit }
+            found                    { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > release-notes.md
+
+          cat >> release-notes.md << 'EOF'
+
+          ---
+          ### Install
+
+          ```sh
+          brew tap bysiber/cleardisk
+          brew trust bysiber/cleardisk
+          brew install --cask cleardisk
+          ```
+
+          Or download the DMG below and drag ClearDisk to Applications.
+          EOF
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ClearDisk-v*.dmg
+          body_path: release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew cask
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          SHA=$(shasum -a 256 ClearDisk-v*.dmg | awk '{print $1}')
+          scripts/brew_update.sh --sha256 "$SHA"
