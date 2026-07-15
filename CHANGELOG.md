@@ -1,6 +1,10 @@
 # ClearDisk - Change Log
 
 All notable changes to ClearDisk are documented here.
+## [1.8.2] - 2026-07-16
+### Added
+- Added signed app produced pipeline to avoid `xattr -cr ...` quirk
+- Updated version derivation from scripts
 
 ## [1.8.1] - 2026-07-13
 ### Fixed
