@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches: ["*-pipeline"]
   workflow_dispatch:
 
 jobs:
