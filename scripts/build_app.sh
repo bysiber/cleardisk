@@ -2,22 +2,15 @@
 # Build ClearDisk.app bundle
 set -e
 
-APP_NAME="ClearDisk"
+source "$(cd "$(dirname "$0")" && pwd)/_release_lib.sh"
 
-# ---------------------------------------------------------------------------
-# THE version. Bump it here and nowhere else: it is baked into Info.plist below,
-# and the app reads it back at runtime (see AppInfo in ClearDiskApp.swift), so the
-# UI, the About box and the bundle can never drift apart.
-VERSION="1.8.1"
-BUILD_NUMBER="20"
-# ---------------------------------------------------------------------------
+VERSION="$(project_version)"
+BUILD_NUMBER="$(git -C "$ROOT_DIR" rev-list --count HEAD)"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="$(dirname "$SCRIPT_DIR")"
-APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+APP_BUNDLE="$ROOT_DIR/$APP_NAME.app"
 
 echo "Building $APP_NAME..."
-cd "$BUILD_DIR"
+cd "$ROOT_DIR"
 swift build -c release 2>&1
 
 echo "Creating app bundle..."
