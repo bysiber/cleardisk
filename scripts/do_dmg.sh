@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/do_dmg.sh                  # version comes from CHANGELOG.md
-#   ./scripts/do_dmg.sh --version 1.8.0  # only to double-check; must match CHANGELOG.md
+#   ./scripts/do_dmg.sh --version 1.8.3  # only to double-check; must match CHANGELOG.md
 #
 # Writes the DMG plus a <dmg>.sha256 sidecar that brew_update.sh picks up automatically.
 
