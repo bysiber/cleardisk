@@ -13,6 +13,7 @@ class DiskMonitor: ObservableObject {
     @Published var largeFiles: [LargeFile] = []
     @Published var projectArtifacts: [ProjectArtifact] = [] // stale node_modules, target/, build/ etc.
     @Published var isScanning: Bool = false
+    @Published var scanStatus: String = "" // current scan phase, shown in UI
     @Published var totalCleanable: Int64 = 0
     @Published var safeCleanable: Int64 = 0 // only safe + caution caches + trash
     @Published var riskyCleanable: Int64 = 0 // risky caches (e.g. Docker data)
@@ -35,6 +36,31 @@ class DiskMonitor: ObservableObject {
     @Published var customProjectRoots: [String] = []
     private let customProjectRootsKey = "ClearDisk.customProjectRoots"
     static let maxCustomProjectRoots = 8
+
+    struct MountedVolume: Identifiable, Equatable {
+        let name: String
+        let path: String
+        var id: String { path }
+    }
+
+    /// Removable / external volumes under `/Volumes` (excludes the boot volume).
+    static func mountedExternalVolumes() -> [MountedVolume] {
+        let fm = FileManager.default
+        let volumesRoot = "/Volumes"
+        guard let names = try? fm.contentsOfDirectory(atPath: volumesRoot) else { return [] }
+
+        var volumes: [MountedVolume] = []
+        for name in names {
+            if name.hasPrefix(".") { continue }
+            let path = (volumesRoot as NSString).appendingPathComponent(name)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { continue }
+            let resolved = (path as NSString).resolvingSymlinksInPath
+            if resolved == "/" || name == "Macintosh HD" { continue }
+            volumes.append(MountedVolume(name: name, path: path))
+        }
+        return volumes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
     
     enum CustomProjectRootError: Equatable {
         case atCapacity
@@ -96,11 +122,6 @@ class DiskMonitor: ObservableObject {
             "\(home)/workspace",
             "\(home)/Desktop",
         ]
-    }
-    
-    /// Short labels for the Folders UI (last path component of each default root).
-    var defaultProjectScanRootLabels: [String] {
-        defaultProjectScanRoots.map { ($0 as NSString).lastPathComponent }
     }
     
     static func normalizeProjectRootPath(_ path: String) -> String {
@@ -246,41 +267,136 @@ class DiskMonitor: ObservableObject {
     }
     
     private var isScanInProgress = false
+    private var scanGeneration = 0
+    private var lastScanCompletedAt: Date?
+    private var pendingProjectRescan = false
+    
+    /// Opens the popover without re-running a scan that just finished (e.g. during onboarding).
+    func scanIfStale(minInterval: TimeInterval = 300) {
+        guard !isScanInProgress else { return }
+        guard hasCompletedFirstScan else {
+            scan()
+            return
+        }
+        if let lastScanCompletedAt, Date().timeIntervalSince(lastScanCompletedAt) < minInterval { return }
+        scan()
+    }
+    
+    func scanOnPopoverOpen() {
+        scanIfStale()
+    }
+
+    /// Re-scan only project artifact roots (after custom folder add/remove).
+    func rescanProjectArtifacts() {
+        guard !isScanInProgress else {
+            pendingProjectRescan = true
+            return
+        }
+        isScanInProgress = true
+        scanGeneration += 1
+        let generation = scanGeneration
+
+        DispatchQueue.main.async { [weak self] in
+            self?.isScanning = true
+            self?.scanStatus = "Project caches"
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            defer {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.scanGeneration == generation else { return }
+                    self.isScanning = false
+                    self.isScanInProgress = false
+                    self.scanStatus = ""
+                    self.calculateCleanable()
+                }
+            }
+            guard let self else { return }
+            self.runScanPhase("Project caches", generation: generation) {
+                self.scanProjectArtifacts(generation: generation)
+            }
+        }
+    }
     
     func scan() {
-        guard !isScanInProgress else { return } // Prevent concurrent scans
+        guard !isScanInProgress else { return }
         isScanInProgress = true
-        isScanning = true
+        scanGeneration += 1
+        let generation = scanGeneration
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.isScanning = true
+            self?.scanStatus = "Starting…"
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            // Reset scan status
+            defer {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.scanGeneration == generation else { return }
+                    self.isScanning = false
+                    self.isScanInProgress = false
+                    self.scanStatus = ""
+                    if self.pendingProjectRescan {
+                        self.pendingProjectRescan = false
+                        self.rescanProjectArtifacts()
+                    }
+                }
+            }
+            
+            guard let self else { return }
             var inaccessible: [String] = []
             
-            self?.scanDiskSpace()
-            self?.scanDevCaches()
-            self?.scanLargeFiles()
-            self?.scanProjectArtifacts()
+            self.runScanPhase("Disk usage", generation: generation) { self.scanDiskSpace(generation: generation) }
+            guard self.scanGeneration == generation else { return }
             
-            // Check which dev cache paths are inaccessible
-            let devPaths = self?.devCachePaths() ?? []
+            self.runScanPhase("Developer caches", generation: generation) { self.scanDevCaches(generation: generation) }
+            guard self.scanGeneration == generation else { return }
+            
+            self.runScanPhase("Large files", generation: generation) { self.scanLargeFiles() }
+            guard self.scanGeneration == generation else { return }
+            
+            self.runScanPhase("Project caches", generation: generation) { self.scanProjectArtifacts(generation: generation) }
+            guard self.scanGeneration == generation else { return }
+            
+            let devPaths = self.devCachePaths()
             for (name, path) in devPaths {
                 let expanded = (path as NSString).expandingTildeInPath
                 let parent = (expanded as NSString).deletingLastPathComponent
-                if FileManager.default.fileExists(atPath: parent) && !(self?.canAccess(path: expanded) ?? true) {
+                if FileManager.default.fileExists(atPath: parent) && !self.canAccess(path: expanded) {
                     inaccessible.append(name)
                 }
             }
             
-            DispatchQueue.main.async {
-                self?.isScanning = false
-                self?.isScanInProgress = false
-                self?.inaccessiblePaths = inaccessible
-                self?.hasCompletedFirstScan = true
-                self?.calculateCleanable()
-                self?.recordUsageSnapshot()
-                self?.calculateForecast()
-                self?.checkThresholdNotification()
-                self?.checkNotificationStatus()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.scanGeneration == generation else { return }
+                self.inaccessiblePaths = inaccessible
+                self.hasCompletedFirstScan = true
+                self.lastScanCompletedAt = Date()
+                self.calculateCleanable()
+                self.recordUsageSnapshot()
+                self.calculateForecast()
+                self.checkThresholdNotification()
+                self.checkNotificationStatus()
             }
+        }
+    }
+    
+    private func runScanPhase(_ name: String, generation: Int, _ block: () -> Void) {
+        let started = CFAbsoluteTimeGetCurrent()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.scanGeneration == generation else { return }
+            self.scanStatus = name
+        }
+        print("🔍 Scan: \(name)…")
+        block()
+        let elapsed = CFAbsoluteTimeGetCurrent() - started
+        print(String(format: "✓ Scan: %@ (%.1fs)", name, elapsed))
+    }
+    
+    private func setScanDetail(_ detail: String, generation: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.scanGeneration == generation else { return }
+            self.scanStatus = detail
         }
     }
     
@@ -413,7 +529,7 @@ class DiskMonitor: ObservableObject {
     }
     
     // MARK: - Disk Space
-    private func scanDiskSpace() {
+    private func scanDiskSpace(generation: Int) {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser
         
         do {
@@ -461,7 +577,8 @@ class DiskMonitor: ObservableObject {
         for (name, icon, paths) in categoryPaths {
             var totalSize: Int64 = 0
             for path in paths {
-                totalSize += directorySize(path: path)
+                setScanDetail("Disk: \((path as NSString).lastPathComponent)", generation: generation)
+                totalSize += directorySize(path: path, hardlinkAware: false)
             }
             if totalSize > 0 {
                 cats.append(DiskCategory(name: name, icon: icon, size: totalSize))
@@ -701,12 +818,13 @@ class DiskMonitor: ObservableObject {
         return allCachePaths().map { ($0.name, $0.path) }
     }
     
-    private func scanDevCaches() {
+    private func scanDevCaches(generation: Int) {
         let devPaths = allCachePaths()
         
         var caches: [DevCache] = []
         for entry in devPaths {
-            let size = directorySize(path: entry.path)
+            setScanDetail("Cache: \(entry.name)", generation: generation)
+            let size = directorySize(path: entry.path, hardlinkAware: true, generation: generation)
             if size > 1_048_576 { // Only show if > 1MB
                 let lastAccessed = lastModifiedDate(path: entry.path)
                 let daysSinceAccess = daysSince(lastAccessed)
@@ -1070,13 +1188,14 @@ class DiskMonitor: ObservableObject {
         return roots
     }
     
-    private func scanProjectArtifacts() {
+    private func scanProjectArtifacts(generation: Int) {
         var artifacts: [ProjectArtifact] = []
         let fm = FileManager.default
         
         for root in projectScanRoots() {
             guard fm.fileExists(atPath: root) else { continue }
-            findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0)
+            setScanDetail("Projects: \((root as NSString).lastPathComponent)", generation: generation)
+            findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0, generation: generation)
         }
         
         // Sort by size: biggest first (user can change sort in UI)
@@ -1087,8 +1206,9 @@ class DiskMonitor: ObservableObject {
         }
     }
     
-    private func findProjectArtifacts(in path: String, results: inout [ProjectArtifact], maxDepth: Int, currentDepth: Int) {
+    private func findProjectArtifacts(in path: String, results: inout [ProjectArtifact], maxDepth: Int, currentDepth: Int, generation: Int) {
         guard currentDepth < maxDepth else { return }
+        guard scanGeneration == generation else { return }
         let fm = FileManager.default
         
         guard let contents = try? fm.contentsOfDirectory(atPath: path) else { return }
@@ -1125,7 +1245,7 @@ class DiskMonitor: ObservableObject {
                         continue
                     }
 
-                    let size = directorySize(path: artifactPath)
+                    let size = directorySize(path: artifactPath, hardlinkAware: false, generation: generation)
                     guard size > 10_485_760 else { continue } // > 10 MB
                     let projectName = (path as NSString).lastPathComponent
                     let lastModified = lastModifiedDate(path: artifactPath)
@@ -1167,7 +1287,7 @@ class DiskMonitor: ObservableObject {
             let fullPath = (path as NSString).appendingPathComponent(item)
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
-                findProjectArtifacts(in: fullPath, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
+                findProjectArtifacts(in: fullPath, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1, generation: generation)
             }
         }
     }
@@ -1245,26 +1365,82 @@ class DiskMonitor: ObservableObject {
     }
     
     // MARK: - Helpers
-    func directorySize(path: String) -> Int64 {
+    
+    /// Fast path uses `du -sk` (seconds). Hardlink-aware path walks every file (minutes on large trees).
+    func directorySize(path: String, hardlinkAware: Bool = false, generation: Int? = nil) -> Int64 {
+        guard FileManager.default.fileExists(atPath: path) else { return 0 }
+        if hardlinkAware {
+            return directorySizeEnumerating(path: path, generation: generation)
+        }
+        if let duSize = directorySizeViaDu(path: path) {
+            return duSize
+        }
+        return directorySizeEnumerating(path: path, generation: generation)
+    }
+    
+    /// macOS `du` — much faster than Swift enumeration for large folders (node_modules, Library/Caches).
+    private func directorySizeViaDu(path: String, timeoutSeconds: TimeInterval = 60) -> Int64? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
+        process.arguments = ["-sk", path]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        
+        do {
+            try process.run()
+        } catch {
+            print("⚠️ du failed to start for \(path): \(error)")
+            return nil
+        }
+        
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global(qos: .utility).async {
+            process.waitUntilExit()
+            group.leave()
+        }
+        
+        if group.wait(timeout: .now() + timeoutSeconds) == .timedOut {
+            process.terminate()
+            print("⚠️ du timeout (\(Int(timeoutSeconds))s): \(path)")
+            return nil
+        }
+        
+        guard process.terminationStatus == 0 else {
+            print("⚠️ du exit \(process.terminationStatus): \(path)")
+            return nil
+        }
+        
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        guard let line = String(data: data, encoding: .utf8)?
+            .split(separator: "\n", maxSplits: 1).first,
+              let tab = line.firstIndex(of: "\t") else { return nil }
+        guard let kb = Int64(line[..<tab]) else { return nil }
+        return kb * 1024
+    }
+    
+    private func directorySizeEnumerating(path: String, generation: Int?) -> Int64 {
         let fm = FileManager.default
         var totalSize: Int64 = 0
+        var fileCount = 0
         
         guard let enumerator = fm.enumerator(
             at: URL(fileURLWithPath: path),
             includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey, .linkCountKey],
-            options: [],  // Don't skip hidden files — caches often contain them
+            options: [],
             errorHandler: nil
         ) else { return 0 }
         
         for case let fileURL as URL in enumerator {
+            if let generation, scanGeneration != generation { break }
+            fileCount += 1
+            if fileCount % 50_000 == 0 {
+                print("  … still sizing \((path as NSString).lastPathComponent) (\(fileCount) entries)")
+            }
             guard let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey, .linkCountKey]),
                   values.isRegularFile == true else { continue }
-            // Use totalFileAllocatedSize (accounts for sparse files like Docker.raw)
-            // Falls back to fileAllocatedSize if total isn't available
             let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0
-            // Hardlink-aware: a file with N hard links only frees `size / N` bytes when one link is removed.
-            // This is critical for pnpm / Bun / Yarn Berry / Cargo registry stores that hardlink into project caches —
-            // otherwise we wildly overestimate how much disk space cleaning would actually free.
             let links = max(values.linkCount ?? 1, 1)
             totalSize += Int64(size / links)
         }

@@ -131,25 +131,61 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             closePopover()
         } else {
             if let button = statusItem.button {
-                diskMonitor.scan()
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-
-                // An .accessory app never becomes active on its own, so the popover opens as an
-                // INACTIVE window — macOS then renders its vibrancy washed out and the text is hard
-                // to read until the first click makes it key. Activate and take key up front so the
-                // popover looks the same the moment it appears as it does after you click it.
-                NSApp.activate(ignoringOtherApps: true)
-                popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
-
-
-                // Close popover on outside click
-                eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-                    self?.closePopover()
-                }
+                diskMonitor.scanOnPopoverOpen()
+                showPopover(reinstallClickMonitor: true)
             }
         }
     }
     
+    /// Presents a folder picker — popover is hidden while the panel is open so it can't sit on top.
+    func pickProjectScanFolder(startingAt: URL? = nil, completion: @escaping (URL?) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = "Add"
+        panel.message = "Choose a folder to scan for project caches. Press ⌘⇧G to type a path (e.g. /Volumes/YourDisk)."
+        if let startingAt {
+            panel.directoryURL = startingAt
+        } else if !DiskMonitor.mountedExternalVolumes().isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: "/Volumes")
+        } else {
+            panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+        }
+
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        let previousBehavior = popover.behavior
+        popover.behavior = .applicationDefined
+        popover.contentViewController?.view.window?.orderOut(nil)
+
+        let response = panel.runModal()
+
+        popover.behavior = previousBehavior
+        showPopover(reinstallClickMonitor: true)
+
+        completion(response == .OK ? panel.url : nil)
+    }
+
+    private func showPopover(reinstallClickMonitor: Bool) {
+        guard let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+        popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+
+        if reinstallClickMonitor, eventMonitor == nil {
+            eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                self?.closePopover()
+            }
+        }
+    }
+
     private func closePopover() {
         popover.performClose(nil)
     }
