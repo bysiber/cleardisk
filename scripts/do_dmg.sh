@@ -3,8 +3,8 @@
 # Build the release .app and package it as dist/ClearDisk-v<version>.dmg
 #
 # Usage:
-#   ./scripts/do_dmg.sh                  # version comes from scripts/build_app.sh
-#   ./scripts/do_dmg.sh --version 1.8.0  # only to double-check; must match build_app.sh
+#   ./scripts/do_dmg.sh                  # version comes from CHANGELOG.md
+#   ./scripts/do_dmg.sh --version 1.8.0  # only to double-check; must match CHANGELOG.md
 #
 # Writes the DMG plus a <dmg>.sha256 sidecar that brew_update.sh picks up automatically.
 
@@ -27,7 +27,7 @@ DECLARED="$(project_version)"
 if [ -z "$VERSION" ]; then
     VERSION="$DECLARED"
 elif [ "$VERSION" != "$DECLARED" ]; then
-    die "--version $VERSION does not match VERSION=\"$DECLARED\" in scripts/build_app.sh.
+    die "--version $VERSION does not match \"$DECLARED\" in CHANGELOG.md.
      Bump it there — that file is the single source of truth."
 fi
 
