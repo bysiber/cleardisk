@@ -2,23 +2,16 @@
 # Build ClearDisk.app bundle (universal: arm64 + x86_64)
 set -euo pipefail
 
-APP_NAME="ClearDisk"
+source "$(cd "$(dirname "$0")" && pwd)/_release_lib.sh"
 
-# ---------------------------------------------------------------------------
-# THE version. Bump it here and nowhere else: it is baked into Info.plist below,
-# and the app reads it back at runtime (see AppInfo in ClearDiskApp.swift), so the
-# UI, the About box and the bundle can never drift apart.
-VERSION="1.8.2"
-BUILD_NUMBER="21"
-# ---------------------------------------------------------------------------
+VERSION="$(project_version)"
+BUILD_NUMBER="$(git -C "$ROOT_DIR" rev-list --count HEAD)"
 
 # Architectures for the release binary. One DMG runs on Apple Silicon and Intel.
 # Override for a faster host-only build: ARCHES=arm64 ./scripts/build_app.sh
 ARCHES=(${ARCHES:-arm64 x86_64})
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="$(dirname "$SCRIPT_DIR")"
-APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+APP_BUNDLE="$ROOT_DIR/$APP_NAME.app"
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 BINARY_OUT="$MACOS_DIR/$APP_NAME"
 
@@ -28,14 +21,7 @@ triple_for_arch() {
 
 binary_path_for_arch() {
     local arch="$1"
-    printf '%s/.build/%s/release/%s' "$BUILD_DIR" "$(triple_for_arch "$arch")" "$APP_NAME"
-}
-
-require_cmd() {
-    command -v "$1" >/dev/null 2>&1 || {
-        echo "error: '$1' is required but not installed." >&2
-        exit 1
-    }
+    printf '%s/.build/%s/release/%s' "$ROOT_DIR" "$(triple_for_arch "$arch")" "$APP_NAME"
 }
 
 assert_universal() {
@@ -58,7 +44,7 @@ require_cmd codesign
 require_cmd file
 
 echo "Building $APP_NAME (${ARCHES[*]})..."
-cd "$BUILD_DIR"
+cd "$ROOT_DIR"
 
 BUILT_BINS=()
 for arch in "${ARCHES[@]}"; do
