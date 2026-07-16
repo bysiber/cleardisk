@@ -30,14 +30,14 @@ require_cmd() {
     command -v "$1" >/dev/null 2>&1 || die "'$1' is required but not installed."
 }
 
-# The version is declared in exactly one place — VERSION= in build_app.sh — and everything
-# else reads it back from there. That is what keeps the bundle, the DMG filename, the git
-# tag, the GitHub release and the Homebrew cask from ever disagreeing with each other.
+# The version is declared in exactly one place — the first ## [X.Y.Z] heading in
+# CHANGELOG.md — and everything else reads it back from there. That is what keeps the
+# bundle, the DMG filename, the git tag, the GitHub release and the Homebrew cask from
+# ever disagreeing with each other.
 project_version() {
     local v
-    v=$(grep -m1 -E '^VERSION="[^"]+"' "$SCRIPTS_DIR/build_app.sh" \
-        | sed -E 's/^VERSION="([^"]+)".*/\1/')
-    [ -n "$v" ] || die "Could not read VERSION from scripts/build_app.sh"
+    v=$(awk '/^## \[/{gsub(/[\[\]]/, "", $2); print $2; exit}' "$ROOT_DIR/CHANGELOG.md")
+    [ -n "$v" ] || die "Could not read version from CHANGELOG.md"
     printf '%s' "$v"
 }
 

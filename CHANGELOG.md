@@ -6,9 +6,14 @@ All notable changes to ClearDisk are documented here.
 ### Added
 - **Custom project scan folders** — on the Projects tab, add up to 8 extra roots (including paths on external disks under `/Volumes`). Defaults under home still apply; unmounted volumes show as Unavailable and are skipped until remounted.
 
-## [1.8.2] - 2026-07-14
+## [1.8.3] - Unreleased
 ### Changed
-- **Universal binary** — `scripts/build_app.sh` now builds `arm64` and `x86_64` (via `--triple`) and stitches them with `lipo`, so the DMG / `.app` run on both Apple Silicon and Intel Macs (macOS 14+). Release packaging asserts both slices are present. App size docs updated to ~6 MB (was outdated at 590 KB).
+- Universal binary for Apple Silicon and Intel (`arm64` + `x86_64` via `lipo`)
+
+## [1.8.2] - 2026-07-16
+### Added
+- Added signed app produced pipeline to avoid `xattr -cr ...` quirk
+- Updated version derivation from scripts
 
 ## [1.8.1] - 2026-07-13
 ### Fixed
@@ -28,7 +33,7 @@ All notable changes to ClearDisk are documented here.
 - The large-file scanner no longer looks inside media library packages (`.photoslibrary`, `.fcpbundle`, `.imovielibrary`, …), where deleting a single file corrupts the whole library.
 
 ### Changed
-- The version is declared once, in `scripts/build_app.sh`, and read back from the bundle at runtime.
+- The version is declared once, in `CHANGELOG.md`, baked into the bundle by `scripts/build_app.sh`, and read back at runtime.
 - Project cache actions use the same trash icon as the Developer tab — they perform the same destructive action.
 
 ## [1.7.0] - 2026-03-18

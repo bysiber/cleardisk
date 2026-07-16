@@ -27,7 +27,7 @@ struct ClearDiskApp {
 }
 
 /// The app's identity, read back from the bundle that `scripts/build_app.sh` generates.
-/// The version is declared exactly once — in build_app.sh — so the UI can never disagree with the
+/// The version is declared exactly once — in CHANGELOG.md — so the UI can never disagree with the
 /// bundle. Running via `swift run` has no Info.plist, hence the "dev" fallback.
 enum AppInfo {
     static let version: String =
