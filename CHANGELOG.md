@@ -2,13 +2,14 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.8.3] - Unreleased
+### Changed
+- Universal binary for Apple Silicon and Intel (`arm64` + `x86_64` via `lipo`)
+
 ## [1.8.2] - 2026-07-16
 ### Added
 - Added signed app produced pipeline to avoid `xattr -cr ...` quirk
-- Updated version derivation from scripts (version is read from `CHANGELOG.md`)
-
-### Changed
-- **Universal binary** — `scripts/build_app.sh` now builds `arm64` and `x86_64` (via `--triple`) and stitches them with `lipo`, so the DMG / `.app` run on both Apple Silicon and Intel Macs (macOS 14+). Release packaging asserts both slices are present. App size docs updated to ~6 MB (was outdated at 590 KB).
+- Updated version derivation from scripts
 
 ## [1.8.1] - 2026-07-13
 ### Fixed
