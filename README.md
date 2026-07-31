@@ -109,7 +109,7 @@ That's it. Click the disk icon in your menu bar.
 
 > **Why the Gatekeeper warning?** ClearDisk is not notarized with Apple ($99/yr Developer fee). The app is fully open-source -- you can verify every line of code yourself.
 
-Requires macOS 14+ (Apple Silicon). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
+Requires macOS 14+ (Apple Silicon and Intel). Release builds are universal (`arm64` + `x86_64`). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
 
 ## How It Works
 
@@ -193,7 +193,7 @@ CleanMyMac ($40/yr) is a general-purpose Mac cleaner. ClearDisk is free, open-so
 <details>
 <summary><strong>Does ClearDisk work on Intel Macs?</strong></summary>
 
-Currently ClearDisk requires macOS 14+ (Sonoma) on Apple Silicon. Intel Mac support may be added in a future release.
+Yes. ClearDisk requires macOS 14+ (Sonoma) and ships as a universal binary for both Apple Silicon and Intel Macs.
 </details>
 
 <details>
