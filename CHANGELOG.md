@@ -1,6 +1,11 @@
 # ClearDisk - Change Log
 
 All notable changes to ClearDisk are documented here.
+
+## [1.8.3] - Unreleased
+### Changed
+- Universal binary for Apple Silicon and Intel (`arm64` + `x86_64` via `lipo`)
+
 ## [1.8.2] - 2026-07-16
 ### Added
 - Added signed app produced pipeline to avoid `xattr -cr ...` quirk
@@ -24,7 +29,7 @@ All notable changes to ClearDisk are documented here.
 - The large-file scanner no longer looks inside media library packages (`.photoslibrary`, `.fcpbundle`, `.imovielibrary`, …), where deleting a single file corrupts the whole library.
 
 ### Changed
-- The version is declared once, in `scripts/build_app.sh`, and read back from the bundle at runtime.
+- The version is declared once, in `CHANGELOG.md`, baked into the bundle by `scripts/build_app.sh`, and read back at runtime.
 - Project cache actions use the same trash icon as the Developer tab — they perform the same destructive action.
 
 ## [1.7.0] - 2026-03-18

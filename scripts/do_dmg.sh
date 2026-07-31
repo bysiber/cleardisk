@@ -3,8 +3,8 @@
 # Build the release .app and package it as dist/ClearDisk-v<version>.dmg
 #
 # Usage:
-#   ./scripts/do_dmg.sh                  # version comes from scripts/build_app.sh
-#   ./scripts/do_dmg.sh --version 1.8.0  # only to double-check; must match build_app.sh
+#   ./scripts/do_dmg.sh                  # version comes from CHANGELOG.md
+#   ./scripts/do_dmg.sh --version 1.8.3  # only to double-check; must match CHANGELOG.md
 #
 # Writes the DMG plus a <dmg>.sha256 sidecar that brew_update.sh picks up automatically.
 
@@ -27,15 +27,23 @@ DECLARED="$(project_version)"
 if [ -z "$VERSION" ]; then
     VERSION="$DECLARED"
 elif [ "$VERSION" != "$DECLARED" ]; then
-    die "--version $VERSION does not match VERSION=\"$DECLARED\" in scripts/build_app.sh.
+    die "--version $VERSION does not match \"$DECLARED\" in CHANGELOG.md.
      Bump it there — that file is the single source of truth."
 fi
 
 info "Building $APP_NAME $VERSION (release)"
-"$SCRIPTS_DIR/build_app.sh" >/dev/null
+# Keep build_app stdout visible — it asserts universal slices and prints lipo/file output.
+"$SCRIPTS_DIR/build_app.sh"
 
 APP="$ROOT_DIR/$APP_NAME.app"
 [ -d "$APP" ] || die "$APP was not produced by build_app.sh"
+
+BIN="$APP/Contents/MacOS/$APP_NAME"
+[ -f "$BIN" ] || die "Missing executable: $BIN"
+LIPO_INFO="$(lipo -info "$BIN" 2>/dev/null || true)"
+echo "$LIPO_INFO" | grep -q 'arm64'  || die "Release binary is not universal (missing arm64): $LIPO_INFO"
+echo "$LIPO_INFO" | grep -q 'x86_64' || die "Release binary is not universal (missing x86_64): $LIPO_INFO"
+ok "universal binary: $LIPO_INFO"
 
 # The DMG filename is baked into the Homebrew cask URL, so a stale bundle would ship under the
 # wrong name and every `brew install` would fetch the wrong build. Catch that here, not later.
