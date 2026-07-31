@@ -6,12 +6,12 @@
 
 **Your Mac is hiding 50–500 GB of developer caches. ClearDisk finds them in seconds.**
 
-A free, open-source macOS menu bar app that monitors and cleans developer caches, Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. ~6 MB universal binary. Zero dependencies. No data collection. No analytics. No network access. Ever.
+A free, open-source macOS menu bar app that monitors and cleans developer caches, Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. 590 KB. Zero dependencies. No data collection. No analytics. No network access. Ever.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
-![Size](https://img.shields.io/badge/Size-~6%20MB-brightgreen)
+![Size](https://img.shields.io/badge/Size-590%20KB-brightgreen)
 [![GitHub stars](https://img.shields.io/github/stars/bysiber/cleardisk?style=social)](https://github.com/bysiber/cleardisk/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/bysiber/cleardisk)](https://github.com/bysiber/cleardisk/releases/latest)
 [![Homebrew](https://img.shields.io/badge/Homebrew-tap-brown)](https://github.com/bysiber/homebrew-cleardisk)
