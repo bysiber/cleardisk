@@ -187,7 +187,7 @@ class DiskMonitor: ObservableObject {
     
     private func calculateCleanable() {
         let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
-        let safeDevTotal = devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let safeDevTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
         let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = trashSize()
         totalCleanable = devTotal + trashTotal
@@ -421,8 +421,8 @@ class DiskMonitor: ObservableObject {
         "RVM": "RVM rubies and gemsets. Reinstall with rvm install X.Y.Z.",
         "Bundler Cache": "Downloaded gem files. Rebuilds automatically with bundle install.",
         // AI Tools
-        "Claude Desktop": "Claude Desktop conversation cache and temp files. Can grow very large. Re-downloads on next launch.",
-        "Claude Code": "Claude Code CLI session history and configs. Re-creates on next session.",
+        "Claude Desktop": "Claude Desktop and Claude CoWork store session state here. Deleting this is permanent — local sessions are not backed up to a server and do not come back.",
+        "Claude Code": "Session transcripts, job state, file history, plugins and your settings. Almost none of this is a cache — deleting it permanently loses your Claude Code history.",
         "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
         "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
@@ -569,8 +569,15 @@ class DiskMonitor: ObservableObject {
             ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
             ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
             // AI Tools
-            ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "caution", "AI Tools"),
-            ("Claude Code", "terminal.fill", "\(home)/.claude", "caution", "AI Tools"),
+            // Both Claude entries are "risky", not "caution". They were "caution" until #27, where a
+            // user lost every Claude CoWork session with no way back. These are not caches: on a
+            // normal machine over 99% of ~/.claude is session transcripts, job state, file history,
+            // plugins and settings, and none of it regenerates. Splitting out the few genuinely
+            // disposable subdirectories was considered and rejected — it recovers about 1 MB, while
+            // names lie (`paste-cache` holds content the user pasted, referenced by transcripts).
+            // If you are tempted to narrow these paths, verify what is inside first.
+            ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "risky", "AI Tools"),
+            ("Claude Code", "terminal.fill", "\(home)/.claude", "risky", "AI Tools"),
             ("HuggingFace Cache", "brain.head.profile", "\(home)/.cache/huggingface", "caution", "AI Tools"),
             ("Ollama Models", "brain", "\(home)/.ollama/models", "risky", "AI Tools"),
             ("ChatGPT Desktop", "bubble.right.fill", "\(home)/Library/Group Containers/group.com.openai.chat", "caution", "AI Tools"),
@@ -812,9 +819,15 @@ class DiskMonitor: ObservableObject {
         }
     }
 
-    /// Clean only safe caches (excludes risky caches like Docker)
+    /// Clean only the caches marked 🟢 safe — never 🟡 caution, never 🔴 risky.
+    ///
+    /// This used to sweep everything that was not "risky", which put caution entries behind a
+    /// button labelled "Clean Safe Caches": Xcode Archives (the dSYMs you need to symbolicate
+    /// released crash reports), Android AVDs, Cursor and Windsurf workspace state, and the
+    /// language-version managers. One click, and none of it comes back on its own. Caution
+    /// entries now require the user to pick them deliberately, one at a time.
     func cleanSafeCaches() {
-        cleanCaches(devCaches.filter { $0.riskLevel != "risky" }, title: "Safe caches")
+        cleanCaches(devCaches.filter { $0.riskLevel == "safe" }, title: "Safe caches")
     }
 
     /// Clean ALL caches including risky ones (requires explicit user confirmation)
