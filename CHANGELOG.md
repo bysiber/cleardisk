@@ -3,6 +3,10 @@
 All notable changes to ClearDisk are documented here.
 
 ## [1.8.3] - Unreleased
+### Fixed
+- **Claude Code and Claude Desktop data was offered up as a deletable cache** (#27). Both entries were marked 🟡 caution and described as regenerable — "Re-creates on next session". They are not. `~/.claude` and `~/Library/Application Support/Claude` hold session transcripts, job state, file history, plugins and user settings; on a normal machine over 99% of `~/.claude` is data that nothing brings back. A user lost their entire Claude CoWork session history this way. Both are now 🔴 risky, alongside Docker, and their descriptions say plainly that deleting them is permanent.
+- **"Clean Safe Caches" swept 🟡 caution caches too.** It filtered on "not risky", so one click also emptied Xcode Archives — including the dSYMs needed to symbolicate released crash reports — along with Android emulators, Cursor and Windsurf workspace state, and every language-version manager (nvm, pyenv, rbenv, mise, RVM). Caution entries are now excluded from the bulk action and must be selected deliberately.
+
 ### Changed
 - Universal binary for Apple Silicon and Intel (`arm64` + `x86_64` via `lipo`)
 

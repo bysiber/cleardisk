@@ -129,17 +129,17 @@ struct MainView: View {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
                 isCleaning = true
-                diskMonitor.devCaches.removeAll { $0.riskLevel != "risky" }
+                diskMonitor.devCaches.removeAll { $0.riskLevel == "safe" }
                 diskMonitor.cleanSafeCaches()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
             }
         } message: {
-            let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+            let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }
             let safeTotal = safeCaches.reduce(Int64(0)) { $0 + $1.size }
             let xcodeWarning = diskMonitor.isXcodeRunning()
                 ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
                 : ""
-            Text("Clean \(safeCaches.count) safe/caution caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nRisky caches (like Docker) are NOT included.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
+            Text("Clean \(safeCaches.count) safe caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\n🟡 Caution and 🔴 risky caches are NOT included — select those individually.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
         }
         .alert("Clean ALL Developer Caches", isPresented: $showCleanAllConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -416,11 +416,12 @@ struct MainView: View {
     
     // MARK: - Cleanable Summary (Hero Card)
     var cleanableSummary: some View {
-        let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+        let cautionDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "caution" }.reduce(Int64(0)) { $0 + $1.size }
         let riskyDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = diskMonitor.trashSize()
-        let grandTotal = safeDevTotal + riskyDevTotal + artifactTotal + trashTotal
+        let grandTotal = safeDevTotal + cautionDevTotal + riskyDevTotal + artifactTotal + trashTotal
         
         return VStack(spacing: 8) {
             // Big total number
