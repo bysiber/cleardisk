@@ -4,17 +4,17 @@ All notable changes to ClearDisk are documented here.
 
 ## [1.8.4] - 2026-08-01
 ### Changed
-- **AI tool risk levels now follow what deleting actually costs, not which app owns the directory.** 🟢 safe means it comes back on its own, 🟡 caution means it comes back but costs time or bandwidth, 🔴 risky means this is the only copy of something you made.
-  - `Cursor` and `Windsurf` (renamed from "Cursor Cache" / "Windsurf Cache") are now 🔴 risky. Both entries cover the whole `~/Library/Application Support/<app>` directory, which for an AI editor holds chat history, workspace state and settings — the same shape as the Claude entries in #27, and they still claimed to "re-build on next launch".
-  - `Ollama Models` moves from 🔴 risky to 🟡 caution. Model files are downloads, not user work; `ollama pull` brings them back. They are also often the largest entry in the list, and risky was hiding them from the Moderate view.
+- Risk levels for the AI tools now describe what deleting actually costs, rather than which app owns the directory.
+- Cursor and Windsurf are marked risky and no longer called caches. Both entries cover the whole `~/Library/Application Support/<app>` directory, which for an AI editor is where chat history, workspace state and settings live.
+- Ollama models are marked caution instead of risky. They are downloads that `ollama pull` restores, and treating them as risky hid the largest entry in the list from the default view.
 
 ## [1.8.3] - 2026-08-01
 ### Fixed
-- **Claude Code and Claude Desktop data was offered up as a deletable cache** (#27). Both entries were marked 🟡 caution and described as regenerable — "Re-creates on next session". They are not. `~/.claude` and `~/Library/Application Support/Claude` hold session transcripts, job state, file history, plugins and user settings; on a normal machine over 99% of `~/.claude` is data that nothing brings back. A user lost their entire Claude CoWork session history this way. Both are now 🔴 risky, alongside Docker, and their descriptions say plainly that deleting them is permanent.
-- **"Clean Safe Caches" swept 🟡 caution caches too.** It filtered on "not risky", so one click also emptied Xcode Archives — including the dSYMs needed to symbolicate released crash reports — along with Android emulators, Cursor and Windsurf workspace state, and every language-version manager (nvm, pyenv, rbenv, mise, RVM). Caution entries are now excluded from the bulk action and must be selected deliberately.
+- Claude Code and Claude Desktop data was listed as a deletable cache (#27). Both entries covered `~/.claude` and `~/Library/Application Support/Claude` in full, where session transcripts, job state, file history, plugins and settings live, and claimed the contents would be re-created. They are now marked risky and their descriptions state that the deletion is permanent.
+- Clean Safe Caches emptied caution entries as well as safe ones, so a single click reached Xcode Archives, Android emulators, editor workspace state and every language-version manager. It now cleans only the entries marked safe.
 
 ### Changed
-- Universal binary for Apple Silicon and Intel (`arm64` + `x86_64` via `lipo`)
+- Universal binary for Apple Silicon and Intel.
 
 ## [1.8.2] - 2026-07-16
 ### Added
