@@ -424,10 +424,10 @@ class DiskMonitor: ObservableObject {
         "Claude Desktop": "Claude Desktop and Claude CoWork store session state here. Deleting this is permanent — local sessions are not backed up to a server and do not come back.",
         "Claude Code": "Session transcripts, job state, file history, plugins and your settings. Almost none of this is a cache — deleting it permanently loses your Claude Code history.",
         "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
-        "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull.",
+        "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull — large models take a while.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
-        "Cursor Cache": "Cursor editor cache, workspace storage, and extensions data. Re-builds on next launch.",
-        "Windsurf Cache": "Windsurf editor cache and workspace data. Re-builds on next launch.",
+        "Cursor": "Cursor's whole application-support directory: workspace state, chat history, extensions and settings. Not a cache — deleting it is permanent.",
+        "Windsurf": "Windsurf's whole application-support directory: workspace state, chat history and settings. Not a cache — deleting it is permanent.",
         // Game Engines
         "Unity Asset Store": "Unity Asset Store downloaded packages. Re-downloads from Unity Package Manager.",
         "UnityHub Templates": "Unity project starter templates downloaded by Unity Hub. Re-download from Hub when needed. Can be 300MB+.",
@@ -579,10 +579,16 @@ class DiskMonitor: ObservableObject {
             ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "risky", "AI Tools"),
             ("Claude Code", "terminal.fill", "\(home)/.claude", "risky", "AI Tools"),
             ("HuggingFace Cache", "brain.head.profile", "\(home)/.cache/huggingface", "caution", "AI Tools"),
-            ("Ollama Models", "brain", "\(home)/.ollama/models", "risky", "AI Tools"),
+            // Caution, not risky: these are downloads, not something the user made. `ollama pull`
+            // brings them back, so the cost of deleting is bandwidth and time, not loss. They are
+            // also often the largest thing in this list, and risky hides them from the Moderate view.
+            ("Ollama Models", "brain", "\(home)/.ollama/models", "caution", "AI Tools"),
             ("ChatGPT Desktop", "bubble.right.fill", "\(home)/Library/Group Containers/group.com.openai.chat", "caution", "AI Tools"),
-            ("Cursor Cache", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "caution", "AI Tools"),
-            ("Windsurf Cache", "wind", "\(home)/Library/Application Support/Windsurf", "caution", "AI Tools"),
+            // Same shape as the two Claude entries: a whole ~/Library/Application Support/<app>
+            // directory, which for an AI editor is where the chat history and workspace state live.
+            // Calling it a "Cache" and marking it caution is what made #27 possible.
+            ("Cursor", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "risky", "AI Tools"),
+            ("Windsurf", "wind", "\(home)/Library/Application Support/Windsurf", "risky", "AI Tools"),
             // Game Engines
             ("Unity Asset Store", "gamecontroller.fill", "\(home)/Library/Unity/Asset Store-5.x", "caution", "Game Engines"),
             ("UnityHub Templates", "square.and.arrow.down.fill", "\(home)/Library/Application Support/UnityHub/Templates", "caution", "Game Engines"),
