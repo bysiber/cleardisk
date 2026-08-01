@@ -2,7 +2,7 @@
 
 All notable changes to ClearDisk are documented here.
 
-## [1.8.4] - Unreleased
+## [1.8.4] - 2026-08-01
 ### Changed
 - **AI tool risk levels now follow what deleting actually costs, not which app owns the directory.** 🟢 safe means it comes back on its own, 🟡 caution means it comes back but costs time or bandwidth, 🔴 risky means this is the only copy of something you made.
   - `Cursor` and `Windsurf` (renamed from "Cursor Cache" / "Windsurf Cache") are now 🔴 risky. Both entries cover the whole `~/Library/Application Support/<app>` directory, which for an AI editor holds chat history, workspace state and settings — the same shape as the Claude entries in #27, and they still claimed to "re-build on next launch".
