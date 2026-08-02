@@ -402,7 +402,7 @@ class DiskMonitor: ObservableObject {
     
     private func calculateCleanable() {
         let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
-        let safeDevTotal = devCaches.filter { $0.riskLevel != "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let safeDevTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
         let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = trashSize()
         totalCleanable = devTotal + trashTotal
@@ -637,13 +637,13 @@ class DiskMonitor: ObservableObject {
         "RVM": "RVM rubies and gemsets. Reinstall with rvm install X.Y.Z.",
         "Bundler Cache": "Downloaded gem files. Rebuilds automatically with bundle install.",
         // AI Tools
-        "Claude Desktop": "Claude Desktop conversation cache and temp files. Can grow very large. Re-downloads on next launch.",
-        "Claude Code": "Claude Code CLI session history and configs. Re-creates on next session.",
+        "Claude Desktop": "Claude Desktop and Claude CoWork store session state here. Deleting this is permanent — local sessions are not backed up to a server and do not come back.",
+        "Claude Code": "Session transcripts, job state, file history, plugins and your settings. Almost none of this is a cache — deleting it permanently loses your Claude Code history.",
         "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
-        "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull.",
+        "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull — large models take a while.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
-        "Cursor Cache": "Cursor editor cache, workspace storage, and extensions data. Re-builds on next launch.",
-        "Windsurf Cache": "Windsurf editor cache and workspace data. Re-builds on next launch.",
+        "Cursor": "Cursor's whole application-support directory: workspace state, chat history, extensions and settings. Not a cache — deleting it is permanent.",
+        "Windsurf": "Windsurf's whole application-support directory: workspace state, chat history and settings. Not a cache — deleting it is permanent.",
         // Game Engines
         "Unity Asset Store": "Unity Asset Store downloaded packages. Re-downloads from Unity Package Manager.",
         "UnityHub Templates": "Unity project starter templates downloaded by Unity Hub. Re-download from Hub when needed. Can be 300MB+.",
@@ -785,13 +785,26 @@ class DiskMonitor: ObservableObject {
             ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
             ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
             // AI Tools
-            ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "caution", "AI Tools"),
-            ("Claude Code", "terminal.fill", "\(home)/.claude", "caution", "AI Tools"),
+            // Both Claude entries are "risky", not "caution". They were "caution" until #27, where a
+            // user lost every Claude CoWork session with no way back. These are not caches: on a
+            // normal machine over 99% of ~/.claude is session transcripts, job state, file history,
+            // plugins and settings, and none of it regenerates. Splitting out the few genuinely
+            // disposable subdirectories was considered and rejected — it recovers about 1 MB, while
+            // names lie (`paste-cache` holds content the user pasted, referenced by transcripts).
+            // If you are tempted to narrow these paths, verify what is inside first.
+            ("Claude Desktop", "bubble.left.fill", "\(home)/Library/Application Support/Claude", "risky", "AI Tools"),
+            ("Claude Code", "terminal.fill", "\(home)/.claude", "risky", "AI Tools"),
             ("HuggingFace Cache", "brain.head.profile", "\(home)/.cache/huggingface", "caution", "AI Tools"),
-            ("Ollama Models", "brain", "\(home)/.ollama/models", "risky", "AI Tools"),
+            // Caution, not risky: these are downloads, not something the user made. `ollama pull`
+            // brings them back, so the cost of deleting is bandwidth and time, not loss. They are
+            // also often the largest thing in this list, and risky hides them from the Moderate view.
+            ("Ollama Models", "brain", "\(home)/.ollama/models", "caution", "AI Tools"),
             ("ChatGPT Desktop", "bubble.right.fill", "\(home)/Library/Group Containers/group.com.openai.chat", "caution", "AI Tools"),
-            ("Cursor Cache", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "caution", "AI Tools"),
-            ("Windsurf Cache", "wind", "\(home)/Library/Application Support/Windsurf", "caution", "AI Tools"),
+            // Same shape as the two Claude entries: a whole ~/Library/Application Support/<app>
+            // directory, which for an AI editor is where the chat history and workspace state live.
+            // Calling it a "Cache" and marking it caution is what made #27 possible.
+            ("Cursor", "cursorarrow.rays", "\(home)/Library/Application Support/Cursor", "risky", "AI Tools"),
+            ("Windsurf", "wind", "\(home)/Library/Application Support/Windsurf", "risky", "AI Tools"),
             // Game Engines
             ("Unity Asset Store", "gamecontroller.fill", "\(home)/Library/Unity/Asset Store-5.x", "caution", "Game Engines"),
             ("UnityHub Templates", "square.and.arrow.down.fill", "\(home)/Library/Application Support/UnityHub/Templates", "caution", "Game Engines"),
@@ -1029,9 +1042,15 @@ class DiskMonitor: ObservableObject {
         }
     }
 
-    /// Clean only safe caches (excludes risky caches like Docker)
+    /// Clean only the caches marked 🟢 safe — never 🟡 caution, never 🔴 risky.
+    ///
+    /// This used to sweep everything that was not "risky", which put caution entries behind a
+    /// button labelled "Clean Safe Caches": Xcode Archives (the dSYMs you need to symbolicate
+    /// released crash reports), Android AVDs, Cursor and Windsurf workspace state, and the
+    /// language-version managers. One click, and none of it comes back on its own. Caution
+    /// entries now require the user to pick them deliberately, one at a time.
     func cleanSafeCaches() {
-        cleanCaches(devCaches.filter { $0.riskLevel != "risky" }, title: "Safe caches")
+        cleanCaches(devCaches.filter { $0.riskLevel == "safe" }, title: "Safe caches")
     }
 
     /// Clean ALL caches including risky ones (requires explicit user confirmation)

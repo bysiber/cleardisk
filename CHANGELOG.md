@@ -6,15 +6,24 @@ All notable changes to ClearDisk are documented here.
 ### Added
 - **Custom project scan folders** — on the Projects tab, add up to 8 extra roots (including paths on external disks under `/Volumes`). Defaults under home still apply; unmounted volumes show as Unavailable and are skipped until remounted.
 
-## [1.8.3] - Unreleased
+## [1.8.4] - 2026-08-01
 ### Changed
-- Universal binary for Apple Silicon and Intel (`arm64` + `x86_64` via `lipo`)
+- Risk levels for the AI tools now describe what deleting actually costs, rather than which app owns the directory.
+- Cursor and Windsurf are marked risky and no longer called caches. Both entries cover the whole `~/Library/Application Support/<app>` directory, which for an AI editor is where chat history, workspace state and settings live.
+- Ollama models are marked caution instead of risky. They are downloads that `ollama pull` restores, and treating them as risky hid the largest entry in the list from the default view.
+
+## [1.8.3] - 2026-08-01
+### Fixed
+- Claude Code and Claude Desktop data was listed as a deletable cache (#27). Both entries covered `~/.claude` and `~/Library/Application Support/Claude` in full, where session transcripts, job state, file history, plugins and settings live, and claimed the contents would be re-created. They are now marked risky and their descriptions state that the deletion is permanent.
+- Clean Safe Caches emptied caution entries as well as safe ones, so a single click reached Xcode Archives, Android emulators, editor workspace state and every language-version manager. It now cleans only the entries marked safe.
+
+### Changed
+- Universal binary for Apple Silicon and Intel.
 
 ## [1.8.2] - 2026-07-16
 ### Added
 - Added signed app produced pipeline to avoid `xattr -cr ...` quirk
 - Updated version derivation from scripts
-
 ## [1.8.1] - 2026-07-13
 ### Fixed
 - **No menu bar icon; the app appears to do nothing** (#22, #16). `NSApplication.delegate` is a *weak* reference, and nothing else in the app retained `AppDelegate` — every other reference to it captured `self` weakly. Held only by a local in `main()`, ARC was free to release it after its last use, before or during `app.run()`, taking the status item and the popover with it. The process kept running (some users still saw notification banners) but there was no menu bar icon and clicks went nowhere. Whether it happened at all depended on the optimiser, which is why it reproduced on some Macs and not others. The delegate is now held for the life of the process.
