@@ -15,7 +15,8 @@ ClearDisk.app/
 *.swp
 *.swo
 *~
-cleardisk
+# Root-level binary only (must not match Sources/ClearDisk/ on case-insensitive FS)
+/cleardisk
 *.dmg
 dist/
 demo/
