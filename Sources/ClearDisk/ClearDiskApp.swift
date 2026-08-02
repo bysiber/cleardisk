@@ -130,7 +130,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if popover.isShown {
             closePopover()
         } else {
-            if let button = statusItem.button {
+            if statusItem.button != nil {
                 diskMonitor.scanOnPopoverOpen()
                 showPopover(reinstallClickMonitor: true)
             }
