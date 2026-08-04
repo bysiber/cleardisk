@@ -719,6 +719,30 @@ struct MainView: View {
         diskMonitor.isScanning || !diskMonitor.hasCompletedFirstScan
     }
 
+    func isTabScanPending(_ phase: ScanPhase) -> Bool {
+        !diskMonitor.hasCompletedFirstScan
+            || (diskMonitor.scanIsActive && !diskMonitor.hasCompletedScanPhase(phase))
+    }
+
+    func tabScanLoadingMessage(for phase: ScanPhase, defaultMessage: String) -> String {
+        let status = diskMonitor.scanStatus
+        switch phase {
+        case .disk:
+            if status.hasPrefix("Disk:") { return status }
+            return defaultMessage
+        case .devCaches:
+            if status.hasPrefix("Cache:") { return status }
+            if status == "Developer caches" { return defaultMessage }
+            return defaultMessage
+        case .largeFiles:
+            if status == "Large files" { return defaultMessage }
+            return defaultMessage
+        case .projects:
+            if status.contains("Project") { return status.isEmpty ? defaultMessage : status }
+            return defaultMessage
+        }
+    }
+
     func tabScanLoadingView(_ message: String) -> some View {
         VStack(spacing: Layout.spacingRow) {
             ProgressView()
@@ -729,16 +753,29 @@ struct MainView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(.top, Layout.emptyTop)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 180)
+    }
+
+    var overviewLoadingMessage: String {
+        tabScanLoadingMessage(for: .disk, defaultMessage: "Scanning disk usage…")
     }
     
     // MARK: - Overview Tab
     var overviewContent: some View {
         VStack(spacing: 0) {
-            if isAwaitingScanResults && diskMonitor.categories.isEmpty {
-                tabScanLoadingView(
-                    diskMonitor.scanStatus.hasPrefix("Disk:") ? diskMonitor.scanStatus : "Scanning disk usage…"
-                )
+            if isTabScanPending(.disk) {
+                tabScanLoadingView(overviewLoadingMessage)
+            } else if diskMonitor.categories.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "internaldrive")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary)
+                    Text("No disk categories found")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, Layout.emptyTop)
+                .frame(maxWidth: .infinity, minHeight: 180)
             } else {
             // Recovered banner
             if diskMonitor.showRecoveredBanner && diskMonitor.lastCleanedAmount > 0 {
@@ -926,10 +963,9 @@ struct MainView: View {
                 }
             }
             .frame(height: 100)
-            
-            // Growth info
+
             if diskMonitor.dailyGrowthRate != 0 {
-                HStack(spacing: 4) {
+                HStack(spacing: Layout.spacingTight) {
                     Image(systemName: diskMonitor.dailyGrowthRate > 0 ? "arrow.up.right" : "arrow.down.right")
                         .font(.system(size: 9))
                         .foregroundColor(diskMonitor.dailyGrowthRate > 0 ? .orange : .green)
@@ -939,12 +975,14 @@ struct MainView: View {
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     if let days = diskMonitor.forecastDaysUntilFull {
-                        Spacer()
+                        Spacer(minLength: 0)
                         Text("~\(days)d until full")
                             .font(.system(size: 10))
                             .foregroundColor(days <= 30 ? .red : .orange)
                     }
                 }
+                .padding(.leading, Layout.spacingDefault)
+                .padding(.trailing, Layout.spacingDefault + 30)
             }
         }
         .padding(Layout.spacingDefault + 2)
@@ -989,8 +1027,10 @@ struct MainView: View {
     var developerContent: some View {
         VStack(spacing: 2) {
             if diskMonitor.devCaches.isEmpty {
-                if isAwaitingScanResults {
-                    tabScanLoadingView("Scanning developer caches…")
+                if isTabScanPending(.devCaches) {
+                    tabScanLoadingView(
+                        tabScanLoadingMessage(for: .devCaches, defaultMessage: "Scanning developer caches…")
+                    )
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.circle")
@@ -1021,14 +1061,17 @@ struct MainView: View {
                 .sectionInsets()
                 .background(Color.red.opacity(0.04))
                 
-                ForEach(Array(groupedDevCaches.enumerated()), id: \.offset) { _, entry in
+                ForEach(Array(groupedDevCaches.enumerated()), id: \.offset) { index, entry in
+                    if index > 0 {
+                        ListRowDivider()
+                    }
                     if let groupName = entry.key {
-                        // Grouped items with expand/collapse
                         cacheGroupRow(groupName: groupName, caches: entry.caches)
-                            .padding(.bottom, 4)
                     } else {
-                        // Standalone items
-                        ForEach(entry.caches) { cache in
+                        ForEach(Array(entry.caches.enumerated()), id: \.element.id) { cacheIndex, cache in
+                            if cacheIndex > 0 {
+                                ListRowDivider()
+                            }
                             devCacheRow(cache)
                         }
                     }
@@ -1044,24 +1087,29 @@ struct MainView: View {
         let sortedCaches = caches.sorted { $0.size > $1.size }
         let topNames = sortedCaches.prefix(3).map { $0.name.replacingOccurrences(of: "\(groupName) ", with: "").replacingOccurrences(of: "Xcode ", with: "") }
         let preview = topNames.joined(separator: ", ")
+        let revealPath = sortedCaches.first?.path ?? ""
         
         return VStack(spacing: 0) {
-            // Group header row - entire row is clickable
             HStack(spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.purple.opacity(0.7))
-                        .frame(width: 10)
+                        .frame(width: TreeGuideMetrics.chevronWidth)
                     Image(systemName: groupIcon(groupName))
                         .font(.system(size: 14))
                         .frame(width: 22)
                         .foregroundColor(.purple)
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: Layout.spacingDefault) {
+                        HStack(spacing: 6) {
                             Text(groupName)
                                 .font(.system(size: 12, weight: .semibold))
-                            CountBadge(count: "\(caches.count)", tint: .purple)
+                            Text("\(caches.count)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.purple.opacity(0.6)))
                         }
                         if !isGroupExpanded {
                             Text(preview)
@@ -1072,11 +1120,11 @@ struct MainView: View {
                     }
                 }
                 
-                Spacer()
-
-                ListRowSizeLabel(bytes: totalSize, color: .purple.opacity(0.8))
-
-                ListRowActions(
+                Spacer(minLength: 0)
+                
+                ListRowTrailing(
+                    bytes: totalSize,
+                    sizeColor: .purple.opacity(0.8),
                     onTrash: {
                         selectedCacheIDs = Set(caches.map { $0.id })
                         showCleanSelectedCachesConfirm = true
@@ -1086,16 +1134,18 @@ struct MainView: View {
                             diskMonitor.revealInFinder(first.path)
                         }
                     },
-                    revealPath: caches.first?.path ?? "",
+                    revealPath: revealPath,
                     isCleaning: isCleaning,
                     trashHelp: "Clean all \(groupName) caches",
                     revealHelp: "Show in Finder"
                 )
             }
-            .rowInsets()
+            .padding(.horizontal, TreeGuideMetrics.rowPadH)
+            .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.purple.opacity(0.05))
+                    .padding(.horizontal, TreeGuideMetrics.cardPad)
             )
             .contentShape(Rectangle())
             .onTapGesture {
@@ -1108,33 +1158,38 @@ struct MainView: View {
                 }
             }
             
-            // Expanded child items
             if isGroupExpanded {
                 VStack(spacing: 0) {
-                    ForEach(caches) { cache in
-                        devCacheRow(cache)
+                    ForEach(Array(caches.enumerated()), id: \.element.id) { index, cache in
+                        HStack(alignment: .center, spacing: 4) {
+                            TreeBranch(
+                                guideOffset: TreeGuideMetrics.branchGuideX,
+                                branchLength: TreeGuideMetrics.branchLength,
+                                isFirst: index == 0,
+                                isLast: index == caches.count - 1,
+                                lineColor: TreeGuideMetrics.developerLineColor,
+                                lineWidth: TreeGuideMetrics.lineWidth
+                            )
+                            devCacheRow(cache, nested: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 }
-                .padding(.leading, Layout.nestedIndent)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(Color.purple.opacity(0.2))
-                        .frame(width: 2)
-                        .padding(.leading, Layout.margin + Layout.spacingDefault)
-                        .padding(.vertical, Layout.spacingTight)
-                }
+                .padding(.leading, TreeGuideMetrics.cardPad)
             }
         }
     }
     
-    func devCacheRow(_ cache: DevCache) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: Layout.spacingDefault) {
+    func devCacheRow(_ cache: DevCache, nested: Bool = false) -> some View {
+        let metaLeading = nested ? Layout.iconColumn + Layout.spacingTight : Layout.nestedIndent
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: nested ? Layout.spacingTight : Layout.spacingDefault) {
                 Image(systemName: cache.icon)
                     .font(.system(size: 14))
                     .frame(width: Layout.iconColumn)
                     .foregroundColor(.purple)
-                VStack(alignment: .leading, spacing: Layout.spacingTight - 3) {
+                VStack(alignment: .leading, spacing: Layout.metadataSpacing) {
                     HStack(spacing: Layout.spacingTight) {
                         Text(cache.riskEmoji)
                             .font(.system(size: 10))
@@ -1152,9 +1207,9 @@ struct MainView: View {
                         .truncationMode(.middle)
                         .help(cache.cacheDescription)
                 }
-                Spacer()
-                ListRowSizeLabel(bytes: cache.size)
-                ListRowActions(
+                Spacer(minLength: 0)
+                ListRowTrailing(
+                    bytes: cache.size,
                     onTrash: {
                         cacheToClean = cache
                         showCleanConfirm = true
@@ -1171,8 +1226,8 @@ struct MainView: View {
                 Text(cache.cacheDescription)
                     .font(.system(size: 9))
                     .foregroundColor(.secondary.opacity(0.7))
-                    .padding(.leading, Layout.nestedIndent)
-                    .padding(.top, Layout.spacingTight - 3)
+                    .padding(.leading, metaLeading)
+                    .padding(.top, Layout.metadataSpacing)
                     .lineLimit(1)
             }
 
@@ -1187,27 +1242,31 @@ struct MainView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                .padding(.leading, Layout.nestedIndent)
-                .padding(.top, Layout.spacingTight - 3)
+                .padding(.leading, metaLeading)
+                .padding(.top, Layout.metadataSpacing)
             }
 
             if let suggestion = cache.suggestion {
                 Text(suggestion)
                     .font(.system(size: 10))
                     .foregroundColor(.orange)
-                    .padding(.leading, Layout.nestedIndent)
+                    .padding(.leading, metaLeading)
                     .padding(.top, Layout.spacingTight - 2)
             }
         }
-        .rowInsets()
+        .padding(.leading, nested ? 0 : Layout.margin)
+        .padding(.trailing, nested ? TreeGuideMetrics.rowPadH : Layout.margin)
+        .padding(.vertical, nested ? Layout.spacingTight : Layout.spacingTight + 1)
     }
     
     // MARK: - Projects Tab (kondo-style artifact scanner)
     var projectsContent: some View {
         VStack(spacing: 0) {
             if diskMonitor.projectArtifacts.isEmpty {
-                if isAwaitingScanResults {
-                    tabScanLoadingView("Scanning project caches…")
+                if isTabScanPending(.projects) {
+                    tabScanLoadingView(
+                        tabScanLoadingMessage(for: .projects, defaultMessage: "Scanning project caches…")
+                    )
                 } else {
                     VStack(spacing: 10) {
                         Image(systemName: "folder.badge.questionmark")
@@ -1248,15 +1307,19 @@ struct MainView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    HStack {
+                    HStack(alignment: .center, spacing: Layout.spacingDefault) {
                         Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary)
-                        Spacer()
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .layoutPriority(-1)
+                        Spacer(minLength: 0)
                         HStack(spacing: Layout.spacingDefault) {
                             foldersButton
                             historyButton
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
 
                     projectSortPicker
@@ -1266,9 +1329,7 @@ struct MainView: View {
 
                 ForEach(Array(sortedProjectArtifacts.enumerated()), id: \.element.id) { index, artifact in
                     if index > 0 {
-                        Divider()
-                            .padding(.horizontal, Layout.margin)
-                            .padding(.vertical, Layout.listDividerPadding / 2)
+                        ListRowDivider()
                     }
                     projectArtifactRow(artifact)
                 }
@@ -1391,8 +1452,8 @@ struct MainView: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: Layout.spacingDefault)
-                        ListRowSizeLabel(bytes: artifact.size)
-                        ListRowActions(
+                        ListRowTrailing(
+                            bytes: artifact.size,
                             onTrash: {
                                 artifactToClean = artifact
                                 activeProjectSheet = .cleanConfirm
@@ -1443,8 +1504,10 @@ struct MainView: View {
     var largeFilesContent: some View {
         VStack(spacing: Layout.spacingTight) {
             if diskMonitor.largeFiles.isEmpty {
-                if isAwaitingScanResults {
-                    tabScanLoadingView("Scanning for large files…")
+                if isTabScanPending(.largeFiles) {
+                    tabScanLoadingView(
+                        tabScanLoadingMessage(for: .largeFiles, defaultMessage: "Scanning for large files…")
+                    )
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: "doc.badge.clock")
@@ -2401,8 +2464,8 @@ struct LargeFileFolderCard: View {
                     .truncationMode(.middle)
             }
             Spacer()
-            ListRowSizeLabel(bytes: file.size)
-            ListRowActions(
+            ListRowTrailing(
+                bytes: file.size,
                 onTrash: { onDelete(file) },
                 onReveal: { onReveal(file) },
                 revealPath: file.path,
@@ -2577,9 +2640,11 @@ struct ProjectCleanHistorySheet: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(entries) { entry in
+                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                            if index > 0 {
+                                ListRowDivider()
+                            }
                             historyRow(entry)
-                            Divider().opacity(0.4)
                         }
                     }
                 }
@@ -2600,58 +2665,50 @@ struct ProjectCleanHistorySheet: View {
 
     @ViewBuilder
     private func historyRow(_ entry: ProjectCleanHistoryEntry) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        let displayPath = PathDisplay.tilde(entry.projectPath)
+
+        HStack(alignment: .top, spacing: Layout.spacingDefault) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 14))
+                .frame(width: Layout.iconColumn)
                 .foregroundColor(.mint)
-                .padding(.top, 2)
-            
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+
+            VStack(alignment: .leading, spacing: Layout.spacingTight) {
+                HStack(alignment: .firstTextBaseline, spacing: Layout.spacingDefault) {
                     Text(entry.projectName)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
-                    Text(entry.artifactName)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.secondary.opacity(0.12))
-                        .cornerRadius(4)
-                    Text(entry.projectType)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(.purple)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.purple.opacity(0.12))
-                        .cornerRadius(4)
-                    Spacer()
-                    Text(formatBytes(entry.size))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.mint)
+                        .truncationMode(.tail)
+                    Spacer(minLength: Layout.spacingDefault)
+                    ListRowSizeLabel(bytes: entry.size, color: .mint, bold: true)
+                    Button(action: {
+                        NSWorkspace.shared.selectFile(entry.projectPath, inFileViewerRootedAtPath: "")
+                    }) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(PathDisplay.revealAccent(for: entry.projectPath))
+                    .help("Show project in Finder")
                 }
-                Text(entry.projectPath)
-                    .font(.system(size: 10, design: .monospaced))
+
+                HStack(spacing: Layout.spacingTight) {
+                    TagBadge(text: entry.artifactName, tint: .purple.opacity(0.6))
+                    Text(entry.projectType)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    SubtleChip(text: Self.dateFormatter.string(from: entry.cleanedAt))
+                }
+
+                Text(displayPath)
+                    .font(.system(size: 10))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(Self.dateFormatter.string(from: entry.cleanedAt))
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary.opacity(0.8))
             }
-            
-            Button(action: {
-                NSWorkspace.shared.selectFile(entry.projectPath, inFileViewerRootedAtPath: "")
-            }) {
-                Image(systemName: "folder")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Show project in Finder")
         }
-        .contentMargin()
-        .padding(.vertical, 8)
+        .rowInsets()
     }
 }
 
@@ -2669,6 +2726,8 @@ struct ProjectScanFoldersSheet: View {
     let onBrowseVolume: (String) -> Void
     let onRemove: (String) -> Void
     let canAddMore: Bool
+
+    @State private var showDefaultRoots = false
 
     private var isScanningProjects: Bool {
         isScanning && (scanStatus.contains("Project") || scanStatus.contains("Projects:"))
@@ -2705,18 +2764,9 @@ struct ProjectScanFoldersSheet: View {
                         Text("Default")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.secondary)
-                        WrappingFlowLayout(
-                            horizontalSpacing: Layout.spacingDefault,
-                            verticalSpacing: Layout.spacingDefault
-                        ) {
-                            ForEach(defaultRoots, id: \.self) { path in
-                                DefaultFolderChip(
-                                    label: (path as NSString).lastPathComponent,
-                                    path: path
-                                )
-                            }
+                        VStack(alignment: .leading, spacing: 0) {
+                            defaultRootsAccordion
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     if !mountedVolumes.isEmpty {
@@ -2797,6 +2847,143 @@ struct ProjectScanFoldersSheet: View {
         }
     }
     
+    private func defaultFolderIcon(_ name: String) -> String {
+        switch name {
+        case "Documents": return "doc.fill"
+        case "Developer": return "hammer.fill"
+        case "Desktop": return "menubar.dock.rectangle"
+        case "Projects": return "folder.fill.badge.gearshape"
+        case "Code": return "chevron.left.forwardslash.chevron.right"
+        default: return "folder.fill"
+        }
+    }
+
+    private var sortedDefaultRoots: [String] {
+        defaultRoots.sorted {
+            ($0 as NSString).lastPathComponent.localizedCaseInsensitiveCompare(
+                ($1 as NSString).lastPathComponent
+            ) == .orderedAscending
+        }
+    }
+
+    private var defaultRootsMissingCount: Int {
+        defaultRoots.filter { !isAvailable($0) }.count
+    }
+
+    private var defaultRootsPreview: String {
+        let names = sortedDefaultRoots.map { ($0 as NSString).lastPathComponent }
+        guard names.count > 3 else { return names.joined(separator: ", ") }
+        let head = names.prefix(3).joined(separator: ", ")
+        return "\(head), and \(names.count - 3) more"
+    }
+
+    private var defaultRootsAccordion: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Layout.spacingDefault) {
+                Image(systemName: showDefaultRoots ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: TreeGuideMetrics.chevronWidth)
+
+                Image(systemName: "house.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .frame(width: 16)
+
+                VStack(alignment: .leading, spacing: Layout.metadataSpacing) {
+                    Text("\(defaultRoots.count) standard locations")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.primary)
+                    if !showDefaultRoots {
+                        Text(defaultRootsPreview)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+
+                Spacer(minLength: Layout.spacingTight)
+
+                if defaultRootsMissingCount > 0 {
+                    Text("\(defaultRootsMissingCount) missing")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.orange)
+                }
+            }
+            .padding(.horizontal, TreeGuideMetrics.rowPadH)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.04))
+                    .padding(.horizontal, TreeGuideMetrics.cardPad)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showDefaultRoots.toggle()
+                }
+            }
+
+            if showDefaultRoots {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(sortedDefaultRoots.enumerated()), id: \.element) { index, path in
+                        HStack(alignment: .center, spacing: 4) {
+                            TreeBranch(
+                                guideOffset: TreeGuideMetrics.branchGuideX,
+                                branchLength: TreeGuideMetrics.branchLength,
+                                isFirst: index == 0,
+                                isLast: index == sortedDefaultRoots.count - 1,
+                                lineColor: TreeGuideMetrics.defaultLineColor,
+                                lineWidth: 1
+                            )
+                            defaultRootTreeRow(path)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .padding(.leading, TreeGuideMetrics.cardPad)
+                .padding(.bottom, 4)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func defaultRootTreeRow(_ path: String) -> some View {
+        let name = (path as NSString).lastPathComponent
+        let available = isAvailable(path)
+        let displayPath = PathDisplay.tilde(path)
+        let scanningThis = isScanningProjects && scanStatus.contains(name)
+        let iconColor: Color = available ? .secondary : .orange
+
+        HStack(spacing: 6) {
+            if scanningThis {
+                ProgressView()
+                    .controlSize(.mini)
+                    .frame(width: 14, height: 14)
+            } else {
+                Image(systemName: defaultFolderIcon(name))
+                    .font(.system(size: 11))
+                    .foregroundColor(iconColor)
+                    .frame(width: 14)
+            }
+
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, Layout.spacingTight)
+        .padding(.trailing, TreeGuideMetrics.rowPadH)
+        .help(available ? displayPath : "\(displayPath) — folder not found")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(name), \(displayPath)")
+        .accessibilityValue(available ? "Included" : "Missing")
+    }
+
     @ViewBuilder
     private func mountedVolumeRow(_ volume: DiskMonitor.MountedVolume) -> some View {
         HStack(spacing: 8) {
@@ -2840,7 +3027,7 @@ struct ProjectScanFoldersSheet: View {
     private func customRootRow(_ path: String) -> some View {
         let available = isAvailable(path)
         let isExternal = PathDisplay.isExternalVolume(path)
-        let accent: Color = isExternal ? .blue : .orange
+        let accent: Color = PathDisplay.revealAccent(for: path)
         let leaf = (path as NSString).lastPathComponent
         let scanningThis = isScanningProjects && scanStatus.contains(leaf)
         HStack(alignment: .top, spacing: 8) {

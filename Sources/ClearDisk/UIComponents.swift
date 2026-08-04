@@ -23,7 +23,10 @@ enum Layout {
     static let emptyTop: CGFloat = 40
     static let metadataSpacing: CGFloat = 1
     static let listDividerPadding: CGFloat = 8
+    static let listDividerOpacity: CGFloat = 0.22
     static let sectionVertical: CGFloat = 10
+    static let sizeColumnWidth: CGFloat = 65
+    static let actionsColumnWidth: CGFloat = 38
 }
 
 // MARK: - Path helpers
@@ -39,6 +42,11 @@ enum PathDisplay {
 
     static func isExternalVolume(_ path: String) -> Bool {
         path.hasPrefix("/Volumes/")
+    }
+
+    /// Finder reveal control: blue = external volume, gray = local machine.
+    static func revealAccent(for path: String) -> Color {
+        isExternalVolume(path) ? .blue : .secondary
     }
 }
 
@@ -69,7 +77,74 @@ extension View {
     }
 }
 
+// MARK: - Tree guide (accordion child connectors)
+enum TreeGuideMetrics {
+    static let cardPad: CGFloat = 4
+    static let rowPadH: CGFloat = Layout.margin
+    static let chevronWidth: CGFloat = 10
+    static let branchLength: CGFloat = 8
+    static let lineWidth: CGFloat = 1.5
+
+    /// Chevron-center column from the group card's leading edge.
+    static var guideX: CGFloat { rowPadH + chevronWidth / 2 }
+    /// Same column, measured inside the child list (after `.padding(.leading, cardPad)`).
+    static var branchGuideX: CGFloat { guideX - cardPad }
+
+    static let developerLineColor = Color.purple.opacity(0.22)
+    static let defaultLineColor = Color.secondary.opacity(0.35)
+}
+
+/// Draws trunk segment + horizontal branch for hierarchical accordion lists.
+struct TreeBranch: View {
+    let guideOffset: CGFloat
+    let branchLength: CGFloat
+    let isFirst: Bool
+    let isLast: Bool
+    var lineColor: Color = TreeGuideMetrics.developerLineColor
+    var lineWidth: CGFloat = TreeGuideMetrics.lineWidth
+
+    var body: some View {
+        GeometryReader { geo in
+            let midY = geo.size.height / 2
+
+            ZStack {
+                if !isFirst {
+                    Path { path in
+                        path.move(to: CGPoint(x: guideOffset, y: 0))
+                        path.addLine(to: CGPoint(x: guideOffset, y: midY))
+                    }
+                    .stroke(lineColor, lineWidth: lineWidth)
+                }
+
+                if !isLast {
+                    Path { path in
+                        path.move(to: CGPoint(x: guideOffset, y: midY))
+                        path.addLine(to: CGPoint(x: guideOffset, y: geo.size.height))
+                    }
+                    .stroke(lineColor, lineWidth: lineWidth)
+                }
+
+                Path { path in
+                    path.move(to: CGPoint(x: guideOffset, y: midY))
+                    path.addLine(to: CGPoint(x: guideOffset + branchLength, y: midY))
+                }
+                .stroke(lineColor, lineWidth: lineWidth)
+            }
+        }
+        .frame(width: guideOffset + branchLength)
+    }
+}
+
 // MARK: - Shared list row pieces
+struct ListRowDivider: View {
+    var body: some View {
+        Divider()
+            .opacity(Layout.listDividerOpacity)
+            .padding(.horizontal, Layout.margin)
+            .padding(.vertical, Layout.listDividerPadding / 2)
+    }
+}
+
 struct ListRowSizeLabel: View {
     let bytes: Int64
     var color: Color = .secondary
@@ -79,7 +154,8 @@ struct ListRowSizeLabel: View {
         Text(formatBytes(bytes))
             .font(.system(size: bold ? 13 : 11, weight: bold ? .bold : .medium, design: .monospaced))
             .foregroundColor(color)
-            .frame(width: bold ? nil : 65, alignment: .trailing)
+            .frame(width: bold ? nil : Layout.sizeColumnWidth, alignment: .trailing)
+            .monospacedDigit()
     }
 }
 
@@ -107,10 +183,57 @@ struct ListRowActions: View {
                     .font(.system(size: 11))
             }
             .buttonStyle(.plain)
-            .foregroundColor(.blue)
+            .foregroundColor(PathDisplay.revealAccent(for: revealPath))
             .disabled(revealPath.isEmpty)
             .help(revealHelp)
         }
+        .frame(width: Layout.actionsColumnWidth, alignment: .trailing)
+    }
+}
+
+struct ListRowTrailing: View {
+    let bytes: Int64
+    var sizeColor: Color = .secondary
+    var sizeBold: Bool = false
+    let onTrash: () -> Void
+    let onReveal: () -> Void
+    var revealPath: String = ""
+    var isCleaning: Bool = false
+    var trashHelp: String = "Move to Trash"
+    var revealHelp: String = "Show in Finder"
+
+    var body: some View {
+        HStack(spacing: Layout.spacingTight) {
+            ListRowSizeLabel(bytes: bytes, color: sizeColor, bold: sizeBold)
+            ListRowActions(
+                onTrash: onTrash,
+                onReveal: onReveal,
+                revealPath: revealPath,
+                isCleaning: isCleaning,
+                trashHelp: trashHelp,
+                revealHelp: revealHelp
+            )
+        }
+    }
+}
+
+struct SubtleChip: View {
+    let text: String
+    var foreground: Color = .secondary
+    var background: Color = Color.gray.opacity(0.1)
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9))
+            .foregroundColor(foreground)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(background)
+            )
     }
 }
 
@@ -121,15 +244,11 @@ struct AgeBadge: View {
     private var isStale: Bool { days > staleThreshold }
 
     var body: some View {
-        Text(staleThreshold >= 60 ? "\(days)d ago" : "\(days)d")
-            .font(.system(size: 9))
-            .foregroundColor(isStale ? .orange : .secondary)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .background(
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(isStale ? Color.orange.opacity(0.1) : Color.gray.opacity(0.1))
-            )
+        SubtleChip(
+            text: staleThreshold >= 60 ? "\(days)d ago" : "\(days)d",
+            foreground: isStale ? .orange : .secondary,
+            background: isStale ? Color.orange.opacity(0.1) : Color.gray.opacity(0.1)
+        )
     }
 }
 
@@ -141,6 +260,8 @@ struct TagBadge: View {
         Text(text)
             .font(.system(size: 9))
             .foregroundColor(.white)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
             .background(
@@ -179,6 +300,7 @@ struct ChipButton: View {
                     .font(.system(size: 9, weight: .semibold))
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
                 if badge > 0 {
                     Text("\(badge)")
                         .font(.system(size: 9, weight: .semibold))
@@ -192,80 +314,10 @@ struct ChipButton: View {
             .padding(.vertical, 3)
             .background(tint.opacity(0.12))
             .cornerRadius(5)
+            .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
         .foregroundColor(tint)
         .help(help)
-    }
-}
-
-struct DefaultFolderChip: View {
-    let label: String
-    let path: String
-
-    var body: some View {
-        Text(label)
-            .font(.system(size: 11))
-            .foregroundColor(.primary.opacity(0.85))
-            .padding(.horizontal, Layout.spacingDefault)
-            .padding(.vertical, Layout.spacingTight)
-            .background(Color.primary.opacity(0.06))
-            .cornerRadius(6)
-            .help(PathDisplay.tilde(path))
-    }
-}
-
-// MARK: - Wrapping flow layout
-struct WrappingFlowLayout: SwiftUI.Layout {
-    var horizontalSpacing: CGFloat = 8
-    var verticalSpacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0
-        var y: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var totalHeight: CGFloat = 0
-        var totalWidth: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > maxWidth {
-                y += rowHeight + verticalSpacing
-                totalHeight = y
-                x = 0
-                rowHeight = 0
-            }
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + horizontalSpacing
-            totalWidth = max(totalWidth, x - horizontalSpacing)
-            totalHeight = y + rowHeight
-        }
-
-        return CGSize(
-            width: proposal.width ?? totalWidth,
-            height: totalHeight
-        )
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX
-        var y = bounds.minY
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + size.width > bounds.maxX {
-                y += rowHeight + verticalSpacing
-                x = bounds.minX
-                rowHeight = 0
-            }
-            subview.place(
-                at: CGPoint(x: x, y: y),
-                proposal: ProposedViewSize(size)
-            )
-            rowHeight = max(rowHeight, size.height)
-            x += size.width + horizontalSpacing
-        }
     }
 }

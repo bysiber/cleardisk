@@ -74,6 +74,7 @@ class DiskMonitor: ObservableObject {
     @Published var notificationPermission: PermissionState = .unknown
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
     @Published var hasCompletedFirstScan: Bool = false
+    @Published private(set) var completedScanPhases: Set<ScanPhase> = []
 
     /// Set when a clean could not free the space it promised, so the UI can say so.
     /// Swallowing a failed trash is what let the app report "Recovered X!" while nothing moved.
@@ -92,6 +93,7 @@ class DiskMonitor: ObservableObject {
     }
     func markOnboardingComplete() {
         UserDefaults.standard.set(true, forKey: onboardingKey)
+        objectWillChange.send()
     }
     
     func loadSavedTotal() {
@@ -267,9 +269,40 @@ class DiskMonitor: ObservableObject {
     }
     
     private var isScanInProgress = false
+    @Published private(set) var scanIsActive = false
     private var scanGeneration = 0
     private var lastScanCompletedAt: Date?
     private var pendingProjectRescan = false
+
+    func hasCompletedScanPhase(_ phase: ScanPhase) -> Bool {
+        completedScanPhases.contains(phase)
+    }
+
+    private func beginScan(resetting phases: Set<ScanPhase>? = nil) {
+        if let phases {
+            completedScanPhases.subtract(phases)
+        } else {
+            completedScanPhases = []
+        }
+        scanIsActive = true
+        isScanning = true
+        scanStatus = "Starting…"
+    }
+
+    private func completeScanPhase(_ phase: ScanPhase, generation: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.scanGeneration == generation else { return }
+            self.completedScanPhases.insert(phase)
+        }
+    }
+
+    private func runOnMain(_ block: @escaping () -> Void) {
+        if Thread.isMainThread {
+            block()
+        } else {
+            DispatchQueue.main.async(execute: block)
+        }
+    }
     
     /// Opens the popover without re-running a scan that just finished (e.g. during onboarding).
     func scanIfStale(minInterval: TimeInterval = 300) {
@@ -296,8 +329,8 @@ class DiskMonitor: ObservableObject {
         scanGeneration += 1
         let generation = scanGeneration
 
-        DispatchQueue.main.async { [weak self] in
-            self?.isScanning = true
+        runOnMain { [weak self] in
+            self?.beginScan(resetting: [.projects])
             self?.scanStatus = "Project caches"
         }
 
@@ -307,6 +340,7 @@ class DiskMonitor: ObservableObject {
                     guard let self, self.scanGeneration == generation else { return }
                     self.isScanning = false
                     self.isScanInProgress = false
+                    self.scanIsActive = false
                     self.scanStatus = ""
                     self.calculateCleanable()
                 }
@@ -315,6 +349,7 @@ class DiskMonitor: ObservableObject {
             self.runScanPhase("Project caches", generation: generation) {
                 self.scanProjectArtifacts(generation: generation)
             }
+            self.completeScanPhase(.projects, generation: generation)
         }
     }
     
@@ -324,9 +359,8 @@ class DiskMonitor: ObservableObject {
         scanGeneration += 1
         let generation = scanGeneration
         
-        DispatchQueue.main.async { [weak self] in
-            self?.isScanning = true
-            self?.scanStatus = "Starting…"
+        runOnMain { [weak self] in
+            self?.beginScan()
         }
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -335,6 +369,7 @@ class DiskMonitor: ObservableObject {
                     guard let self, self.scanGeneration == generation else { return }
                     self.isScanning = false
                     self.isScanInProgress = false
+                    self.scanIsActive = false
                     self.scanStatus = ""
                     if self.pendingProjectRescan {
                         self.pendingProjectRescan = false
@@ -348,15 +383,19 @@ class DiskMonitor: ObservableObject {
             
             self.runScanPhase("Disk usage", generation: generation) { self.scanDiskSpace(generation: generation) }
             guard self.scanGeneration == generation else { return }
+            self.completeScanPhase(.disk, generation: generation)
             
             self.runScanPhase("Developer caches", generation: generation) { self.scanDevCaches(generation: generation) }
             guard self.scanGeneration == generation else { return }
+            self.completeScanPhase(.devCaches, generation: generation)
             
             self.runScanPhase("Large files", generation: generation) { self.scanLargeFiles() }
             guard self.scanGeneration == generation else { return }
+            self.completeScanPhase(.largeFiles, generation: generation)
             
             self.runScanPhase("Project caches", generation: generation) { self.scanProjectArtifacts(generation: generation) }
             guard self.scanGeneration == generation else { return }
+            self.completeScanPhase(.projects, generation: generation)
             
             let devPaths = self.devCachePaths()
             for (name, path) in devPaths {
@@ -1466,6 +1505,14 @@ class DiskMonitor: ObservableObject {
         
         return totalSize
     }
+}
+
+// MARK: - Scan Phases
+enum ScanPhase: String, Hashable {
+    case disk
+    case devCaches
+    case largeFiles
+    case projects
 }
 
 // MARK: - Permission State
