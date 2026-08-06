@@ -2,6 +2,24 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [1.9.0] - 2026-08-06
+### Added
+- **Go build cache** (`~/Library/Caches/go-build`). This is `GOCACHE`, and it is usually several times larger than the module download cache that was already listed. Cleared by `go clean -cache`; the next build is slower, then it is fast again.
+- **Android System Images and NDK** (`~/Library/Android/sdk/system-images`, `.../ndk`). The existing Android entry covered `~/.android/avd`, which is often empty while the SDK beside it holds several gigabytes. Both are listed per subdirectory and never as the whole SDK: deleting `~/Library/Android/sdk` would take `platform-tools` with it, and there is no `adb` without it. The three Android entries now share a group.
+- **VS Code updater cache** (`~/Library/Caches/com.microsoft.VSCode.ShipIt`), a sibling of the VS Code cache directory that was already listed. Squirrel parks downloaded update payloads there and never prunes them.
+- **pnpm cache** (`~/Library/Caches/pnpm`). Separate from the package store: `pnpm store path` resolves to `~/Library/pnpm/store`, while registry metadata and the dlx cache live under Caches. Neither covers the other.
+- **rustup toolchains** (`~/.rustup/toolchains`), grouped with the other version managers rather than with Rust Cargo — these are the compilers themselves, and removing one uninstalls that toolchain.
+- **node-gyp headers** (`~/Library/Caches/node-gyp`) and **TypeScript type acquisition** (`~/Library/Caches/typescript`), both of which keep one copy per version indefinitely.
+
+### Fixed
+- Repositories kept directly in the home directory were never scanned for project artifacts. Every scan root was a subdirectory of `~`, and none of them reached its siblings, so a project in `~/my-project` was invisible while the identical project in `~/Documents/my-project` was found.
+
+  The home directory is scanned one level down, and deliberately never as a project itself. Handing `~` to the scanner directly would have been worse than the bug: several tools leave a stray `~/package.json` behind, which makes the whole home directory match the Node.js type — and `.cache` and `.expo` are on that type's artifact list. `~/.cache` is the shared cache for uv, Puppeteer, Prisma, Bazel and HuggingFace, not a build directory, and it would have been offered for deletion. Matching at `~` would also have stopped the walk there, so the projects this is meant to find would never have been reached.
+- Artifacts reachable from more than one scan root are listed once. A duplicate row double-counted its size in the totals and made the second clean fail on an already-trashed path.
+
+### Changed
+- Total cache paths: 74.
+
 ## [1.8.4] - 2026-08-01
 ### Changed
 - Risk levels for the AI tools now describe what deleting actually costs, rather than which app owns the directory.

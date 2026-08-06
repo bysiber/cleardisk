@@ -934,6 +934,7 @@ struct MainView: View {
         case "VS Code": return "laptopcomputer"
         case "AI Tools": return "brain"
         case "Ruby": return "diamond.fill"
+        case "Android": return "apps.iphone"
         default: return "folder.fill"
         }
     }

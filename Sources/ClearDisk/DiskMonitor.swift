@@ -395,6 +395,9 @@ class DiskMonitor: ObservableObject {
         "npm Cache": "Cached package tarballs from npmjs.org. Re-downloads on npm install.",
         "Yarn Cache": "Cached Yarn packages. Re-downloads on yarn install.",
         "pnpm Store": "Content-addressable package store. Re-downloads on pnpm install.",
+        "pnpm Cache": "Registry metadata and dlx cache, kept separately from the package store. Re-downloads on next pnpm install.",
+        "node-gyp Headers": "Node.js headers and libraries, one set per Node version, used to compile native addons. Re-downloads on the next native build.",
+        "TypeScript Types": "Type definitions fetched automatically for JavaScript files (VS Code automatic type acquisition). Re-downloads when needed.",
         "Bun Cache": "Cached Bun packages. Re-downloads on bun install.",
         "Deno Cache": "Cached Deno modules and compiled scripts. Re-downloads on deno run.",
         "pip Cache": "Downloaded Python wheels and sdists. Re-downloads on pip install.",
@@ -405,11 +408,15 @@ class DiskMonitor: ObservableObject {
         "Gradle Cache": "Downloaded JARs, build outputs, and wrapper dists. Re-downloads on gradle build.",
         "Maven Cache": "Local Maven repository (.m2). Re-downloads on mvn build.",
         "Android Emulators": "Android Virtual Devices and disk images. Must re-create in AVD Manager.",
+        "Android System Images": "Emulator system images, one per API level and ABI. Re-download from Android Studio → SDK Manager. Often the largest part of the SDK.",
+        "Android NDK": "Native Development Kit toolchains — a full compiler per installed version. Re-download from SDK Manager. Only needed for native (C/C++) Android builds.",
         "Docker (Data)": "Docker images, containers, and volumes. May lose running containers and uncommitted data!",
         "Terraform Plugins": "Terraform/OpenTofu CLI plugins and provider cache. Re-downloads on terraform init.",
         "Composer Cache": "Cached PHP packages. Re-downloads on composer install.",
         "Go Modules": "Go module download cache. Re-downloads on go mod download.",
+        "Go Build Cache": "Compiled package objects that make rebuilds fast (GOCACHE). Rebuilds itself — the first build after clearing is slower. Equivalent to go clean -cache.",
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
+        "rustup Toolchains": "Installed Rust toolchains (stable, beta, nightly) — a full compiler and standard library each. Reinstall with rustup toolchain install.",
         "Playwright Browsers": "Downloaded browser binaries for Playwright testing. Re-downloads on npx playwright install.",
         "Puppeteer Browsers": "Downloaded Chromium binaries for Puppeteer. Re-downloads on npx puppeteer install.",
         "Prisma Engines": "Prisma ORM query engine binaries. Re-downloads on npx prisma generate.",
@@ -452,6 +459,7 @@ class DiskMonitor: ObservableObject {
         "VS Code Extensions Cache": "Downloaded extension VSIX packages. Safe to delete, re-downloads when needed.",
         "VS Code Chromium Cache": "Chromium disk cache used by VS Code. Safe to delete, rebuilds on launch.",
         "VS Code Logs": "Old session logs and telemetry data. Safe to delete anytime.",
+        "VS Code Updater": "Update packages downloaded by the Squirrel updater. Safe to delete while VS Code is not installing an update — it re-downloads the next one.",
     ]
     
     /// Resolve DerivedData subfolders to project names using info.plist → WorkspacePath
@@ -527,6 +535,12 @@ class DiskMonitor: ObservableObject {
             ("npm Cache", "shippingbox", "\(home)/.npm/_cacache", "safe", nil),
             ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe", nil),
             ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe", nil),
+            // Separate from the store above: `pnpm store path` resolves to ~/Library/pnpm/store, while
+            // registry metadata and the dlx cache live under ~/Library/Caches/pnpm. Both are real, and
+            // neither covers the other.
+            ("pnpm Cache", "shippingbox.and.arrow.backward", "\(home)/Library/Caches/pnpm", "safe", nil),
+            ("node-gyp Headers", "hammer", "\(home)/Library/Caches/node-gyp", "safe", nil),
+            ("TypeScript Types", "chevron.left.forwardslash.chevron.right", "\(home)/Library/Caches/typescript", "safe", nil),
             ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe", nil),
             ("Deno Cache", "bolt.fill", "\(home)/Library/Caches/deno", "safe", nil),
             // Python
@@ -538,7 +552,12 @@ class DiskMonitor: ObservableObject {
             // Java/Android
             ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe", nil),
             ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe", nil),
-            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution", nil),
+            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution", "Android"),
+            // The SDK is listed per subdirectory, never as a whole: deleting ~/Library/Android/sdk takes
+            // platform-tools with it, and without platform-tools there is no adb. system-images and ndk
+            // are the two that actually carry the weight, and both come back from the SDK Manager.
+            ("Android System Images", "square.stack.3d.down.right.fill", "\(home)/Library/Android/sdk/system-images", "caution", "Android"),
+            ("Android NDK", "cpu.fill", "\(home)/Library/Android/sdk/ndk", "caution", "Android"),
             // Containers
             ("Docker (Data)", "cube.transparent", "\(home)/Library/Containers/com.docker.docker/Data", "risky", nil),
             // Infrastructure
@@ -546,7 +565,13 @@ class DiskMonitor: ObservableObject {
             // PHP
             ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe", nil),
             // Go/Rust
+            // Deliberately the download cache and not all of ~/go/pkg/mod. The extracted modules beside it
+            // are checked out read-only (0555 dirs), and macOS refuses to move a directory it cannot write
+            // to the Trash — the entry would fail to clean, and anything that did reach the Trash could not
+            // be emptied afterwards. `go clean -modcache` exists precisely because it handles that; a
+            // Trash-based cleaner cannot. ~/go/pkg/mod/cache is fully writable and safe to move.
             ("Go Modules", "leaf.fill", "\(home)/go/pkg/mod/cache", "safe", nil),
+            ("Go Build Cache", "leaf.circle.fill", "\(home)/Library/Caches/go-build", "safe", nil),
             ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe", nil),
             // Testing
             ("Playwright Browsers", "theatermasks.fill", "\(home)/Library/Caches/ms-playwright", "safe", nil),
@@ -568,6 +593,9 @@ class DiskMonitor: ObservableObject {
             ("VS Code Extensions Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/CachedExtensionVSIXs", "safe", "VS Code"),
             ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
             ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
+            // A sibling of the "VS Code Cache" directory above, not the same one: Squirrel parks downloaded
+            // update payloads in ~/Library/Caches/com.microsoft.VSCode.ShipIt and never prunes them.
+            ("VS Code Updater", "arrow.down.app.fill", "\(home)/Library/Caches/com.microsoft.VSCode.ShipIt", "safe", "VS Code"),
             // AI Tools
             // Both Claude entries are "risky", not "caution". They were "caution" until #27, where a
             // user lost every Claude CoWork session with no way back. These are not caches: on a
@@ -601,6 +629,9 @@ class DiskMonitor: ObservableObject {
             ("nvm Node Versions", "number.circle.fill", "\(home)/.nvm/versions", "caution", "Version Managers"),
             ("pyenv Versions", "number.square.fill", "\(home)/.pyenv/versions", "caution", "Version Managers"),
             ("mise Installs", "square.stack.3d.up.fill", "\(home)/.local/share/mise/installs", "caution", "Version Managers"),
+            // Grouped with the other version managers rather than with Rust Cargo: this is not a package
+            // cache, it is the compilers themselves, and removing one uninstalls that toolchain.
+            ("rustup Toolchains", "wrench.and.screwdriver.fill", "\(home)/.rustup/toolchains", "caution", "Version Managers"),
             // Extra JVM / Build
             ("SBT/Ivy Cache", "s.circle.fill", "\(home)/.ivy2/cache", "safe", nil),
             ("Gradle Wrapper", "gearshape.2.fill", "\(home)/.gradle/wrapper/dists", "safe", nil),
@@ -992,16 +1023,49 @@ class DiskMonitor: ObservableObject {
             "\(home)/Desktop",
         ]
     }
-    
+
+    /// Entries in `~` that are never project directories: the standard macOS home folders, plus the
+    /// roots that are already scanned in full above. Without this they would be walked twice.
+    private static let homeScanExclusions: Set<String> = [
+        "Library", "Documents", "Desktop", "Downloads", "Movies", "Music", "Pictures",
+        "Public", "Applications", "Developer", "Projects", "Code", "repos", "src", "workspace",
+    ]
+
     private func scanProjectArtifacts() {
         var artifacts: [ProjectArtifact] = []
         let fm = FileManager.default
-        
+
         for root in projectScanRoots() {
             guard fm.fileExists(atPath: root) else { continue }
             findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0)
         }
-        
+
+        // Repositories kept directly in `~` were invisible: every root above is a subdirectory of the
+        // home directory, and none of them reaches its siblings.
+        //
+        // The home directory is scanned one level down, and never as a project itself. Passing `~` to
+        // findProjectArtifacts would be actively harmful: a stray `~/package.json` — which several tools
+        // leave behind — makes the whole home directory match the Node.js type, and `.cache` and `.expo`
+        // are on that type's artifact list. `~/.cache` is the shared cache for uv, Puppeteer, Prisma,
+        // Bazel and HuggingFace, not a build directory, and it would have been offered for deletion.
+        // Worse, matching at `~` sets anyArtifactFound and stops the walk right there, so the projects
+        // this is meant to find would never be reached. Each subdirectory is judged on its own markers.
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if let entries = try? fm.contentsOfDirectory(atPath: home) {
+            for entry in entries where !entry.hasPrefix(".") {
+                guard !DiskMonitor.homeScanExclusions.contains(entry) else { continue }
+                let full = (home as NSString).appendingPathComponent(entry)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: full, isDirectory: &isDir), isDir.boolValue else { continue }
+                findProjectArtifacts(in: full, results: &artifacts, maxDepth: 1, currentDepth: 0)
+            }
+        }
+
+        // Defensive: the scan roots are disjoint today, but a duplicate row double-counts its size in
+        // the totals and makes the second clean fail on an already-trashed path. Keep the first sighting.
+        var seen = Set<String>()
+        artifacts = artifacts.filter { seen.insert($0.artifactPath).inserted }
+
         // Sort by size: biggest first (user can change sort in UI)
         artifacts.sort { $0.size > $1.size }
         
