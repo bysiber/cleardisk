@@ -46,6 +46,7 @@ ClearDisk scans **74 developer cache paths** in one tool. Lives in your menu bar
 - **Xcode Running Check** — Warns you if Xcode is running when you try to clean Xcode-related caches
 - **Safe Delete** — Files go to Trash, not permanent delete. You can always recover
 - **Visual Category Bars** — Color-coded proportional bars showing what's eating your disk
+- **Appearance** — Dark, Light, or System (the default) in Settings
 - **Recovery Tracking** — "Recovered 12.4 GB!" banner after cleanup + cumulative "Total saved: 123 GB" counter
 - **Storage Forecast** — Predicts when your disk will be full based on usage trends (linear regression, 90-day history)
 - **Smart Suggestions** — Age-based recommendations ("Not used for 90 days — safe to clean")

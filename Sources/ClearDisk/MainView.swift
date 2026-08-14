@@ -42,6 +42,7 @@ struct MainView: View {
     @State private var showDeleteFileConfirm = false
     @State private var expandedLargeFileFolder: String? = nil
     @AppStorage("launchAtLogin") private var launchAtLogin = true
+    @AppStorage("appearance") private var appearance: Appearance = .system
 
     
     enum Tab: String, CaseIterable {
@@ -74,6 +75,22 @@ struct MainView: View {
         case all = "All"
         case stale = "Stale (>30d)"
     }
+
+    enum Appearance: String, CaseIterable, Identifiable {
+        case dark, light, system
+
+        var id: String { rawValue }
+        var label: String { rawValue.capitalized }
+
+        /// nil follows macOS, and keeps following it when the system setting changes.
+        var colorScheme: ColorScheme? {
+            switch self {
+            case .dark: return .dark
+            case .light: return .light
+            case .system: return nil
+            }
+        }
+    }
     
     var body: some View {
         Group {
@@ -89,6 +106,8 @@ struct MainView: View {
             }
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        // Themes the whole popover, not just this tree: SwiftUI applies it to the hosting window.
+        .preferredColorScheme(appearance.colorScheme)
         .overlay {
             if let sheet = activeProjectSheet {
                 projectSheetOverlay(sheet)
@@ -1670,6 +1689,25 @@ struct MainView: View {
                     .background(Color.primary.opacity(0.03))
                     .cornerRadius(8)
                     
+                    // Appearance section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Appearance", systemImage: "circle.lefthalf.filled")
+                            .font(.system(size: 13, weight: .semibold))
+
+                        Picker("Appearance", selection: $appearance) {
+                            ForEach(Appearance.allCases) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+
                     // About section
                     VStack(alignment: .leading, spacing: 10) {
                         Label("About", systemImage: "info.circle.fill")
