@@ -15,7 +15,7 @@ ClearDisk.app/
 *.swp
 *.swo
 *~
-cleardisk
+/cleardisk
 *.dmg
 dist/
 demo/

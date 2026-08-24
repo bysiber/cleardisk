@@ -5,6 +5,7 @@ import ServiceManagement
 // MARK: - Layout Constants
 enum Layout {
     static let popoverWidth: CGFloat = 380
+    static let contentWidth: CGFloat = popoverWidth
     static let popoverHeight: CGFloat = 700
 }
 
@@ -45,7 +46,7 @@ struct MainView: View {
     @State private var showDeleteFileConfirm = false
     @State private var expandedLargeFileFolder: String? = nil
     @AppStorage("launchAtLogin") private var launchAtLogin = true
-
+    @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     
     enum Tab: String, CaseIterable {
         case developer = "Developer"
@@ -79,18 +80,32 @@ struct MainView: View {
     }
     
     var body: some View {
-        let base = Group {
-            switch activeScreen {
-            case .cleanCaches:
-                cleanCachesScreen
-            case .cleanProjects:
-                cleanProjectsScreen
-            case .settings:
-                settingsScreen
-            case .main:
-                mainScreen
+        let content = Group {
+            if activeScreen != .main {
+                switch activeScreen {
+                case .cleanCaches:
+                    cleanCachesScreen
+                case .cleanProjects:
+                    cleanProjectsScreen
+                case .settings:
+                    settingsScreen
+                case .main:
+                    EmptyView()
+                }
+            } else {
+                switch primaryMode {
+                case .cleaner:
+                    mainScreen
+                case .review:
+                    reviewScreen
+                case .diskSpace:
+                    diskSpaceScreen
+                }
             }
         }
+        .frame(width: Layout.contentWidth, height: Layout.popoverHeight)
+
+        let base = content
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
         .overlay {
             ZStack {
@@ -106,6 +121,13 @@ struct MainView: View {
         // and the UI comes back unclickable. Whatever was open dies with the popover.
         .onReceive(NotificationCenter.default.publisher(for: .clearDiskPopoverDidClose)) { _ in
             dismissAllPresentations()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .clearDiskPrimaryModeRequested)) { notification in
+            guard
+                let rawValue = notification.object as? String,
+                let mode = PrimaryMode(rawValue: rawValue)
+            else { return }
+            switchPrimaryMode(to: mode)
         }
 
         let cacheAlerts = base
@@ -249,7 +271,7 @@ struct MainView: View {
             // A sheet window used to give these views their size and background. Inside the popover
             // they are a card: never wider than the popover, never taller than it, and drawing the
             // material a window would have drawn for them.
-            .frame(width: Layout.popoverWidth - 28)
+            .frame(width: Layout.contentWidth - 28)
             .frame(maxHeight: Layout.popoverHeight - 72)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
             .overlay(
@@ -258,7 +280,7 @@ struct MainView: View {
             )
             .shadow(color: .black.opacity(0.3), radius: 18, y: 6)
         }
-        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .frame(width: Layout.contentWidth, height: Layout.popoverHeight)
     }
 
     private var riskyBulkConfirmationOverlay: some View {
@@ -325,7 +347,7 @@ struct MainView: View {
                 }
             }
             .padding(16)
-            .frame(width: Layout.popoverWidth - 32)
+            .frame(width: Layout.contentWidth - 32)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
@@ -333,7 +355,7 @@ struct MainView: View {
             )
             .shadow(color: .black.opacity(0.35), radius: 18, y: 6)
         }
-        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .frame(width: Layout.contentWidth, height: Layout.popoverHeight)
     }
 
     private func requestBulkClean(_ caches: [DevCache]) {
@@ -379,6 +401,318 @@ struct MainView: View {
         showDeleteFileConfirm = false
         cancelRiskyBulkConfirmation()
         diskMonitor.cleanFailure = nil
+    }
+
+    private var hasReviewItems: Bool {
+        !diskMonitor.devCaches.isEmpty
+            || !diskMonitor.projectArtifacts.isEmpty
+            || !diskMonitor.largeFiles.isEmpty
+            || diskMonitor.trashSizeBytes > 0
+    }
+
+    private func switchPrimaryMode(to mode: PrimaryMode) {
+        dismissAllPresentations()
+        activeScreen = .main
+        isExpanded = false
+        withAnimation(.easeInOut(duration: 0.16)) {
+            primaryMode = mode
+        }
+    }
+
+    private func openCleanerTab(_ tab: Tab) {
+        primaryMode = .cleaner
+        activeScreen = .main
+        isExpanded = false
+        selectedTab = tab
+    }
+
+    private func openCacheReview(mode: CacheCleanMode) {
+        primaryMode = .cleaner
+        cacheCleanMode = mode
+        selectedCacheIDs = []
+        activeScreen = .cleanCaches
+    }
+
+    private func openProjectReview() {
+        primaryMode = .cleaner
+        selectedArtifactIDs = []
+        projectFilterMode = .all
+        activeScreen = .cleanProjects
+    }
+
+    // MARK: - Review Mode
+    private var reviewScreen: some View {
+        let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }
+        let cautionCaches = diskMonitor.devCaches.filter { $0.riskLevel == "caution" }
+        let riskyCaches = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }
+        let safeTotal = safeCaches.reduce(Int64(0)) { $0 + $1.size }
+        let cautionTotal = cautionCaches.reduce(Int64(0)) { $0 + $1.size }
+        let riskyTotal = riskyCaches.reduce(Int64(0)) { $0 + $1.size }
+        let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+        let largeFileTotal = diskMonitor.largeFiles.reduce(Int64(0)) { $0 + $1.size }
+
+        return VStack(spacing: 0) {
+            headerView
+            Divider()
+
+            modeTitleBar(
+                title: "Review",
+                subtitle: "Safe cleanup and items that need your decision."
+            )
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    if !hasReviewItems {
+                        emptyModeState(
+                            icon: "checkmark.shield.fill",
+                            title: "Nothing needs attention",
+                            message: "ClearDisk will place new findings here after the next scan."
+                        )
+                    } else {
+                        if safeTotal > 0 || artifactTotal > 0 || diskMonitor.trashSizeBytes > 0 {
+                            reviewSectionHeader(title: "Safe cleanup", detail: "Rebuildable or already in Trash")
+
+                            VStack(spacing: 0) {
+                                if safeTotal > 0 {
+                                    reviewNavigationRow(
+                                        icon: "checkmark.shield.fill",
+                                        color: .green,
+                                        title: "Rebuildable caches",
+                                        subtitle: "\(safeCaches.count) known cache locations",
+                                        size: safeTotal,
+                                        actionTitle: "Review"
+                                    ) { openCacheReview(mode: .safe) }
+                                }
+
+                                if artifactTotal > 0 {
+                                    reviewNavigationRow(
+                                        icon: "shippingbox.fill",
+                                        color: .cyan,
+                                        title: "Project artifacts",
+                                        subtitle: "Build output only — source code is kept",
+                                        size: artifactTotal,
+                                        actionTitle: "Review"
+                                    ) { openProjectReview() }
+                                }
+
+                                if diskMonitor.trashSizeBytes > 0 {
+                                    reviewNavigationRow(
+                                        icon: "trash.fill",
+                                        color: .orange,
+                                        title: "Trash",
+                                        subtitle: "Permanent deletion is required to reclaim space",
+                                        size: diskMonitor.trashSizeBytes,
+                                        actionTitle: "Empty"
+                                    ) { showEmptyTrashConfirm = true }
+                                }
+                            }
+                            .background(Color.primary.opacity(0.025))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+
+                        if cautionTotal > 0 || riskyTotal > 0 || largeFileTotal > 0 {
+                            reviewSectionHeader(title: "Needs your decision", detail: "Never auto-selected")
+
+                            VStack(spacing: 0) {
+                                if cautionTotal > 0 {
+                                    reviewNavigationRow(
+                                        icon: "exclamationmark.circle.fill",
+                                        color: .orange,
+                                        title: "Caution caches",
+                                        subtitle: "May require a large download or setup again",
+                                        size: cautionTotal,
+                                        actionTitle: "Inspect"
+                                    ) { openCacheReview(mode: .moderate) }
+                                }
+
+                                if riskyTotal > 0 {
+                                    reviewNavigationRow(
+                                        icon: "exclamationmark.triangle.fill",
+                                        color: .red,
+                                        title: "Risky application data",
+                                        subtitle: "May contain containers, sessions or local data",
+                                        size: riskyTotal,
+                                        actionTitle: "Inspect"
+                                    ) { openCacheReview(mode: .everything) }
+                                }
+
+                                if largeFileTotal > 0 {
+                                    reviewNavigationRow(
+                                        icon: "doc.badge.magnifyingglass",
+                                        color: .blue,
+                                        title: "Large personal files",
+                                        subtitle: "\(diskMonitor.largeFiles.count) files over 100 MB",
+                                        size: largeFileTotal,
+                                        actionTitle: "View"
+                                    ) { openCleanerTab(.largeFiles) }
+                                }
+                            }
+                            .background(Color.primary.opacity(0.025))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                }
+                .padding(12)
+            }
+            .frame(maxHeight: .infinity)
+
+            Divider()
+            footerView
+        }
+    }
+
+    // MARK: - Disk Space Mode
+    private var diskSpaceScreen: some View {
+        VStack(spacing: 0) {
+            headerView
+            Divider()
+
+            modeTitleBar(
+                title: "Disk Space",
+                subtitle: "Current storage categories and large files."
+            )
+
+            Divider()
+
+            ScrollView {
+                VStack(spacing: 10) {
+                    overviewContent
+
+                    Button {
+                        openCleanerTab(.largeFiles)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.badge.magnifyingglass")
+                                .foregroundColor(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("View Large Files")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                Text("Review files over 100 MB in known user folders")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.035))
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
+            }
+            .frame(maxHeight: .infinity)
+
+            Divider()
+            footerView
+        }
+    }
+
+    private func modeTitleBar(title: String, subtitle: String) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if diskMonitor.isScanning {
+                ProgressView()
+                    .scaleEffect(0.65)
+            }
+            Button {
+                diskMonitor.scan()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .help("Refresh")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+    }
+
+    private func reviewSectionHeader(title: String, detail: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+            Spacer()
+            Text(detail)
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private func reviewNavigationRow(
+        icon: String,
+        color: Color,
+        title: String,
+        subtitle: String,
+        size: Int64,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(color)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.primary)
+                    Text(subtitle)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 6)
+
+                Text(formatBytes(size))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundColor(.secondary)
+
+                Text(actionTitle)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 40, alignment: .trailing)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func emptyModeState(icon: String, title: String, message: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 30))
+                .foregroundColor(.green)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+            Text(message)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 54)
     }
 
     // MARK: - Main Screen
@@ -2114,7 +2448,7 @@ struct MainView: View {
             .padding(.bottom, 8)
             .padding(.top, 4)
         }
-        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .frame(width: Layout.contentWidth, height: Layout.popoverHeight)
     }
     
     var cleanButtonColor: Color {
@@ -2338,7 +2672,7 @@ struct MainView: View {
             .padding(.bottom, 8)
             .padding(.top, 4)
         }
-        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+        .frame(width: Layout.contentWidth, height: Layout.popoverHeight)
     }
     
     var filteredProjectArtifacts: [ProjectArtifact] {

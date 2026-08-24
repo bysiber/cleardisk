@@ -52,11 +52,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
+    var primaryModePanelController: PrimaryModePanelController!
     var eventMonitor: Any?
     var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
+        primaryModePanelController = PrimaryModePanelController(diskMonitor: diskMonitor)
         diskMonitor.setupNotifications()
         diskMonitor.loadCleanupTotals()
         
@@ -67,6 +69,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             updateMenuBarIcon()
             button.action = #selector(togglePopover)
             button.target = self
+            // The default mouse-up action can arrive after a transient popover has already closed,
+            // causing togglePopover() to immediately reopen it. Handle the initial mouse-down so
+            // the second click observes the still-open state and closes it deterministically.
+            button.sendAction(on: [.leftMouseDown])
         }
         
         // Create popover
@@ -150,6 +156,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 NSApp.activate(ignoringOtherApps: true)
                 popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
 
+                // NSPopover clips everything to its own bounds. The primary modes live in a small
+                // child panel so they can sit outside the left edge without widening or covering
+                // the 380-point cleaner UI.
+                DispatchQueue.main.async { [weak self] in
+                    guard
+                        let self,
+                        self.popover.isShown,
+                        let contentView = self.popover.contentViewController?.view,
+                        let popoverWindow = contentView.window
+                    else { return }
+                    self.primaryModePanelController.show(
+                        attachedTo: popoverWindow,
+                        alignedTo: contentView
+                    )
+                }
+
 
                 // Close popover on outside click
                 eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -160,11 +182,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
     
     private func closePopover() {
-        popover.performClose(nil)
+        // A child NSPanel can keep its parent popover alive. Detach it before asking AppKit to
+        // close so a second click on the menu-bar item always toggles the entire UI off.
+        primaryModePanelController.hide()
+        popover.close()
     }
 
     /// Covers every way the popover can go away, including the transient auto-close on focus loss.
     func popoverDidClose(_ notification: Notification) {
+        primaryModePanelController.hide()
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
