@@ -22,7 +22,6 @@ struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     @State private var selectedTab: Tab = .developer
     @State private var showCleanConfirm = false
-    @State private var showCleanAllConfirm = false
     @State private var showCleanSafeConfirm = false
     @State private var activeProjectSheet: ActiveProjectSheet?
     @State private var cacheToClean: DevCache?
@@ -33,6 +32,10 @@ struct MainView: View {
     @State private var selectedArtifactIDs: Set<UUID> = []
     @State private var selectedCacheIDs: Set<UUID> = []
     @State private var showCleanSelectedCachesConfirm = false
+    @State private var showRiskyBulkConfirm = false
+    @State private var pendingBulkCaches: [DevCache] = []
+    @State private var acknowledgesDataLossRisk = false
+    @State private var showEmptyTrashConfirm = false
     @State private var showClearHistoryConfirm = false
     @State private var projectFilterMode: ProjectFilterMode = .all
     @State private var isCleaning = false
@@ -76,7 +79,7 @@ struct MainView: View {
     }
     
     var body: some View {
-        Group {
+        let base = Group {
             switch activeScreen {
             case .cleanCaches:
                 cleanCachesScreen
@@ -90,8 +93,13 @@ struct MainView: View {
         }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
         .overlay {
-            if let sheet = activeProjectSheet {
-                projectSheetOverlay(sheet)
+            ZStack {
+                if let sheet = activeProjectSheet {
+                    projectSheetOverlay(sheet)
+                }
+                if showRiskyBulkConfirm {
+                    riskyBulkConfirmationOverlay
+                }
             }
         }
         // A popover that vanishes out from under a presentation leaves SwiftUI's state stranded,
@@ -99,6 +107,8 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: .clearDiskPopoverDidClose)) { _ in
             dismissAllPresentations()
         }
+
+        let cacheAlerts = base
         .alert("Clear History?", isPresented: $showClearHistoryConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Clear", role: .destructive) {
@@ -129,8 +139,10 @@ struct MainView: View {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
                 isCleaning = true
-                diskMonitor.devCaches.removeAll { $0.riskLevel == "safe" }
-                diskMonitor.cleanSafeCaches()
+                let safeCaches = diskMonitor.devCaches.filter(DiskMonitor.isEligibleForSafeBulkClean)
+                let safeIDs = Set(safeCaches.map(\.id))
+                diskMonitor.devCaches.removeAll { safeIDs.contains($0.id) }
+                diskMonitor.cleanSelectedCaches(safeCaches)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
             }
         } message: {
@@ -141,48 +153,30 @@ struct MainView: View {
                 : ""
             Text("Clean \(safeCaches.count) safe caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\n🟡 Caution and 🔴 risky caches are NOT included — select those individually.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
         }
-        .alert("Clean ALL Developer Caches", isPresented: $showCleanAllConfirm) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete All (Including Risky)", role: .destructive) {
-                isCleaning = true
-                diskMonitor.devCaches.removeAll()
-                diskMonitor.cleanAllDevCaches()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { isCleaning = false }
-            }
-        } message: {
-            let total = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
-            let riskyCount = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.count
-            let riskyNote = riskyCount > 0 ? "\n\n🔴 WARNING: \(riskyCount) risky cache(s) included — may contain data that cannot be rebuilt (e.g. Docker volumes, unsaved projects)." : ""
-            let xcodeWarning = diskMonitor.isXcodeRunning()
-                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
-                : ""
-            Text("Move ALL developer caches to Trash?\nThis will free \(formatBytes(total)).\n\n\(diskMonitor.devCaches.count) cache locations will be cleaned.\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
-        }
+
+        let cleanupAlerts = cacheAlerts
         .alert("Clean Selected Caches", isPresented: $showCleanSelectedCachesConfirm) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) { pendingBulkCaches = [] }
             Button("Move to Trash", role: .destructive) {
-                isCleaning = true
-                let toClean = diskMonitor.devCaches.filter { selectedCacheIDs.contains($0.id) }
-                diskMonitor.devCaches.removeAll { selectedCacheIDs.contains($0.id) }
-                for cache in toClean {
-                    diskMonitor.cleanDevCache(cache)
-                }
-                selectedCacheIDs = []
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    isCleaning = false
-                    activeScreen = .main
-                }
+                performBulkClean(pendingBulkCaches)
             }
         } message: {
-            let toClean = diskMonitor.devCaches.filter { selectedCacheIDs.contains($0.id) }
-            let totalSize = toClean.reduce(Int64(0)) { $0 + $1.size }
-            let riskyCount = toClean.filter { $0.riskLevel == "risky" }.count
-            let riskyNote = riskyCount > 0 ? "\n\n🔴 WARNING: \(riskyCount) risky cache(s) selected — may contain data that cannot be rebuilt." : ""
+            let totalSize = pendingBulkCaches.reduce(Int64(0)) { $0 + $1.size }
             let xcodeWarning = diskMonitor.isXcodeRunning()
                 ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
                 : ""
-            Text("Clean \(toClean.count) selected cache(s)?\nThis will move \(formatBytes(totalSize)) to Trash.\n\nFiles go to Trash — you can recover them.\(riskyNote)\(xcodeWarning)")
+            Text("Clean \(pendingBulkCaches.count) selected cache(s)?\nThis will move \(formatBytes(totalSize)) to Trash. Disk space is reclaimed only after Trash is emptied.\(xcodeWarning)")
         }
+        .alert("Permanently Empty Trash?", isPresented: $showEmptyTrashConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete Permanently", role: .destructive) {
+                diskMonitor.emptyTrash()
+            }
+        } message: {
+            Text("This permanently deletes all \(formatBytes(diskMonitor.trashSizeBytes)) in your Mac's Trash — including items not moved there by ClearDisk. This cannot be undone.")
+        }
+
+        return cleanupAlerts
         .alert("Delete File", isPresented: $showDeleteFileConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Move to Trash", role: .destructive) {
@@ -197,7 +191,7 @@ struct MainView: View {
             }
         }
         // A clean that frees nothing must say so. Previously the failure was only printed to
-        // stdout, so the app showed "Recovered X!" while the files were still on disk.
+        // stdout, so the app showed a success while the files were still on disk.
         .alert(
             "Couldn't Move to Trash",
             isPresented: Binding(
@@ -267,16 +261,123 @@ struct MainView: View {
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
     }
 
+    private var riskyBulkConfirmationOverlay: some View {
+        let riskyCaches = pendingBulkCaches.filter { $0.riskLevel == "risky" }
+        let totalSize = pendingBulkCaches.reduce(Int64(0)) { $0 + $1.size }
+
+        return ZStack {
+            Color.black.opacity(0.55)
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text("Risk of Data Loss")
+                        .font(.system(size: 15, weight: .bold))
+                }
+
+                Text("The red items below may contain sessions, workspace state, containers, volumes, or other data that cannot be rebuilt.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(riskyCaches) { cache in
+                            HStack(spacing: 6) {
+                                Circle().fill(Color.red).frame(width: 7, height: 7)
+                                Text(cache.name)
+                                    .font(.system(size: 11, weight: .medium))
+                                Spacer()
+                                Text(formatBytes(cache.size))
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 130)
+
+                Toggle(isOn: $acknowledgesDataLossRisk) {
+                    Text("I understand these items may contain irreplaceable data, and I accept the risk of data loss.")
+                        .font(.system(size: 11, weight: .medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .toggleStyle(.checkbox)
+
+                Text("\(pendingBulkCaches.count) items · \(formatBytes(totalSize)) will be moved to Trash. Space is not reclaimed until Trash is emptied.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    Button("Cancel") {
+                        cancelRiskyBulkConfirmation()
+                    }
+                    .keyboardShortcut(.cancelAction)
+
+                    Spacer()
+
+                    Button("Move to Trash", role: .destructive) {
+                        let caches = pendingBulkCaches
+                        cancelRiskyBulkConfirmation(clearPending: false)
+                        performBulkClean(caches)
+                    }
+                    .disabled(!acknowledgesDataLossRisk)
+                }
+            }
+            .padding(16)
+            .frame(width: Layout.popoverWidth - 32)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.red.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.35), radius: 18, y: 6)
+        }
+        .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
+    }
+
+    private func requestBulkClean(_ caches: [DevCache]) {
+        guard !caches.isEmpty else { return }
+        pendingBulkCaches = caches
+        if DiskMonitor.requiresDataLossAcknowledgement(for: caches) {
+            acknowledgesDataLossRisk = false
+            showRiskyBulkConfirm = true
+        } else {
+            showCleanSelectedCachesConfirm = true
+        }
+    }
+
+    private func performBulkClean(_ caches: [DevCache]) {
+        guard !caches.isEmpty else { return }
+        let ids = Set(caches.map(\.id))
+        isCleaning = true
+        diskMonitor.devCaches.removeAll { ids.contains($0.id) }
+        diskMonitor.cleanSelectedCaches(caches)
+        selectedCacheIDs = []
+        pendingBulkCaches = []
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            isCleaning = false
+            activeScreen = .main
+        }
+    }
+
+    private func cancelRiskyBulkConfirmation(clearPending: Bool = true) {
+        showRiskyBulkConfirm = false
+        acknowledgesDataLossRisk = false
+        if clearPending { pendingBulkCaches = [] }
+    }
+
     /// Closes every modal layer. Called when the popover goes away so it can never reopen
     /// into a half-presented state.
     private func dismissAllPresentations() {
         activeProjectSheet = nil
         showCleanConfirm = false
-        showCleanAllConfirm = false
         showCleanSafeConfirm = false
         showCleanSelectedCachesConfirm = false
+        showEmptyTrashConfirm = false
         showClearHistoryConfirm = false
         showDeleteFileConfirm = false
+        cancelRiskyBulkConfirmation()
         diskMonitor.cleanFailure = nil
     }
 
@@ -420,7 +521,7 @@ struct MainView: View {
         let cautionDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "caution" }.reduce(Int64(0)) { $0 + $1.size }
         let riskyDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
-        let trashTotal = diskMonitor.trashSize()
+        let trashTotal = diskMonitor.trashSizeBytes
         let grandTotal = safeDevTotal + cautionDevTotal + riskyDevTotal + artifactTotal + trashTotal
         
         return VStack(spacing: 8) {
@@ -683,15 +784,24 @@ struct MainView: View {
     // MARK: - Overview Tab
     var overviewContent: some View {
         VStack(spacing: 0) {
-            // Recovered banner
-            if diskMonitor.showRecoveredBanner && diskMonitor.lastCleanedAmount > 0 {
+            // Cleanup result banner
+            if diskMonitor.showCleanResultBanner && diskMonitor.lastCleanedAmount > 0 {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 14))
                         .foregroundColor(.green)
-                    Text("Recovered \(formatBytes(diskMonitor.lastCleanedAmount))!")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.green)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(diskMonitor.lastCleanOutcome == .reclaimedSpace
+                             ? "Reclaimed \(formatBytes(diskMonitor.lastCleanedAmount))"
+                             : "Moved \(formatBytes(diskMonitor.lastCleanedAmount)) to Trash")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.green)
+                        if diskMonitor.lastCleanOutcome == .movedToTrash {
+                            Text("Empty Trash to reclaim this disk space.")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
                     Spacer()
                 }
                 .padding(.horizontal, 12)
@@ -707,7 +817,7 @@ struct MainView: View {
             }
             
             // Trash
-            let trash = diskMonitor.trashSize()
+            let trash = diskMonitor.trashSizeBytes
             if trash > 0 {
                 HStack(spacing: 8) {
                     Image(systemName: "trash.fill")
@@ -733,7 +843,7 @@ struct MainView: View {
                         .frame(width: 65, alignment: .trailing)
                     
                     Button("Empty") {
-                        diskMonitor.emptyTrash()
+                        showEmptyTrashConfirm = true
                     }
                     .font(.system(size: 10))
                     .controlSize(.mini)
@@ -1038,7 +1148,7 @@ struct MainView: View {
                 // Clean entire group
                 Button(action: {
                     selectedCacheIDs = Set(caches.map { $0.id })
-                    showCleanSelectedCachesConfirm = true
+                    requestBulkClean(caches)
                 }) {
                     Image(systemName: "trash")
                         .font(.system(size: 11))
@@ -1469,7 +1579,7 @@ struct MainView: View {
                 
                 VStack(alignment: .leading, spacing: 10) {
                     onboardingFeature(icon: "magnifyingglass", text: "Scans developer caches (Xcode, npm, pip, etc.)")
-                    onboardingFeature(icon: "trash", text: "Safely moves files to Trash (always recoverable)")
+                    onboardingFeature(icon: "trash", text: "Moves files to Trash before permanent deletion")
                     onboardingFeature(icon: "bell", text: "Alerts when disk space is running low")
                     onboardingFeature(icon: "chart.line.uptrend.xyaxis", text: "Forecasts when your disk will be full")
                 }
@@ -1977,7 +2087,8 @@ struct MainView: View {
             .padding(.top, 6)
             
             Button(action: {
-                showCleanSelectedCachesConfirm = true
+                let selected = cachesToShow.filter { selectedCacheIDs.contains($0.id) }
+                requestBulkClean(selected)
             }) {
                 HStack(spacing: 6) {
                     if isCleaning {
@@ -2243,14 +2354,14 @@ struct MainView: View {
     // MARK: - Footer
     var footerView: some View {
         HStack {
-            if diskMonitor.totalSavedAllTime > 0 {
+            if diskMonitor.totalMovedToTrash > 0 {
                 HStack(spacing: 4) {
-                    Image(systemName: "leaf.fill")
+                    Image(systemName: "trash.fill")
                         .font(.system(size: 9))
-                        .foregroundColor(.green)
-                    Text("Total saved: \(formatBytes(diskMonitor.totalSavedAllTime))")
+                        .foregroundColor(.secondary)
+                    Text("Moved via ClearDisk: \(formatBytes(diskMonitor.totalMovedToTrash))")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.green)
+                        .foregroundColor(.secondary)
                 }
             } else {
                 Text("ClearDisk \(AppInfo.displayVersion)")

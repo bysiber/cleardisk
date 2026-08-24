@@ -58,7 +58,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
         diskMonitor.setupNotifications()
-        diskMonitor.loadSavedTotal()
+        diskMonitor.loadCleanupTotals()
         
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -89,9 +89,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
         
-        // Refresh periodically (5 min)
-        Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            self?.diskMonitor.scan()
+        // One timer avoids a light refresh and a full scan racing each other at the 30-minute mark.
+        // Five ticks perform only a cheap APFS capacity lookup; every sixth tick refreshes all
+        // results. The full scan also refreshes capacity, so no separate lookup is needed then.
+        var refreshTick = 0
+        Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+            refreshTick += 1
+            if refreshTick == 6 {
+                refreshTick = 0
+                self?.diskMonitor.scan()
+            } else {
+                self?.diskMonitor.refreshDiskSpaceOnly()
+            }
         }
     }
     

@@ -12,19 +12,23 @@ class DiskMonitor: ObservableObject {
     @Published var devCaches: [DevCache] = []
     @Published var largeFiles: [LargeFile] = []
     @Published var projectArtifacts: [ProjectArtifact] = [] // stale node_modules, target/, build/ etc.
+    @Published var trashSizeBytes: Int64 = 0
     @Published var isScanning: Bool = false
     @Published var totalCleanable: Int64 = 0
-    @Published var safeCleanable: Int64 = 0 // only safe + caution caches + trash
+    @Published var safeCleanable: Int64 = 0 // only explicitly safe caches + trash
     @Published var riskyCleanable: Int64 = 0 // risky caches (e.g. Docker data)
     @Published var forecastDaysUntilFull: Int? = nil // nil = not enough data
     @Published var dailyGrowthRate: Int64 = 0 // bytes per day
     @Published var usageHistory: [UsageSnapshot] = [] // for chart display
     
-    // Savings tracking
-    @Published var totalSavedAllTime: Int64 = 0 // cumulative bytes cleaned
-    @Published var lastCleanedAmount: Int64 = 0 // last cleanup size (for "Recovered X!" banner)
-    @Published var showRecoveredBanner: Bool = false // transient banner after cleanup
-    private let savedKey = "ClearDisk.totalSaved"
+    // Cleanup tracking. Moving an item to Trash does not reclaim disk space yet, so keep that
+    // distinct from permanently emptying Trash in both the model and the UI.
+    @Published var totalMovedToTrash: Int64 = 0
+    @Published var lastCleanedAmount: Int64 = 0
+    @Published var lastCleanOutcome: CleanOutcome = .movedToTrash
+    @Published var showCleanResultBanner: Bool = false
+    private let movedToTrashKey = "ClearDisk.totalMovedToTrash"
+    private let legacySavedKey = "ClearDisk.totalSaved"
     
     // Per-project cache cleanup history (persisted)
     @Published var projectCleanHistory: [ProjectCleanHistoryEntry] = []
@@ -36,12 +40,14 @@ class DiskMonitor: ObservableObject {
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
     @Published var hasCompletedFirstScan: Bool = false
 
-    /// Set when a clean could not free the space it promised, so the UI can say so.
-    /// Swallowing a failed trash is what let the app report "Recovered X!" while nothing moved.
+    /// Set when a clean could not move the bytes it promised, so the UI can say so.
+    /// Swallowing a failed trash is what previously let the app report success while nothing moved.
     @Published var cleanFailure: CleanFailure?
     
     // Track notification state to avoid spam
     private var lastNotifiedThreshold: Int = 0
+    private var isCapacityRefreshInProgress = false
+    private(set) var lastFullScanAt: Date?
     
     // Storage history key
     private let historyKey = "ClearDisk.usageHistory"
@@ -55,8 +61,16 @@ class DiskMonitor: ObservableObject {
         UserDefaults.standard.set(true, forKey: onboardingKey)
     }
     
-    func loadSavedTotal() {
-        totalSavedAllTime = Int64(UserDefaults.standard.integer(forKey: savedKey))
+    func loadCleanupTotals() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: movedToTrashKey) != nil {
+            totalMovedToTrash = Int64(defaults.integer(forKey: movedToTrashKey))
+        } else {
+            // Versions before 1.9 called this value "saved", although those bytes had only been
+            // moved to Trash. Preserve the history while migrating it to the truthful label.
+            totalMovedToTrash = Int64(defaults.integer(forKey: legacySavedKey))
+            defaults.set(Int(totalMovedToTrash), forKey: movedToTrashKey)
+        }
         loadProjectCleanHistory()
     }
     
@@ -87,15 +101,18 @@ class DiskMonitor: ObservableObject {
         UserDefaults.standard.removeObject(forKey: projectHistoryKey)
     }
     
-    private func addToSavings(_ bytes: Int64) {
-        totalSavedAllTime += bytes
+    private func recordCleanResult(_ bytes: Int64, outcome: CleanOutcome) {
+        if outcome == .movedToTrash {
+            totalMovedToTrash += bytes
+            UserDefaults.standard.set(Int(totalMovedToTrash), forKey: movedToTrashKey)
+        }
         lastCleanedAmount = bytes
-        showRecoveredBanner = true
-        UserDefaults.standard.set(Int(totalSavedAllTime), forKey: savedKey)
+        lastCleanOutcome = outcome
+        showCleanResultBanner = true
         
         // Auto-hide banner after 5 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            self?.showRecoveredBanner = false
+            self?.showCleanResultBanner = false
         }
     }
     
@@ -156,10 +173,12 @@ class DiskMonitor: ObservableObject {
             // Reset scan status
             var inaccessible: [String] = []
             
-            self?.scanDiskSpace()
+            self?.scanDiskCapacity()
+            self?.scanDiskCategories()
             self?.scanDevCaches()
             self?.scanLargeFiles()
             self?.scanProjectArtifacts()
+            let trashBytes = self?.trashSize() ?? 0
             
             // Check which dev cache paths are inaccessible
             let devPaths = self?.devCachePaths() ?? []
@@ -176,6 +195,8 @@ class DiskMonitor: ObservableObject {
                 self?.isScanInProgress = false
                 self?.inaccessiblePaths = inaccessible
                 self?.hasCompletedFirstScan = true
+                self?.lastFullScanAt = Date()
+                self?.trashSizeBytes = trashBytes
                 self?.calculateCleanable()
                 self?.recordUsageSnapshot()
                 self?.calculateForecast()
@@ -184,12 +205,42 @@ class DiskMonitor: ObservableObject {
             }
         }
     }
+
+    /// Refreshes only APFS capacity values used by the menu-bar indicator. Unlike `scan()`, this
+    /// does not recursively enumerate the user's home folders, projects, caches, or large files.
+    func refreshDiskSpaceOnly() {
+        guard !isScanInProgress, !isCapacityRefreshInProgress else { return }
+        isCapacityRefreshInProgress = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            self?.scanDiskCapacity {
+                guard let self else { return }
+                self.isCapacityRefreshInProgress = false
+                self.recordUsageSnapshot()
+                self.calculateForecast()
+                self.checkThresholdNotification()
+            }
+        }
+    }
+
+    /// Opening the popover should feel fresh without turning every open/close into a recursive
+    /// filesystem crawl. A manual refresh still always calls `scan()` directly.
+    func scanIfStale(maxAge: TimeInterval = 30 * 60) {
+        guard let lastFullScanAt else {
+            scan()
+            return
+        }
+        if Date().timeIntervalSince(lastFullScanAt) >= maxAge {
+            scan()
+        } else {
+            refreshDiskSpaceOnly()
+        }
+    }
     
     private func calculateCleanable() {
         let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
         let safeDevTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
         let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
-        let trashTotal = trashSize()
+        let trashTotal = trashSizeBytes
         totalCleanable = devTotal + trashTotal
         safeCleanable = safeDevTotal + trashTotal
         riskyCleanable = riskyDevTotal
@@ -314,9 +365,7 @@ class DiskMonitor: ObservableObject {
     }
     
     // MARK: - Disk Space
-    private func scanDiskSpace() {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        
+    private func scanDiskCapacity(completion: (() -> Void)? = nil) {
         do {
             let values = try URL(fileURLWithPath: "/").resourceValues(forKeys: [
                 .volumeTotalCapacityKey,
@@ -332,11 +381,17 @@ class DiskMonitor: ObservableObject {
                 self?.freeSpace = free
                 self?.usedSpace = used
                 self?.usedPercentage = total > 0 ? Int((Double(used) / Double(total)) * 100) : 0
+                completion?()
             }
         } catch {
             print("Error getting disk space: \(error)")
+            DispatchQueue.main.async { completion?() }
         }
-        
+    }
+
+    private func scanDiskCategories() {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+
         // Scan categories
         let home = homeDir.path
         let categoryPaths: [(String, String, [String])] = [
@@ -513,7 +568,7 @@ class DiskMonitor: ObservableObject {
     /// Single source of truth for all developer cache paths
     /// (name, icon, path, riskLevel, group)
     /// Risk levels: safe = rebuild with command, caution = may need re-download, risky = data loss possible
-    private func allCachePaths() -> [(name: String, icon: String, path: String, riskLevel: String, group: String?)] {
+    func allCachePaths() -> [(name: String, icon: String, path: String, riskLevel: String, group: String?)] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
             // Xcode & Apple
@@ -644,6 +699,14 @@ class DiskMonitor: ObservableObject {
     /// Returns list of (name, path) tuples for all known dev cache paths
     func devCachePaths() -> [(String, String)] {
         return allCachePaths().map { ($0.name, $0.path) }
+    }
+
+    static func isEligibleForSafeBulkClean(_ cache: DevCache) -> Bool {
+        cache.riskLevel == "safe"
+    }
+
+    static func requiresDataLossAcknowledgement(for caches: [DevCache]) -> Bool {
+        caches.contains { $0.riskLevel == "risky" }
     }
     
     private func scanDevCaches() {
@@ -796,10 +859,15 @@ class DiskMonitor: ObservableObject {
     }
 
     /// Records the outcome of a clean. Credits ONLY the bytes that actually reached the Trash and
-    /// surfaces the first failure, so a refused delete can never show up as "Recovered X!".
+    /// surfaces the first failure, so a refused delete can never show up as a successful move.
     /// Always re-scans: on failure the item is still on disk and must reappear in the list.
-    private func finishClean(title: String, freed: Int64, failure: String?) {
-        if freed > 0 { addToSavings(freed) }
+    private func finishClean(
+        title: String,
+        freed: Int64,
+        failure: String?,
+        outcome: CleanOutcome = .movedToTrash
+    ) {
+        if freed > 0 { recordCleanResult(freed, outcome: outcome) }
         if let failure {
             cleanFailure = CleanFailure(title: title, reason: failure, isPermission: Self.isPermissionError(failure))
         }
@@ -811,7 +879,7 @@ class DiskMonitor: ObservableObject {
         return r.contains("permission") || r.contains("not permitted") || r.contains("privileges")
     }
 
-    /// Move items to Trash instead of permanent delete — user can recover for 30 days.
+    /// Move items to Trash instead of permanent delete — user can recover until Trash is emptied.
     /// NEVER falls back to permanent delete. If trash fails, it fails safely.
     /// Returns `nil` on success, or a human-readable reason on failure.
     private func moveToTrash(path: String) -> String? {
@@ -856,20 +924,10 @@ class DiskMonitor: ObservableObject {
         }
     }
 
-    /// Clean only the caches marked 🟢 safe — never 🟡 caution, never 🔴 risky.
-    ///
-    /// This used to sweep everything that was not "risky", which put caution entries behind a
-    /// button labelled "Clean Safe Caches": Xcode Archives (the dSYMs you need to symbolicate
-    /// released crash reports), Android AVDs, Cursor and Windsurf workspace state, and the
-    /// language-version managers. One click, and none of it comes back on its own. Caution
-    /// entries now require the user to pick them deliberately, one at a time.
-    func cleanSafeCaches() {
-        cleanCaches(devCaches.filter { $0.riskLevel == "safe" }, title: "Safe caches")
-    }
-
-    /// Clean ALL caches including risky ones (requires explicit user confirmation)
-    func cleanAllDevCaches() {
-        cleanCaches(devCaches, title: "All developer caches")
+    /// Clean a caller-selected snapshot as one operation and perform one rescan when it finishes.
+    func cleanSelectedCaches(_ caches: [DevCache]) {
+        guard let first = caches.first else { return }
+        cleanCaches(caches, title: caches.count == 1 ? first.name : "Selected caches")
     }
 
     /// `caches` is snapshotted by the caller on the main thread — never read the @Published
@@ -908,7 +966,8 @@ class DiskMonitor: ObservableObject {
                 self.finishClean(
                     title: "Trash",
                     freed: max(0, sizeBefore - remaining),
-                    failure: remaining > 0 ? "Some items in the Trash could not be removed." : nil
+                    failure: remaining > 0 ? "Some items in the Trash could not be removed." : nil,
+                    outcome: .reclaimedSpace
                 )
             }
         }
@@ -1267,6 +1326,11 @@ enum PermissionState: String {
     case denied = "Denied"
 }
 
+enum CleanOutcome {
+    case movedToTrash
+    case reclaimedSpace
+}
+
 // MARK: - Models
 struct DiskCategory: Identifiable {
     let id = UUID()
@@ -1317,7 +1381,7 @@ struct LargeFile: Identifiable {
 }
 
 /// A clean that did not free what it promised — the item is still on disk.
-/// Surfaced to the user instead of being swallowed, so "Recovered X!" always means it really went.
+/// Surfaced to the user instead of being swallowed, so a success banner always means it really moved.
 struct CleanFailure: Identifiable {
     let id = UUID()
     let title: String      // what we tried to clean
