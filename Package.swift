@@ -8,6 +8,11 @@ let package = Package(
         .executableTarget(
             name: "ClearDisk",
             path: "Sources/ClearDisk"
+        ),
+        .testTarget(
+            name: "ClearDiskTests",
+            dependencies: ["ClearDisk"],
+            path: "Tests/ClearDiskTests"
         )
     ]
 )

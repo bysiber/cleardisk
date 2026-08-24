@@ -44,9 +44,9 @@ ClearDisk scans **74 developer cache paths** in one tool. Lives in your menu bar
 - **Menu Bar Monitor** — Always-on disk usage display. Changes color at 80%/90% thresholds. Shows cleanable amount when disk is stressed
 - **Risk Levels** — 🟢 Safe (rebuilds with a command), 🟡 Caution (large re-download needed), 🔴 Risky (may contain irreplaceable data)
 - **Xcode Running Check** — Warns you if Xcode is running when you try to clean Xcode-related caches
-- **Safe Delete** — Files go to Trash, not permanent delete. You can always recover
+- **Safe Delete** — Files go to Trash first and remain recoverable until Trash is emptied
 - **Visual Category Bars** — Color-coded proportional bars showing what's eating your disk
-- **Recovery Tracking** — "Recovered 12.4 GB!" banner after cleanup + cumulative "Total saved: 123 GB" counter
+- **Cleanup Tracking** — distinguishes bytes moved to Trash from space actually reclaimed after Trash is emptied
 - **Storage Forecast** — Predicts when your disk will be full based on usage trends (linear regression, 90-day history)
 - **Smart Suggestions** — Age-based recommendations ("Not used for 90 days — safe to clean")
 - **Smart Notifications** — Alerts at 80% and 90% disk usage, no spam
@@ -113,7 +113,7 @@ Requires macOS 14+ (Apple Silicon and Intel). Release builds are universal (`arm
 
 ## How It Works
 
-ClearDisk scans **known developer cache directories** on a 5-minute interval:
+ClearDisk refreshes free disk capacity every 5 minutes and scans **known developer cache directories** every 30 minutes:
 
 ```
 ~/Library/Developer/Xcode/DerivedData           → 🟢 Safe
@@ -154,7 +154,7 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 
 - **Zero network access** — the app never connects to the internet
 - **Zero telemetry** — no analytics, no crash reports, no usage data
-- **Zero background processes** — only scans when the popover is open or on a 5-min timer
+- **Zero helper processes** — the menu-bar app checks capacity every 5 minutes and scans when the popover opens or every 30 minutes while running
 - **Open source** — read every line of code yourself
 - **Safe delete** — everything goes to Trash first
 
