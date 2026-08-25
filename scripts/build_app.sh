@@ -79,6 +79,11 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "App icon copied."
 fi
 
+# Keep third-party notices inside the app bundle; no user-facing attribution is required.
+THIRD_PARTY_DIR="$APP_BUNDLE/Contents/Resources/ThirdPartyLicenses"
+mkdir -p "$THIRD_PARTY_DIR"
+cp "Vendor/DiskScanBackend/LICENSE.txt" "$THIRD_PARTY_DIR/DiskScannerMIT.txt"
+
 # Create Info.plist (unquoted heredoc so $VERSION / $BUILD_NUMBER expand)
 cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>

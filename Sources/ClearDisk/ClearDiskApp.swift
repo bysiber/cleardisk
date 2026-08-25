@@ -53,12 +53,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
     var primaryModePanelController: PrimaryModePanelController!
+    var diskSpaceWindowController: DiskSpaceWindowController!
     var eventMonitor: Any?
     var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
         primaryModePanelController = PrimaryModePanelController(diskMonitor: diskMonitor)
+        diskSpaceWindowController = DiskSpaceWindowController(diskMonitor: diskMonitor)
         diskMonitor.setupNotifications()
         diskMonitor.loadCleanupTotals()
         
@@ -92,6 +94,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .clearDiskPrimaryModeRequested)
+            .compactMap { notification in
+                (notification.object as? String).flatMap(PrimaryMode.init(rawValue:))
+            }
+            .filter { $0 == .diskSpace }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.openDiskSpaceWindow()
             }
             .store(in: &cancellables)
         
@@ -186,6 +199,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // close so a second click on the menu-bar item always toggles the entire UI off.
         primaryModePanelController.hide()
         popover.close()
+    }
+
+    private func openDiskSpaceWindow() {
+        closePopover()
+        DispatchQueue.main.async { [weak self] in
+            self?.diskSpaceWindowController.show()
+        }
     }
 
     /// Covers every way the popover can go away, including the transient auto-close on focus loss.

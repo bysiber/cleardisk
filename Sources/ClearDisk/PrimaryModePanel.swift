@@ -58,7 +58,12 @@ private struct PrimaryModePanelView: View {
         VStack(spacing: 2) {
             ForEach(PrimaryMode.allCases, id: \.self) { mode in
                 Button {
-                    primaryMode = mode
+                    // Disk Space is a full workspace window, not another 380-point popover page.
+                    // Keep the tray's last compact mode selected so reopening ClearDisk never
+                    // lands on a stale placeholder after the workspace window is closed.
+                    if mode != .diskSpace {
+                        primaryMode = mode
+                    }
                     NotificationCenter.default.post(
                         name: .clearDiskPrimaryModeRequested,
                         object: mode.rawValue

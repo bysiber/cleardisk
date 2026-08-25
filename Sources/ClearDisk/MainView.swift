@@ -127,6 +127,8 @@ struct MainView: View {
                 let rawValue = notification.object as? String,
                 let mode = PrimaryMode(rawValue: rawValue)
             else { return }
+            // AppDelegate routes Disk Space to its own resizable workspace window.
+            guard mode != .diskSpace else { return }
             switchPrimaryMode(to: mode)
         }
 
