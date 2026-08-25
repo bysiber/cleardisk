@@ -388,6 +388,7 @@ struct DiskSpaceCompactView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     let isExpanded: Bool
     @Binding var page: DiskSpaceCompactPage
+    let onOpenCaches: () -> Void
 
     @AppStorage("diskSpaceTreemapGroupingEnabled") private var groupingEnabled = false
     @AppStorage("diskSpaceTreemapGroupingThresholdMB") private var groupingThresholdMB = 10
@@ -408,9 +409,9 @@ struct DiskSpaceCompactView: View {
                 case .finished where store.hasResultsForSelection:
                     compactResults
                 case .failed(let message):
-                    compactWorkspaceUnavailable(errorMessage: message)
+                    compactLocationOverview(errorMessage: message)
                 default:
-                    compactWorkspaceUnavailable()
+                    compactLocationOverview()
                 }
             }
         }
@@ -511,29 +512,74 @@ struct DiskSpaceCompactView: View {
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
             }
+
+            Text("CLEANUP")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.6)
+                .padding(.top, 2)
+
+            DiskSpaceCachesLocationCard(
+                cacheCount: diskMonitor.devCaches.count,
+                totalSize: diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size },
+                action: onOpenCaches
+            )
         }
     }
 
-    private func compactWorkspaceUnavailable(errorMessage: String? = nil) -> some View {
-        VStack(spacing: 14) {
+    private func compactLocationOverview(errorMessage: String? = nil) -> some View {
+        VStack(spacing: 12) {
             compactWorkspaceNavigation
 
-            VStack(spacing: 9) {
-                Image(systemName: errorMessage == nil ? "internaldrive" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 27))
-                    .foregroundStyle(errorMessage == nil ? Color.accentColor : .orange)
-                Text(errorMessage == nil ? "No scan available" : "Scan couldn’t finish")
-                    .font(.system(size: 13, weight: .semibold))
-                Text(errorMessage ?? "Return to Locations and choose an area to analyze.")
+            if store.selectedLocation.kind == .startupDisk {
+                DiskCapacityCard(diskMonitor: diskMonitor)
+            }
+
+            VStack(spacing: 11) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(
+                            errorMessage == nil
+                                ? Color.accentColor.opacity(0.10)
+                                : Color.orange.opacity(0.10)
+                        )
+                    Image(systemName: errorMessage == nil ? store.selectedLocation.icon : "exclamationmark.triangle.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(errorMessage == nil ? Color.accentColor : .orange)
+                }
+                .frame(width: 54, height: 54)
+
+                VStack(spacing: 4) {
+                    Text(errorMessage == nil ? store.selectedLocation.name : "Scan couldn’t finish")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(
+                        errorMessage
+                            ?? "Build a visual map of this location, then open folders to see what is using the most space."
+                    )
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("Back to Locations") {
-                    page = .locations
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .controlSize(.small)
+
+                Button {
+                    store.startScan()
+                } label: {
+                    Label(
+                        errorMessage == nil ? "Analyze \(store.selectedLocation.name)" : "Try Again",
+                        systemImage: "magnifyingglass"
+                    )
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Text("Read-only analysis — scanning never removes files.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(18)
+            .padding(16)
             .frame(maxWidth: .infinity)
             .background(
                 Color.primary.opacity(0.025),
@@ -550,9 +596,6 @@ struct DiskSpaceCompactView: View {
 
         store.selectLocation(location.id)
         page = .workspace
-        if !store.hasResultsForSelection {
-            store.startScan()
-        }
     }
 
     private var compactWorkspaceNavigation: some View {
@@ -628,15 +671,31 @@ struct DiskSpaceCompactView: View {
         VStack(spacing: 10) {
             HStack(spacing: 6) {
                 Button {
-                    page = .locations
+                    if store.canNavigateUp {
+                        store.navigateUp()
+                    } else {
+                        page = .locations
+                    }
                 } label: {
-                    Label("Locations", systemImage: "chevron.left")
+                    Label(store.canNavigateUp ? "Back" : "Locations", systemImage: "chevron.left")
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.accentColor)
 
                 Spacer()
+
+                if store.canNavigateUp {
+                    Button {
+                        page = .locations
+                    } label: {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Storage Locations")
+                }
 
                 DiskSpaceTreemapOptionsButton(
                     isEnabled: $groupingEnabled,
@@ -653,24 +712,25 @@ struct DiskSpaceCompactView: View {
                 .help("Rescan")
             }
 
-            DiskSpaceBreadcrumb(store: store)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
             if let node = store.displayedNode {
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(node.name)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .lineLimit(1)
-                        Text("\(formatBytes(node.allocatedBytes)) · \(node.descendantFileCount.formatted()) files")
+                        Text(abbreviatedPath(node.url.deletingLastPathComponent().path))
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
                     Spacer()
-                    if !store.issues.isEmpty {
-                        Label(store.issues.count.formatted(), systemImage: "exclamationmark.triangle.fill")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.orange)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(formatBytes(node.allocatedBytes))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        Text("\(node.descendantFileCount.formatted()) files")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -853,6 +913,81 @@ private struct DiskSpaceMacLocationCard: View {
         if usedFraction >= 0.9 { return .red }
         if usedFraction >= 0.75 { return .orange }
         return .accentColor
+    }
+}
+
+private struct DiskSpaceCachesLocationCard: View {
+    let cacheCount: Int
+    let totalSize: Int64
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.purple.opacity(0.11))
+                    Image(systemName: "archivebox.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color.purple)
+                }
+                .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("Caches")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("DEVELOPER")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Color.purple)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.purple.opacity(0.10), in: Capsule())
+                    }
+                    Text(
+                        cacheCount == 0
+                            ? "No developer caches found"
+                            : "\(cacheCount) developer locations ready to review"
+                    )
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+
+                Spacer(minLength: 5)
+
+                if totalSize > 0 {
+                    Text(formatBytes(totalSize))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isHovered
+                    ? Color.purple.opacity(0.075)
+                    : Color.primary.opacity(0.028),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(
+                        isHovered ? Color.purple.opacity(0.22) : Color.primary.opacity(0.07),
+                        lineWidth: 0.5
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help("Review caches")
     }
 }
 

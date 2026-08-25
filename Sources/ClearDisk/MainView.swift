@@ -22,7 +22,7 @@ private enum ActiveProjectSheet: Int, Identifiable {
 struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     @ObservedObject var diskSpaceStore: DiskSpaceStore
-    @State private var selectedTab: Tab = .developer
+    @State private var selectedTab: Tab = .diskSpace
     @State private var showCleanConfirm = false
     @State private var showCleanSafeConfirm = false
     @State private var activeProjectSheet: ActiveProjectSheet?
@@ -52,7 +52,7 @@ struct MainView: View {
     
     enum Tab: String, CaseIterable {
         case diskSpace = "Disk Space"
-        case developer = "Developer"
+        case developer = "Caches"
         case projects = "Projects"
         case overview = "Overview"
         case largeFiles = "Large Files"
@@ -782,7 +782,8 @@ struct MainView: View {
                                 store: diskSpaceStore,
                                 diskMonitor: diskMonitor,
                                 isExpanded: true,
-                                page: $compactDiskSpacePage
+                                page: $compactDiskSpacePage,
+                                onOpenCaches: { openCleanerTab(.developer) }
                             )
                         case .overview:
                             overviewContent
@@ -848,7 +849,8 @@ struct MainView: View {
                                 store: diskSpaceStore,
                                 diskMonitor: diskMonitor,
                                 isExpanded: false,
-                                page: $compactDiskSpacePage
+                                page: $compactDiskSpacePage,
+                                onOpenCaches: { openCleanerTab(.developer) }
                             )
                         case .overview:
                             overviewContent
@@ -1423,7 +1425,7 @@ struct MainView: View {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 32))
                         .foregroundColor(.green)
-                    Text("No developer caches found")
+                    Text("No caches found")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                     Text("Your disk is clean!")
@@ -1435,8 +1437,16 @@ struct MainView: View {
                 let totalDev = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Developer Caches")
-                            .font(.system(size: 12, weight: .semibold))
+                        HStack(spacing: 6) {
+                            Text("Caches")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("DEVELOPER")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Color.purple)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.purple.opacity(0.10), in: Capsule())
+                        }
                         Text("\(diskMonitor.devCaches.count) locations found")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
