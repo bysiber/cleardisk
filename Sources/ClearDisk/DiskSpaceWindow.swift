@@ -588,8 +588,13 @@ struct DiskSpaceCompactView: View {
             return
         }
 
+        let hasExistingResults = store.phase == .finished &&
+            store.node(forLocationID: location.id) != nil
         store.selectLocation(location.id)
         page = .workspace
+        if !hasExistingResults {
+            store.startScan()
+        }
     }
 
     private var compactWorkspaceNavigation: some View {

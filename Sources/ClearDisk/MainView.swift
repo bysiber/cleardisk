@@ -1418,14 +1418,46 @@ struct MainView: View {
     }
 
     private var cacheStorageSummary: some View {
-        let total = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
+        let reclaimableCaches = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+        let total = reclaimableCaches.reduce(Int64(0)) { $0 + $1.size }
+        let protectedTotal = diskMonitor.devCaches
+            .filter { $0.riskLevel == "risky" }
+            .reduce(Int64(0)) { $0 + $1.size }
         let breakdown = cacheStorageBreakdown
-        let scanHasResult = diskMonitor.hasCompletedCacheScan && total > 0
+        let hasScanned = diskMonitor.hasCompletedCacheScan
+        let scanHasResult = hasScanned && total > 0
 
-        return VStack(spacing: 8) {
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(hasScanned ? formatBytes(total) : "—")
+                        .font(.system(size: 29, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .monospacedDigit()
+                    Text(hasScanned ? "reclaimable cache space found" : "cache space not measured")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                if scanHasResult {
+                    Button {
+                        selectedCacheIDs = []
+                        cacheCleanMode = .moderate
+                        activeScreen = .cleanCaches
+                    } label: {
+                        Label("Review & Clean", systemImage: "sparkles")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+
             GeometryReader { geometry in
                 if scanHasResult {
-                    HStack(spacing: 1) {
+                    HStack(spacing: 0) {
                         ForEach(Array(breakdown.enumerated()), id: \.offset) { _, segment in
                             Rectangle()
                                 .fill(segment.color)
@@ -1442,13 +1474,17 @@ struct MainView: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color.gray.opacity(0.20))
                         .overlay {
-                            Text(diskMonitor.isScanningCaches || diskMonitor.isScanning ? "Scanning caches…" : "Not scanned yet")
+                            Text(
+                                diskMonitor.isScanningCaches || diskMonitor.isScanning
+                                    ? "Scanning caches…"
+                                    : hasScanned ? "No reclaimable caches" : "Not scanned yet"
+                            )
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.secondary)
                         }
                 }
             }
-            .frame(height: 24)
+            .frame(height: 18)
 
             if scanHasResult {
                 HStack(spacing: 9) {
@@ -1471,19 +1507,34 @@ struct MainView: View {
                 }
             } else {
                 HStack {
-                    Text(diskMonitor.isScanningCaches || diskMonitor.isScanning ? "Checking all known cache locations" : "Run a scan to measure cache usage")
+                    Text(
+                        diskMonitor.isScanningCaches || diskMonitor.isScanning
+                            ? "Checking all known cache locations"
+                            : hasScanned ? "Nothing currently needs review" : "Use Scan All to measure every cache location"
+                    )
                     Spacer()
-                    Text("Caches")
+                    if hasScanned {
+                        Text("\(reclaimableCaches.count) locations")
+                    }
                 }
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
+            }
+
+            if hasScanned && protectedTotal > 0 {
+                Label(
+                    "\(formatBytes(protectedTotal)) protected data excluded from reclaimable space",
+                    systemImage: "lock.fill"
+                )
+                .font(.system(size: 8))
+                .foregroundStyle(.tertiary)
             }
         }
     }
 
     private var cacheStorageBreakdown: [(name: String, size: Int64, color: Color)] {
         var totals: [String: Int64] = [:]
-        for cache in diskMonitor.devCaches {
+        for cache in diskMonitor.devCaches where cache.riskLevel != "risky" {
             totals[cache.group ?? "Other", default: 0] += cache.size
         }
 
