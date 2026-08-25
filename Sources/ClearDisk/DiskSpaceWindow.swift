@@ -430,9 +430,11 @@ struct DiskSpaceCompactView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if store.phase == .scanning {
+                if store.phase == .scanning || diskMonitor.isScanningCaches {
                     Button {
-                        page = .workspace
+                        if store.phase == .scanning {
+                            page = .workspace
+                        }
                     } label: {
                         HStack(spacing: 5) {
                             ProgressView()
@@ -443,6 +445,14 @@ struct DiskSpaceCompactView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
+                } else {
+                    Button(action: scanAllLocations) {
+                        Label("Scan All", systemImage: "magnifyingglass")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Scan this Mac, quick locations, and caches")
                 }
             }
 
@@ -595,6 +605,15 @@ struct DiskSpaceCompactView: View {
         if !hasExistingResults {
             store.startScan()
         }
+    }
+
+    private func scanAllLocations() {
+        guard store.phase != .scanning, !diskMonitor.isScanningCaches else { return }
+        guard let startupDisk = store.locations.first(where: { $0.kind == .startupDisk }) else { return }
+
+        store.selectLocation(startupDisk.id)
+        store.startScan()
+        diskMonitor.scanCaches()
     }
 
     private var compactWorkspaceNavigation: some View {
