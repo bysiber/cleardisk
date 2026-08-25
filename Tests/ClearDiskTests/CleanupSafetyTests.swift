@@ -41,7 +41,7 @@ final class CleanupSafetyTests: XCTestCase {
     }
 
     func testCacheDefinitionsNeverTargetBroadUserDirectories() {
-        let paths = DiskMonitor().allCachePaths().map(\.path)
+        let paths = DiskMonitor().allKnownCacheDefinitions().map(\.path)
         let forbiddenSuffixes = ["/Library", "/Library/Application Support", "/Documents", "/Desktop", "/Downloads"]
         XCTAssertEqual(paths.count, Set(paths).count, "Cleanup paths must be unique")
         XCTAssertFalse(paths.contains("/"), "A cleanup definition targets the filesystem root")
@@ -51,5 +51,26 @@ final class CleanupSafetyTests: XCTestCase {
                 "A cleanup definition targets a dangerously broad directory"
             )
         }
+    }
+
+    func testAppCachesAreIsolatedFromDeveloperDefinitions() {
+        let monitor = DiskMonitor()
+        let appDefinitions = monitor.appCacheDefinitions()
+        let developerPaths = Set(monitor.allCachePaths().map(\.path))
+        let appPaths = Set(appDefinitions.map(\.path))
+        let cacheRoot = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches", isDirectory: true)
+            .path + "/"
+
+        XCTAssertFalse(appDefinitions.isEmpty)
+        XCTAssertTrue(appDefinitions.allSatisfy { $0.section == .app })
+        XCTAssertTrue(appDefinitions.allSatisfy { $0.riskLevel == "safe" })
+        XCTAssertTrue(appDefinitions.allSatisfy { $0.path.hasPrefix(cacheRoot) })
+        XCTAssertTrue(developerPaths.isDisjoint(with: appPaths))
+    }
+
+    func testAppCacheRegistryIncludesMajorBrowsers() {
+        let names = Set(DiskMonitor().appCacheDefinitions().map(\.name))
+        XCTAssertTrue(names.isSuperset(of: ["Google Chrome", "Firefox", "Safari"]))
     }
 }

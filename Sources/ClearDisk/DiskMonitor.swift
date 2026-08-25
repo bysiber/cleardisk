@@ -178,14 +178,14 @@ class DiskMonitor: ObservableObject {
             
             self?.scanDiskCapacity()
             self?.scanDiskCategories()
-            self?.scanDevCaches()
+            self?.scanKnownCaches()
             self?.scanLargeFiles()
             self?.scanProjectArtifacts()
             let trashBytes = self?.trashSize() ?? 0
             
-            // Check which dev cache paths are inaccessible
-            let devPaths = self?.devCachePaths() ?? []
-            for (name, path) in devPaths {
+            // Check which known cache paths are inaccessible.
+            let cachePaths = self?.knownCachePaths() ?? []
+            for (name, path) in cachePaths {
                 let expanded = (path as NSString).expandingTildeInPath
                 let parent = (expanded as NSString).deletingLastPathComponent
                 if FileManager.default.fileExists(atPath: parent) && !(self?.canAccess(path: expanded) ?? true) {
@@ -218,9 +218,9 @@ class DiskMonitor: ObservableObject {
         isScanningCaches = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.scanDevCaches()
+            self?.scanKnownCaches()
 
-            // scanDevCaches enqueues its published result on the main queue. This completion is
+            // scanKnownCaches enqueues its published result on the main queue. This completion is
             // enqueued immediately after it, preserving the result-before-status ordering.
             DispatchQueue.main.async { [weak self] in
                 self?.isCacheScanInProgress = false
@@ -721,9 +721,30 @@ class DiskMonitor: ObservableObject {
         ]
     }
 
-    /// Returns list of (name, path) tuples for all known dev cache paths
-    func devCachePaths() -> [(String, String)] {
-        return allCachePaths().map { ($0.name, $0.path) }
+    func appCacheDefinitions() -> [CachePathDefinition] {
+        AppCacheCatalog.definitions()
+    }
+
+    func developerCacheDefinitions() -> [CachePathDefinition] {
+        allCachePaths().map { entry in
+            CachePathDefinition(
+                name: entry.name,
+                icon: entry.icon,
+                path: entry.path,
+                riskLevel: entry.riskLevel,
+                group: entry.group,
+                section: .developer,
+                description: DiskMonitor.cacheDescriptions[entry.name] ?? ""
+            )
+        }
+    }
+
+    func allKnownCacheDefinitions() -> [CachePathDefinition] {
+        appCacheDefinitions() + developerCacheDefinitions()
+    }
+
+    func knownCachePaths() -> [(String, String)] {
+        allKnownCacheDefinitions().map { ($0.name, $0.path) }
     }
 
     static func isEligibleForSafeBulkClean(_ cache: DevCache) -> Bool {
@@ -734,18 +755,16 @@ class DiskMonitor: ObservableObject {
         caches.contains { $0.riskLevel == "risky" }
     }
     
-    private func scanDevCaches() {
-        let devPaths = allCachePaths()
+    private func scanKnownCaches() {
+        let definitions = allKnownCacheDefinitions()
         
         var caches: [DevCache] = []
-        for entry in devPaths {
+        for entry in definitions {
             let size = directorySize(path: entry.path)
             if size > 1_048_576 { // Only show if > 1MB
                 let lastAccessed = lastModifiedDate(path: entry.path)
                 let daysSinceAccess = daysSince(lastAccessed)
                 let suggestion = generateSuggestion(name: entry.name, size: size, daysSinceAccess: daysSinceAccess)
-                let desc = DiskMonitor.cacheDescriptions[entry.name] ?? ""
-                
                 // Resolve DerivedData subfolders to project names
                 var detail: String? = nil
                 if entry.name == "Xcode DerivedData" {
@@ -761,8 +780,9 @@ class DiskMonitor: ObservableObject {
                     daysSinceAccess: daysSinceAccess,
                     suggestion: suggestion,
                     riskLevel: entry.riskLevel,
-                    cacheDescription: desc,
+                    cacheDescription: entry.description,
                     group: entry.group,
+                    section: entry.section,
                     detail: detail
                 ))
             }
@@ -1376,7 +1396,36 @@ struct DevCache: Identifiable {
     let riskLevel: String // "safe" = 🟢, "caution" = 🟡, "risky" = 🔴
     let cacheDescription: String // human-readable "what is this?"
     let group: String? // grouping key: "Xcode", "VS Code", "AI Tools", "Ruby", or nil
-    var detail: String? = nil // optional extra detail (e.g. DerivedData project list)
+    let section: CacheSection
+    var detail: String? // optional extra detail (e.g. DerivedData project list)
+
+    init(
+        name: String,
+        icon: String,
+        path: String,
+        size: Int64,
+        lastAccessed: Date?,
+        daysSinceAccess: Int?,
+        suggestion: String?,
+        riskLevel: String,
+        cacheDescription: String,
+        group: String?,
+        section: CacheSection = .developer,
+        detail: String? = nil
+    ) {
+        self.name = name
+        self.icon = icon
+        self.path = path
+        self.size = size
+        self.lastAccessed = lastAccessed
+        self.daysSinceAccess = daysSinceAccess
+        self.suggestion = suggestion
+        self.riskLevel = riskLevel
+        self.cacheDescription = cacheDescription
+        self.group = group
+        self.section = section
+        self.detail = detail
+    }
     
     var riskEmoji: String {
         switch riskLevel {
@@ -1389,6 +1438,7 @@ struct DevCache: Identifiable {
     
     var riskDescription: String {
         switch riskLevel {
+        case "safe" where section == .app: return "Safe cache — the app recreates it automatically"
         case "safe": return "Safe — can be rebuilt with a command"
         case "caution": return "Caution — may need large re-download"
         case "risky": return "Risky — may contain irreplaceable data"

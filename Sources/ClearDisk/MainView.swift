@@ -1391,16 +1391,14 @@ struct MainView: View {
         .cornerRadius(8)
     }
 
-    // MARK: - Developer Tab
+    // MARK: - Caches Tab
     
-    /// Groups caches by their group field, preserving order
-    /// Returns: [(groupName: String?, caches: [DevCache])]
-    /// Grouped items appear as a single collapsible row, ungrouped items appear individually
-    private var groupedDevCaches: [(key: String?, caches: [DevCache])] {
+    /// Groups one cache section by its optional family while preserving scanner order.
+    private func groupedCaches(_ caches: [DevCache]) -> [(key: String?, caches: [DevCache])] {
         var result: [(key: String?, caches: [DevCache])] = []
         var groupMap: [String: Int] = [:] // group name -> index in result
         
-        for cache in diskMonitor.devCaches {
+        for cache in caches {
             if let group = cache.group {
                 if let idx = groupMap[group] {
                     result[idx].caches.append(cache)
@@ -1422,12 +1420,18 @@ struct MainView: View {
         case "AI Tools": return "brain"
         case "Ruby": return "diamond.fill"
         case "Android": return "apps.iphone"
+        case "Browsers": return "globe"
+        case "Communication": return "bubble.left.and.bubble.right.fill"
+        case "Media & Games": return "play.rectangle.fill"
         default: return "folder.fill"
         }
     }
     
     var developerContent: some View {
-        VStack(spacing: 2) {
+        let appCaches = diskMonitor.devCaches.filter { $0.section == .app }
+        let developerCaches = diskMonitor.devCaches.filter { $0.section == .developer }
+
+        return VStack(spacing: 10) {
             if diskMonitor.devCaches.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
@@ -1442,52 +1446,80 @@ struct MainView: View {
                 }
                 .padding(.top, 40)
             } else {
-                let totalDev = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text("Caches")
-                                .font(.system(size: 12, weight: .semibold))
-                            Text("DEVELOPER")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(Color.purple)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(Color.purple.opacity(0.10), in: Capsule())
-                        }
-                        Text("\(diskMonitor.devCaches.count) locations found")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Text(formatBytes(totalDev))
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .foregroundColor(.purple)
+                if !appCaches.isEmpty {
+                    cacheSection(.app, caches: appCaches, accent: .blue)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.red.opacity(0.04))
-                
-                ForEach(Array(groupedDevCaches.enumerated()), id: \.offset) { _, entry in
-                    if let groupName = entry.key {
-                        // Grouped items with expand/collapse
-                        cacheGroupRow(groupName: groupName, caches: entry.caches)
-                            .padding(.bottom, 4)
-                    } else {
-                        // Standalone items
-                        ForEach(entry.caches) { cache in
-                            devCacheRow(cache)
-                        }
-                    }
+
+                if !appCaches.isEmpty && !developerCaches.isEmpty {
+                    Divider()
+                        .padding(.horizontal, 8)
+                }
+
+                if !developerCaches.isEmpty {
+                    cacheSection(.developer, caches: developerCaches, accent: .purple)
                 }
             }
         }
         .padding(.vertical, 4)
     }
+
+    @ViewBuilder
+    private func cacheSection(_ section: CacheSection, caches: [DevCache], accent: Color) -> some View {
+        let total = caches.reduce(Int64(0)) { $0 + $1.size }
+
+        VStack(spacing: 2) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(section.title)
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(section.badge)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(accent)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(accent.opacity(0.10), in: Capsule())
+                    }
+                    Text("\(caches.count) locations found")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text(formatBytes(total))
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(accent)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(accent.opacity(0.045))
+
+            ForEach(Array(groupedCaches(caches).enumerated()), id: \.offset) { _, entry in
+                if let groupName = entry.key {
+                    cacheGroupRow(
+                        groupName: groupName,
+                        caches: entry.caches,
+                        section: section,
+                        accent: accent
+                    )
+                    .padding(.bottom, 4)
+                } else {
+                    ForEach(entry.caches) { cache in
+                        cacheRow(cache, accent: accent)
+                    }
+                }
+            }
+        }
+    }
     
-    func cacheGroupRow(groupName: String, caches: [DevCache]) -> some View {
+    func cacheGroupRow(
+        groupName: String,
+        caches: [DevCache],
+        section: CacheSection,
+        accent: Color
+    ) -> some View {
         let totalSize = caches.reduce(Int64(0)) { $0 + $1.size }
-        let isGroupExpanded = expandedGroups.contains(groupName)
+        let expansionKey = "\(section.rawValue):\(groupName)"
+        let isGroupExpanded = expandedGroups.contains(expansionKey)
         let sortedCaches = caches.sorted { $0.size > $1.size }
         let topNames = sortedCaches.prefix(3).map { $0.name.replacingOccurrences(of: "\(groupName) ", with: "").replacingOccurrences(of: "Xcode ", with: "") }
         let preview = topNames.joined(separator: ", ")
@@ -1498,12 +1530,12 @@ struct MainView: View {
                 HStack(spacing: 6) {
                     Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.purple.opacity(0.7))
+                        .foregroundColor(accent.opacity(0.7))
                         .frame(width: 10)
                     Image(systemName: groupIcon(groupName))
                         .font(.system(size: 14))
                         .frame(width: 22)
-                        .foregroundColor(.purple)
+                        .foregroundColor(accent)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(groupName)
@@ -1513,7 +1545,7 @@ struct MainView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1)
-                                .background(Capsule().fill(Color.purple.opacity(0.6)))
+                                .background(Capsule().fill(accent.opacity(0.6)))
                         }
                         if !isGroupExpanded {
                             Text(preview)
@@ -1528,7 +1560,7 @@ struct MainView: View {
                 
                 Text(formatBytes(totalSize))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.purple.opacity(0.8))
+                    .foregroundColor(accent.opacity(0.8))
                 
                 // Clean entire group
                 Button(action: {
@@ -1560,16 +1592,16 @@ struct MainView: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.purple.opacity(0.05))
+                    .fill(accent.opacity(0.05))
             )
             .padding(.horizontal, 4)
             .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    if expandedGroups.contains(groupName) {
-                        expandedGroups.remove(groupName)
+                    if expandedGroups.contains(expansionKey) {
+                        expandedGroups.remove(expansionKey)
                     } else {
-                        expandedGroups.insert(groupName)
+                        expandedGroups.insert(expansionKey)
                     }
                 }
             }
@@ -1578,13 +1610,13 @@ struct MainView: View {
             if isGroupExpanded {
                 VStack(spacing: 0) {
                     ForEach(caches) { cache in
-                        devCacheRow(cache)
+                        cacheRow(cache, accent: accent)
                     }
                 }
                 .padding(.leading, 20)
                 .overlay(alignment: .leading) {
                     Rectangle()
-                        .fill(Color.purple.opacity(0.2))
+                        .fill(accent.opacity(0.2))
                         .frame(width: 2)
                         .padding(.leading, 16)
                         .padding(.vertical, 4)
@@ -1593,13 +1625,13 @@ struct MainView: View {
         }
     }
     
-    func devCacheRow(_ cache: DevCache) -> some View {
+    func cacheRow(_ cache: DevCache, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Image(systemName: cache.icon)
                     .font(.system(size: 14))
                     .frame(width: 24)
-                    .foregroundColor(.purple)
+                    .foregroundColor(accent)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
                         Text(cache.riskEmoji)
@@ -1675,10 +1707,10 @@ struct MainView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 8))
-                        .foregroundColor(.purple.opacity(0.6))
+                        .foregroundColor(accent.opacity(0.6))
                     Text(detail)
                         .font(.system(size: 9))
-                        .foregroundColor(.purple.opacity(0.7))
+                        .foregroundColor(accent.opacity(0.7))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
