@@ -388,6 +388,7 @@ struct DiskSpaceCompactView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     let isExpanded: Bool
     @Binding var page: DiskSpaceCompactPage
+    let onOpenDiskSpace: () -> Void
     let onOpenCaches: () -> Void
 
     @AppStorage("diskSpaceTreemapGroupingEnabled") private var groupingEnabled = false
@@ -421,7 +422,7 @@ struct DiskSpaceCompactView: View {
 
     private var compactLocations: some View {
         VStack(alignment: .leading, spacing: 13) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Storage Locations")
                         .font(.system(size: 15, weight: .semibold))
@@ -448,10 +449,13 @@ struct DiskSpaceCompactView: View {
                 } else {
                     Button(action: scanAllLocations) {
                         Label("Scan All", systemImage: "magnifyingglass")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 11)
+                            .frame(height: 30)
+                            .background(Color.accentColor, in: Capsule())
+                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.plain)
                     .help("Scan this Mac, quick locations, and caches")
                 }
             }
@@ -465,7 +469,10 @@ struct DiskSpaceCompactView: View {
                         store.selectedLocationID == startupDisk.id,
                     isDisabled: store.phase == .scanning &&
                         store.selectedLocationID != startupDisk.id,
-                    action: { openLocation(startupDisk) }
+                    action: {
+                        store.selectLocation(startupDisk.id)
+                        onOpenDiskSpace()
+                    }
                 )
             }
 
@@ -915,7 +922,7 @@ private struct DiskSpaceMacLocationCard: View {
                 .controlSize(.small)
         } else {
             HStack(spacing: 4) {
-                Text(scannedNode == nil ? "Analyze" : "View")
+                Text("Open")
                     .font(.system(size: 9, weight: .semibold))
                 Image(systemName: "chevron.right")
                     .font(.system(size: 8, weight: .bold))

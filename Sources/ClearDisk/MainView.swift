@@ -431,6 +431,13 @@ struct MainView: View {
         selectedTab = tab
     }
 
+    private func openDiskSpaceWindow() {
+        NotificationCenter.default.post(
+            name: .clearDiskPrimaryModeRequested,
+            object: PrimaryMode.diskSpace.rawValue
+        )
+    }
+
     private func openCacheReview(mode: CacheCleanMode) {
         primaryMode = .cleaner
         cacheCleanMode = mode
@@ -783,6 +790,7 @@ struct MainView: View {
                                 diskMonitor: diskMonitor,
                                 isExpanded: true,
                                 page: $compactDiskSpacePage,
+                                onOpenDiskSpace: openDiskSpaceWindow,
                                 onOpenCaches: { openCleanerTab(.developer) }
                             )
                         case .overview:
@@ -850,6 +858,7 @@ struct MainView: View {
                                 diskMonitor: diskMonitor,
                                 isExpanded: false,
                                 page: $compactDiskSpacePage,
+                                onOpenDiskSpace: openDiskSpaceWindow,
                                 onOpenCaches: { openCleanerTab(.developer) }
                             )
                         case .overview:
