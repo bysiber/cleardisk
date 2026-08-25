@@ -58,19 +58,61 @@ final class CleanupSafetyTests: XCTestCase {
         let appDefinitions = monitor.appCacheDefinitions()
         let developerPaths = Set(monitor.allCachePaths().map(\.path))
         let appPaths = Set(appDefinitions.map(\.path))
-        let cacheRoot = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Caches", isDirectory: true)
-            .path + "/"
 
         XCTAssertFalse(appDefinitions.isEmpty)
         XCTAssertTrue(appDefinitions.allSatisfy { $0.section == .app })
-        XCTAssertTrue(appDefinitions.allSatisfy { $0.riskLevel == "safe" })
-        XCTAssertTrue(appDefinitions.allSatisfy { $0.path.hasPrefix(cacheRoot) })
+        XCTAssertTrue(appDefinitions.allSatisfy { ["safe", "caution"].contains($0.riskLevel) })
         XCTAssertTrue(developerPaths.isDisjoint(with: appPaths))
     }
 
     func testAppCacheRegistryIncludesMajorBrowsers() {
-        let names = Set(DiskMonitor().appCacheDefinitions().map(\.name))
+        let definitions = DiskMonitor().appCacheDefinitions()
+        let names = Set(definitions.map(\.name))
         XCTAssertTrue(names.isSuperset(of: ["Google Chrome", "Firefox", "Safari"]))
+
+        for browser in definitions.filter({ ["Google Chrome", "Firefox", "Safari"].contains($0.name) }) {
+            XCTAssertEqual(browser.riskLevel, "safe")
+            XCTAssertTrue(browser.safetyDetails?.keeps.localizedCaseInsensitiveContains("cookies") == true)
+            XCTAssertTrue(browser.safetyDetails?.keeps.localizedCaseInsensitiveContains("extensions") == true)
+        }
+    }
+
+    func testApplicationSupportTargetsAreExactCacheSubdirectories() {
+        let definitions = DiskMonitor().appCacheDefinitions()
+        let applicationSupportPaths = definitions.map(\.path).filter { $0.contains("/Library/Application Support/") }
+        let allowedLeafNames = Set(["Cache", "Code Cache", "GPUCache", "htmlcache"])
+
+        XCTAssertFalse(applicationSupportPaths.isEmpty)
+        for path in applicationSupportPaths {
+            XCTAssertTrue(
+                allowedLeafNames.contains((path as NSString).lastPathComponent),
+                "Application Support targets must be exact cache subdirectories: \(path)"
+            )
+        }
+    }
+
+    func testAppCacheTargetsNeverOverlap() {
+        let paths = DiskMonitor().appCacheDefinitions().map(\.path)
+        for (index, path) in paths.enumerated() {
+            for other in paths.dropFirst(index + 1) {
+                XCTAssertFalse(
+                    path.hasPrefix(other + "/") || other.hasPrefix(path + "/"),
+                    "Overlapping targets could count or clean the same files twice: \(path), \(other)"
+                )
+            }
+        }
+    }
+
+    func testSparkleDownloadsRequireReview() throws {
+        let fm = FileManager.default
+        let temporaryHome = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sparkle = temporaryHome.appendingPathComponent("Library/Caches/com.example.app/org.sparkle-project.Sparkle", isDirectory: true)
+        try fm.createDirectory(at: sparkle, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: temporaryHome) }
+
+        let definition = AppCacheCatalog.definitions(home: temporaryHome.path)
+            .first { $0.path == sparkle.path }
+        XCTAssertEqual(definition?.riskLevel, "caution")
+        XCTAssertTrue(definition?.safetyDetails?.note.localizedCaseInsensitiveContains("review") == true)
     }
 }

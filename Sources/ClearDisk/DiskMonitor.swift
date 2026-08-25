@@ -262,13 +262,14 @@ class DiskMonitor: ObservableObject {
     }
     
     private func calculateCleanable() {
-        let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
-        let safeDevTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
-        let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        // `devCaches` is the legacy published name; it now contains both app and developer caches.
+        let cacheTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
+        let safeCacheTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+        let riskyCacheTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = trashSizeBytes
-        totalCleanable = devTotal + trashTotal
-        safeCleanable = safeDevTotal + trashTotal
-        riskyCleanable = riskyDevTotal
+        totalCleanable = cacheTotal + trashTotal
+        safeCleanable = safeCacheTotal + trashTotal
+        riskyCleanable = riskyCacheTotal
     }
     
     // MARK: - Storage Forecast
@@ -722,7 +723,7 @@ class DiskMonitor: ObservableObject {
     }
 
     func appCacheDefinitions() -> [CachePathDefinition] {
-        AppCacheCatalog.definitions()
+        AppCacheCatalog.definitions(excludingPaths: Set(allCachePaths().map(\.path)))
     }
 
     func developerCacheDefinitions() -> [CachePathDefinition] {
@@ -734,13 +735,16 @@ class DiskMonitor: ObservableObject {
                 riskLevel: entry.riskLevel,
                 group: entry.group,
                 section: .developer,
-                description: DiskMonitor.cacheDescriptions[entry.name] ?? ""
+                description: DiskMonitor.cacheDescriptions[entry.name] ?? "",
+                safetyDetails: nil
             )
         }
     }
 
     func allKnownCacheDefinitions() -> [CachePathDefinition] {
-        appCacheDefinitions() + developerCacheDefinitions()
+        let developerDefinitions = developerCacheDefinitions()
+        let appDefinitions = AppCacheCatalog.definitions(excludingPaths: Set(developerDefinitions.map(\.path)))
+        return appDefinitions + developerDefinitions
     }
 
     func knownCachePaths() -> [(String, String)] {
@@ -783,6 +787,7 @@ class DiskMonitor: ObservableObject {
                     cacheDescription: entry.description,
                     group: entry.group,
                     section: entry.section,
+                    safetyDetails: entry.safetyDetails,
                     detail: detail
                 ))
             }
@@ -1397,6 +1402,7 @@ struct DevCache: Identifiable {
     let cacheDescription: String // human-readable "what is this?"
     let group: String? // grouping key: "Xcode", "VS Code", "AI Tools", "Ruby", or nil
     let section: CacheSection
+    let safetyDetails: CacheSafetyDetails?
     var detail: String? // optional extra detail (e.g. DerivedData project list)
 
     init(
@@ -1411,6 +1417,7 @@ struct DevCache: Identifiable {
         cacheDescription: String,
         group: String?,
         section: CacheSection = .developer,
+        safetyDetails: CacheSafetyDetails? = nil,
         detail: String? = nil
     ) {
         self.name = name
@@ -1424,6 +1431,7 @@ struct DevCache: Identifiable {
         self.cacheDescription = cacheDescription
         self.group = group
         self.section = section
+        self.safetyDetails = safetyDetails
         self.detail = detail
     }
     
@@ -1438,7 +1446,8 @@ struct DevCache: Identifiable {
     
     var riskDescription: String {
         switch riskLevel {
-        case "safe" where section == .app: return "Safe cache — the app recreates it automatically"
+        case "safe" where section == .app: return "Verified cache-only path — profile and user data stay untouched"
+        case "caution" where section == .app: return "Review — may contain app-specific state or require a large re-download"
         case "safe": return "Safe — can be rebuilt with a command"
         case "caution": return "Caution — may need large re-download"
         case "risky": return "Risky — may contain irreplaceable data"

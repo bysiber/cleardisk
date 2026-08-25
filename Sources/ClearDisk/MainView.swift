@@ -159,7 +159,10 @@ struct MainView: View {
                 let xcodeWarning = (cache.name.hasPrefix("Xcode") || cache.name == "Swift PM Cache") && diskMonitor.isXcodeRunning()
                     ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
                     : ""
-                Text("Delete all contents of \(cache.name)?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(xcodeWarning)")
+                let impact = cache.safetyDetails.map {
+                    "\n\nRemoves: \($0.removes)\nKeeps: \($0.keeps)\n\($0.note)"
+                } ?? ""
+                Text("Delete all contents of \(cache.name)?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(impact)\(xcodeWarning)")
             }
         }
         .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
@@ -178,7 +181,7 @@ struct MainView: View {
             let xcodeWarning = diskMonitor.isXcodeRunning()
                 ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
                 : ""
-            Text("Clean \(safeCaches.count) safe caches?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\n🟡 Caution and 🔴 risky caches are NOT included — select those individually.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
+            Text("Clean \(safeCaches.count) verified cache locations?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
         }
 
         let cleanupAlerts = cacheAlerts
@@ -826,8 +829,7 @@ struct MainView: View {
                     // Cleanable summary card (only when there's stuff to clean)
                     let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
                     if selectedTab != .diskSpace &&
-                        (diskMonitor.safeCleanable > 10_485_760 ||
-                         diskMonitor.riskyCleanable > 10_485_760 ||
+                        (diskMonitor.totalCleanable > 10_485_760 ||
                          artifactTotal > 10_485_760) {
                         cleanableSummary
                         Divider()
@@ -893,12 +895,13 @@ struct MainView: View {
     
     // MARK: - Cleanable Summary (Hero Card)
     var cleanableSummary: some View {
-        let safeDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
-        let cautionDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "caution" }.reduce(Int64(0)) { $0 + $1.size }
-        let riskyDevTotal = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let safeAppTotal = diskMonitor.devCaches.filter { $0.section == .app && $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+        let safeDeveloperTotal = diskMonitor.devCaches.filter { $0.section == .developer && $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+        let cautionCacheTotal = diskMonitor.devCaches.filter { $0.riskLevel == "caution" }.reduce(Int64(0)) { $0 + $1.size }
+        let riskyCacheTotal = diskMonitor.devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
         let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = diskMonitor.trashSizeBytes
-        let grandTotal = safeDevTotal + cautionDevTotal + riskyDevTotal + artifactTotal + trashTotal
+        let grandTotal = safeAppTotal + safeDeveloperTotal + cautionCacheTotal + riskyCacheTotal + artifactTotal + trashTotal
         
         return VStack(spacing: 8) {
             // Big total number
@@ -909,7 +912,7 @@ struct MainView: View {
                 Spacer()
             }
             
-            Text("reclaimable space found")
+            Text("potentially reclaimable space found")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -919,20 +922,30 @@ struct MainView: View {
                 GeometryReader { geo in
                     HStack(spacing: 1) {
                         let w = geo.size.width
-                        if safeDevTotal > 0 {
+                        if safeAppTotal > 0 {
                             RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.green)
-                                .frame(width: max(3, w * CGFloat(safeDevTotal) / CGFloat(grandTotal)))
+                                .fill(Color.blue)
+                                .frame(width: max(3, w * CGFloat(safeAppTotal) / CGFloat(grandTotal)))
+                        }
+                        if safeDeveloperTotal > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.purple)
+                                .frame(width: max(3, w * CGFloat(safeDeveloperTotal) / CGFloat(grandTotal)))
+                        }
+                        if cautionCacheTotal > 0 {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.orange)
+                                .frame(width: max(3, w * CGFloat(cautionCacheTotal) / CGFloat(grandTotal)))
                         }
                         if artifactTotal > 0 {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.cyan)
                                 .frame(width: max(3, w * CGFloat(artifactTotal) / CGFloat(grandTotal)))
                         }
-                        if riskyDevTotal > 0 {
+                        if riskyCacheTotal > 0 {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.red.opacity(0.7))
-                                .frame(width: max(3, w * CGFloat(riskyDevTotal) / CGFloat(grandTotal)))
+                                .frame(width: max(3, w * CGFloat(riskyCacheTotal) / CGFloat(grandTotal)))
                         }
                         if trashTotal > 0 {
                             RoundedRectangle(cornerRadius: 3)
@@ -947,10 +960,26 @@ struct MainView: View {
             
             // Legend
             HStack(spacing: 12) {
-                if safeDevTotal > 0 {
+                if safeAppTotal > 0 {
                     HStack(spacing: 4) {
-                        Circle().fill(.green).frame(width: 6, height: 6)
-                        Text("\(formatBytes(safeDevTotal)) safe")
+                        Circle().fill(.blue).frame(width: 6, height: 6)
+                        Text("\(formatBytes(safeAppTotal)) apps")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if safeDeveloperTotal > 0 {
+                    HStack(spacing: 4) {
+                        Circle().fill(.purple).frame(width: 6, height: 6)
+                        Text("\(formatBytes(safeDeveloperTotal)) developer")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if cautionCacheTotal > 0 {
+                    HStack(spacing: 4) {
+                        Circle().fill(.orange).frame(width: 6, height: 6)
+                        Text("\(formatBytes(cautionCacheTotal)) review")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -963,10 +992,10 @@ struct MainView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                if riskyDevTotal > 0 {
+                if riskyCacheTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.red.opacity(0.7)).frame(width: 6, height: 6)
-                        Text("\(formatBytes(riskyDevTotal)) risky")
+                        Text("\(formatBytes(riskyCacheTotal)) risky")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -984,8 +1013,8 @@ struct MainView: View {
             
             // Action buttons
             HStack(spacing: 8) {
-                let devTotal = safeDevTotal + riskyDevTotal
-                if devTotal > 0 {
+                let cacheTotal = safeAppTotal + safeDeveloperTotal + cautionCacheTotal + riskyCacheTotal
+                if cacheTotal > 0 {
                     Button(action: {
                         activeScreen = .cleanCaches
                     }) {
@@ -1423,6 +1452,10 @@ struct MainView: View {
         case "Browsers": return "globe"
         case "Communication": return "bubble.left.and.bubble.right.fill"
         case "Media & Games": return "play.rectangle.fill"
+        case "Productivity": return "square.grid.2x2.fill"
+        case "Creative Apps": return "paintbrush.fill"
+        case "App Updates": return "arrow.down.app.fill"
+        case "Other Installed Apps": return "app.dashed"
         default: return "folder.fill"
         }
     }
@@ -1431,7 +1464,7 @@ struct MainView: View {
         let appCaches = diskMonitor.devCaches.filter { $0.section == .app }
         let developerCaches = diskMonitor.devCaches.filter { $0.section == .developer }
 
-        return VStack(spacing: 10) {
+        return VStack(spacing: 12) {
             if diskMonitor.devCaches.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
@@ -1447,12 +1480,8 @@ struct MainView: View {
                 .padding(.top, 40)
             } else {
                 if !appCaches.isEmpty {
+                    cachePrivacyBanner
                     cacheSection(.app, caches: appCaches, accent: .blue)
-                }
-
-                if !appCaches.isEmpty && !developerCaches.isEmpty {
-                    Divider()
-                        .padding(.horizontal, 8)
                 }
 
                 if !developerCaches.isEmpty {
@@ -1460,38 +1489,80 @@ struct MainView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+    }
+
+    private var cachePrivacyBanner: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.green)
+                .frame(width: 30, height: 30)
+                .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Profiles stay untouched")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Only listed cache paths are scanned. Logins, cookies, extensions, documents, and app data are excluded.")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color.green.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.green.opacity(0.14), lineWidth: 1)
+        }
     }
 
     @ViewBuilder
     private func cacheSection(_ section: CacheSection, caches: [DevCache], accent: Color) -> some View {
         let total = caches.reduce(Int64(0)) { $0 + $1.size }
+        let safeCount = caches.filter { $0.riskLevel == "safe" }.count
+        let reviewCount = caches.count - safeCount
 
-        VStack(spacing: 2) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(section.title)
-                            .font(.system(size: 12, weight: .semibold))
-                        Text(section.badge)
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(accent)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(accent.opacity(0.10), in: Capsule())
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: section == .app ? "app.badge.checkmark.fill" : "hammer.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 34, height: 34)
+                    .background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(section.title)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(section.subtitle)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    HStack(spacing: 7) {
+                        if safeCount > 0 {
+                            cacheStatusLabel("\(safeCount) safe", color: .green)
+                        }
+                        if reviewCount > 0 {
+                            cacheStatusLabel("\(reviewCount) review", color: .orange)
+                        }
                     }
-                    Text("\(caches.count) locations found")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text(formatBytes(total))
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundStyle(accent)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(formatBytes(total))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(accent)
+                    Text("\(caches.count) locations")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(accent.opacity(0.045))
+            .padding(11)
+
+            Divider()
+                .padding(.horizontal, 10)
 
             ForEach(Array(groupedCaches(caches).enumerated()), id: \.offset) { _, entry in
                 if let groupName = entry.key {
@@ -1501,13 +1572,26 @@ struct MainView: View {
                         section: section,
                         accent: accent
                     )
-                    .padding(.bottom, 4)
                 } else {
                     ForEach(entry.caches) { cache in
                         cacheRow(cache, accent: accent)
                     }
                 }
             }
+        }
+        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        }
+    }
+
+    private func cacheStatusLabel(_ text: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Circle().fill(color).frame(width: 5, height: 5)
+            Text(text)
+                .font(.system(size: 8.5, weight: .medium))
+                .foregroundStyle(.secondary)
         }
     }
     
@@ -1525,7 +1609,6 @@ struct MainView: View {
         let preview = topNames.joined(separator: ", ")
         
         return VStack(spacing: 0) {
-            // Group header row - entire row is clickable
             HStack(spacing: 6) {
                 HStack(spacing: 6) {
                     Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
@@ -1542,10 +1625,10 @@ struct MainView: View {
                                 .font(.system(size: 12, weight: .semibold))
                             Text("\(caches.count)")
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
+                                .foregroundColor(accent)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 1)
-                                .background(Capsule().fill(accent.opacity(0.6)))
+                                .background(Capsule().fill(accent.opacity(0.10)))
                         }
                         if !isGroupExpanded {
                             Text(preview)
@@ -1560,7 +1643,7 @@ struct MainView: View {
                 
                 Text(formatBytes(totalSize))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(accent.opacity(0.8))
+                    .foregroundColor(.primary.opacity(0.75))
                 
                 // Clean entire group
                 Button(action: {
@@ -1589,12 +1672,8 @@ struct MainView: View {
                 .help("Show in Finder")
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(accent.opacity(0.05))
-            )
-            .padding(.horizontal, 4)
+            .padding(.vertical, 9)
+            .background(isGroupExpanded ? accent.opacity(0.045) : Color.clear)
             .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -1606,39 +1685,39 @@ struct MainView: View {
                 }
             }
             
-            // Expanded child items
             if isGroupExpanded {
                 VStack(spacing: 0) {
                     ForEach(caches) { cache in
                         cacheRow(cache, accent: accent)
                     }
                 }
-                .padding(.leading, 20)
+                .padding(.leading, 14)
                 .overlay(alignment: .leading) {
                     Rectangle()
                         .fill(accent.opacity(0.2))
                         .frame(width: 2)
-                        .padding(.leading, 16)
+                        .padding(.leading, 10)
                         .padding(.vertical, 4)
                 }
             }
+
+            Divider()
+                .padding(.leading, 42)
         }
     }
     
     func cacheRow(_ cache: DevCache, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: cache.icon)
-                    .font(.system(size: 14))
-                    .frame(width: 24)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 28, height: 28)
                     .foregroundColor(accent)
-                VStack(alignment: .leading, spacing: 1) {
+                    .background(accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 7))
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(cache.riskEmoji)
-                            .font(.system(size: 10))
-                            .help(cache.riskDescription)
                         Text(cache.name)
-                            .font(.system(size: 12))
+                            .font(.system(size: 11.5, weight: .medium))
                         if let days = cache.daysSinceAccess {
                             Text("\(days)d ago")
                                 .font(.system(size: 9))
@@ -1651,18 +1730,17 @@ struct MainView: View {
                                 )
                         }
                     }
-                    // Cache description tooltip on the path line
-                    Text(cache.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                    Text(cache.cacheDescription)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(cache.cacheDescription)
                 }
                 Spacer()
-                Text(formatBytes(cache.size))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(formatBytes(cache.size))
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    cacheRiskPill(cache)
+                }
                 Button(action: {
                     cacheToClean = cache
                     showCleanConfirm = true
@@ -1691,15 +1769,27 @@ struct MainView: View {
                 .foregroundColor(.blue)
                 .help("Show in Finder")
             }
-            
-            // Description line (subtle, always visible)
-            if !cache.cacheDescription.isEmpty {
-                Text(cache.cacheDescription)
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary.opacity(0.7))
-                    .padding(.leading, 36)
-                    .padding(.top, 1)
+
+            HStack(spacing: 4) {
+                Image(systemName: "folder")
+                    .font(.system(size: 8))
+                Text(cache.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
                     .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .font(.system(size: 8.5))
+            .foregroundStyle(.tertiary)
+            .padding(.leading, 36)
+
+            if let impact = cache.safetyDetails {
+                VStack(alignment: .leading, spacing: 3) {
+                    cacheImpactLine(icon: "minus.circle.fill", color: .orange, title: "Removes", text: impact.removes)
+                    cacheImpactLine(icon: "checkmark.shield.fill", color: .green, title: "Keeps", text: impact.keeps)
+                    cacheImpactLine(icon: "info.circle.fill", color: .blue, title: "Before cleaning", text: impact.note)
+                }
+                .padding(7)
+                .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
+                .padding(.leading, 36)
             }
             
             // DerivedData project breakdown
@@ -1715,7 +1805,6 @@ struct MainView: View {
                         .truncationMode(.tail)
                 }
                 .padding(.leading, 36)
-                .padding(.top, 1)
             }
             
             // Smart suggestion
@@ -1724,11 +1813,38 @@ struct MainView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.orange)
                     .padding(.leading, 36)
-                    .padding(.top, 2)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 5)
+        .padding(.vertical, 8)
+    }
+
+    private func cacheRiskPill(_ cache: DevCache) -> some View {
+        let color: Color = cache.riskLevel == "safe" ? .green : cache.riskLevel == "caution" ? .orange : .red
+        let label = cache.riskLevel == "safe" ? "SAFE" : cache.riskLevel == "caution" ? "REVIEW" : "RISKY"
+        return Text(label)
+            .font(.system(size: 7.5, weight: .bold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.10), in: Capsule())
+            .help(cache.riskDescription)
+    }
+
+    private func cacheImpactLine(icon: String, color: Color, title: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+                .foregroundStyle(color)
+                .frame(width: 10)
+            Text("\(title):")
+                .font(.system(size: 8.5, weight: .semibold))
+            Text(text)
+                .font(.system(size: 8.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
     }
     
     // MARK: - Projects Tab (kondo-style artifact scanner)
@@ -2338,7 +2454,7 @@ struct MainView: View {
                     cacheCleanMode = .safe
                     selectedCacheIDs = []
                 }) {
-                    Text("Safe")
+                    Text("Verified")
                         .font(.system(size: 10, weight: cacheCleanMode == .safe ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .safe ? .green : .secondary)
                         .padding(.horizontal, 8)
@@ -2353,7 +2469,7 @@ struct MainView: View {
                     cacheCleanMode = .moderate
                     selectedCacheIDs = []
                 }) {
-                    Text("Moderate")
+                    Text("No Risky")
                         .font(.system(size: 10, weight: cacheCleanMode == .moderate ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .moderate ? .orange : .secondary)
                         .padding(.horizontal, 8)
@@ -2368,7 +2484,7 @@ struct MainView: View {
                     cacheCleanMode = .everything
                     selectedCacheIDs = []
                 }) {
-                    Text("Everything")
+                    Text("All")
                         .font(.system(size: 10, weight: cacheCleanMode == .everything ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .everything ? .red : .secondary)
                         .padding(.horizontal, 8)
@@ -2402,7 +2518,7 @@ struct MainView: View {
             
             // Cache list with checkboxes
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(spacing: 6) {
                     if cachesToShow.isEmpty {
                         VStack(spacing: 8) {
                             Image(systemName: "externaldrive.badge.checkmark")
@@ -2428,30 +2544,54 @@ struct MainView: View {
                                         .font(.system(size: 14))
                                         .foregroundColor(isSelected ? .accentColor : .secondary.opacity(0.5))
                                     
-                                    Circle()
-                                        .fill(cache.riskLevel == "risky" ? Color.red : cache.riskLevel == "caution" ? Color.yellow : Color.green)
-                                        .frame(width: 8, height: 8)
+                                    Image(systemName: cache.icon)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(cache.section == .app ? Color.blue : Color.purple)
+                                        .frame(width: 27, height: 27)
+                                        .background((cache.section == .app ? Color.blue : Color.purple).opacity(0.09), in: RoundedRectangle(cornerRadius: 7))
                                     
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text(cache.name)
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundColor(.primary)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        HStack(spacing: 5) {
+                                            Text(cache.name)
+                                                .font(.system(size: 11.5, weight: .medium))
+                                                .foregroundColor(.primary)
+                                            Text(cache.section == .app ? "APP" : "DEV")
+                                                .font(.system(size: 7, weight: .bold))
+                                                .foregroundStyle(cache.section == .app ? Color.blue : Color.purple)
+                                        }
                                         Text(cache.cacheDescription)
-                                            .font(.system(size: 10))
+                                            .font(.system(size: 9.5))
                                             .foregroundColor(.secondary)
                                             .lineLimit(1)
+                                        if let impact = cache.safetyDetails {
+                                            HStack(spacing: 3) {
+                                                Image(systemName: "checkmark.shield.fill")
+                                                    .foregroundStyle(.green)
+                                                Text("Keeps: \(impact.keeps)")
+                                                    .lineLimit(1)
+                                            }
+                                            .font(.system(size: 8.5))
+                                            .foregroundStyle(.secondary)
+                                        }
                                     }
                                     
                                     Spacer()
-                                    
-                                    Text(formatBytes(cache.size))
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundColor(.secondary)
+
+                                    VStack(alignment: .trailing, spacing: 3) {
+                                        Text(formatBytes(cache.size))
+                                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                            .foregroundColor(.secondary)
+                                        cacheRiskPill(cache)
+                                    }
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
                                 .contentShape(Rectangle())
-                                .background(isSelected ? Color.accentColor.opacity(0.04) : Color.clear)
+                                .background(isSelected ? Color.accentColor.opacity(0.07) : Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 9))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 9)
+                                        .stroke(isSelected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06), lineWidth: 1)
+                                }
                             }
                             .buttonStyle(.plain)
                         }
@@ -2488,6 +2628,7 @@ struct MainView: View {
                         }
                     }
                 }
+                .padding(8)
             }
             .frame(maxHeight: .infinity)
             
