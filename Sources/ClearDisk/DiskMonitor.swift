@@ -10,6 +10,8 @@ class DiskMonitor: ObservableObject {
     @Published var usedPercentage: Int = 0
     @Published var categories: [DiskCategory] = []
     @Published var devCaches: [DevCache] = []
+    @Published var isScanningCaches: Bool = false
+    @Published var hasCompletedCacheScan: Bool = false
     @Published var largeFiles: [LargeFile] = []
     @Published var projectArtifacts: [ProjectArtifact] = [] // stale node_modules, target/, build/ etc.
     @Published var trashSizeBytes: Int64 = 0
@@ -164,9 +166,10 @@ class DiskMonitor: ObservableObject {
     }
     
     private var isScanInProgress = false
+    private var isCacheScanInProgress = false
     
     func scan() {
-        guard !isScanInProgress else { return } // Prevent concurrent scans
+        guard !isScanInProgress, !isCacheScanInProgress else { return } // Prevent concurrent scans
         isScanInProgress = true
         isScanning = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -195,6 +198,7 @@ class DiskMonitor: ObservableObject {
                 self?.isScanInProgress = false
                 self?.inaccessiblePaths = inaccessible
                 self?.hasCompletedFirstScan = true
+                self?.hasCompletedCacheScan = true
                 self?.lastFullScanAt = Date()
                 self?.trashSizeBytes = trashBytes
                 self?.calculateCleanable()
@@ -202,6 +206,27 @@ class DiskMonitor: ObservableObject {
                 self?.calculateForecast()
                 self?.checkThresholdNotification()
                 self?.checkNotificationStatus()
+            }
+        }
+    }
+
+    /// Refresh only the known cache locations shown in the Caches tab. This avoids making the
+    /// cache screen's "Scan All" button crawl projects and unrelated large-file locations.
+    func scanCaches() {
+        guard !isScanInProgress, !isCacheScanInProgress else { return }
+        isCacheScanInProgress = true
+        isScanningCaches = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.scanDevCaches()
+
+            // scanDevCaches enqueues its published result on the main queue. This completion is
+            // enqueued immediately after it, preserving the result-before-status ordering.
+            DispatchQueue.main.async { [weak self] in
+                self?.isCacheScanInProgress = false
+                self?.isScanningCaches = false
+                self?.hasCompletedCacheScan = true
+                self?.calculateCleanable()
             }
         }
     }

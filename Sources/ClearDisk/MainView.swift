@@ -758,22 +758,41 @@ struct MainView: View {
                             
                             Spacer()
                             
-                            if diskMonitor.isScanning {
+                            if diskMonitor.isScanning || diskMonitor.isScanningCaches {
                                 ProgressView()
                                     .scaleEffect(0.7)
                             }
-                            Button(action: { diskMonitor.scan() }) {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 12))
+
+                            if selectedTab == .developer {
+                                Button(action: { diskMonitor.scanCaches() }) {
+                                    Text("Scan All")
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .disabled(diskMonitor.isScanning || diskMonitor.isScanningCaches)
+                            } else {
+                                Button(action: { diskMonitor.scan() }) {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 12))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Refresh")
                             }
-                            .buttonStyle(.plain)
-                            .help("Refresh")
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     
                     Divider()
+
+                    if selectedTab == .developer {
+                        cacheStorageSummary
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+
+                        Divider()
+                    }
                     
                     ScrollView {
                         switch selectedTab {
@@ -817,7 +836,7 @@ struct MainView: View {
                     
                     // Cleanable summary card (only when there's stuff to clean)
                     let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
-                    if selectedTab != .diskSpace &&
+                    if selectedTab != .diskSpace && selectedTab != .developer &&
                         (diskMonitor.safeCleanable > 10_485_760 ||
                          diskMonitor.riskyCleanable > 10_485_760 ||
                          artifactTotal > 10_485_760) {
@@ -1030,7 +1049,7 @@ struct MainView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                 Spacer()
-                if diskMonitor.isScanning {
+                if diskMonitor.isScanning || diskMonitor.isScanningCaches {
                     ProgressView()
                         .scaleEffect(0.7)
                 }
@@ -1040,57 +1059,72 @@ struct MainView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
-                Button(action: { diskMonitor.scan() }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .help("Refresh")
-            }
-            
-            // Storage bar
-            storageBar
-            
-            HStack {
-                Text("\(formatBytes(diskMonitor.usedSpace)) used")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(formatBytes(diskMonitor.freeSpace)) free")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            // Storage forecast
-            if let days = diskMonitor.forecastDaysUntilFull {
-                HStack(spacing: 4) {
-                    Image(systemName: days <= 30 ? "exclamationmark.triangle.fill" : "clock.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(days <= 30 ? .red : .orange)
-                    if days <= 7 {
-                        Text("⚠️ Disk full in ~\(days) day\(days == 1 ? "" : "s")!")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.red)
-                    } else if days <= 30 {
-                        Text("Disk full in ~\(days) days at current rate")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                    } else {
-                        Text("~\(days) days until full (\(formatBytes(diskMonitor.dailyGrowthRate))/day)")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+
+                if selectedTab == .developer {
+                    Button(action: { diskMonitor.scanCaches() }) {
+                        Label("Scan All", systemImage: "magnifyingglass")
+                            .font(.system(size: 10, weight: .semibold))
                     }
-                    Spacer()
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(diskMonitor.isScanning || diskMonitor.isScanningCaches)
+                    .help("Scan all known cache locations")
+                } else {
+                    Button(action: { diskMonitor.scan() }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh")
                 }
-            } else if diskMonitor.historySpanDays < 1 {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    Text("Forecast: collecting data... (\(diskMonitor.historyDataPointCount) snapshot\(diskMonitor.historyDataPointCount == 1 ? "" : "s"))")
-                        .font(.system(size: 10))
+            }
+
+            if selectedTab == .developer {
+                cacheStorageSummary
+            } else {
+                storageBar
+
+                HStack {
+                    Text("\(formatBytes(diskMonitor.usedSpace)) used")
+                        .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
+                    Text("\(formatBytes(diskMonitor.freeSpace)) free")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Storage forecast
+                if let days = diskMonitor.forecastDaysUntilFull {
+                    HStack(spacing: 4) {
+                        Image(systemName: days <= 30 ? "exclamationmark.triangle.fill" : "clock.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(days <= 30 ? .red : .orange)
+                        if days <= 7 {
+                            Text("⚠️ Disk full in ~\(days) day\(days == 1 ? "" : "s")!")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.red)
+                        } else if days <= 30 {
+                            Text("Disk full in ~\(days) days at current rate")
+                                .font(.system(size: 11))
+                                .foregroundColor(.orange)
+                        } else {
+                            Text("~\(days) days until full (\(formatBytes(diskMonitor.dailyGrowthRate))/day)")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                } else if diskMonitor.historySpanDays < 1 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                        Text("Forecast: collecting data... (\(diskMonitor.historyDataPointCount) snapshot\(diskMonitor.historyDataPointCount == 1 ? "" : "s"))")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
                 }
             }
         }
@@ -1382,6 +1416,93 @@ struct MainView: View {
         .background(Color.primary.opacity(0.02))
         .cornerRadius(8)
     }
+
+    private var cacheStorageSummary: some View {
+        let total = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
+        let breakdown = cacheStorageBreakdown
+        let scanHasResult = diskMonitor.hasCompletedCacheScan && total > 0
+
+        return VStack(spacing: 8) {
+            GeometryReader { geometry in
+                if scanHasResult {
+                    HStack(spacing: 1) {
+                        ForEach(Array(breakdown.enumerated()), id: \.offset) { _, segment in
+                            Rectangle()
+                                .fill(segment.color)
+                                .frame(
+                                    width: max(
+                                        3,
+                                        geometry.size.width * CGFloat(segment.size) / CGFloat(total)
+                                    )
+                                )
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.gray.opacity(0.20))
+                        .overlay {
+                            Text(diskMonitor.isScanningCaches || diskMonitor.isScanning ? "Scanning caches…" : "Not scanned yet")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                }
+            }
+            .frame(height: 24)
+
+            if scanHasResult {
+                HStack(spacing: 9) {
+                    ForEach(Array(breakdown.enumerated()), id: \.offset) { _, segment in
+                        HStack(spacing: 3) {
+                            Circle()
+                                .fill(segment.color)
+                                .frame(width: 6, height: 6)
+                            Text("\(Int((Double(segment.size) / Double(total) * 100).rounded()))% \(segment.name)")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Text(formatBytes(total))
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack {
+                    Text(diskMonitor.isScanningCaches || diskMonitor.isScanning ? "Checking all known cache locations" : "Run a scan to measure cache usage")
+                    Spacer()
+                    Text("Caches")
+                }
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var cacheStorageBreakdown: [(name: String, size: Int64, color: Color)] {
+        var totals: [String: Int64] = [:]
+        for cache in diskMonitor.devCaches {
+            totals[cache.group ?? "Other", default: 0] += cache.size
+        }
+
+        let sorted = totals.sorted { lhs, rhs in
+            if lhs.value == rhs.value { return lhs.key < rhs.key }
+            return lhs.value > rhs.value
+        }
+        let leading = Array(sorted.prefix(2))
+        let remainder = sorted.dropFirst(2).reduce(Int64(0)) { $0 + $1.value }
+        let colors: [Color] = [.purple, .blue, .cyan]
+
+        var result = leading.enumerated().map { index, entry in
+            (name: entry.key, size: entry.value, color: colors[index])
+        }
+        if remainder > 0 {
+            result.append((name: "Other", size: remainder, color: colors[2]))
+        }
+        return result
+    }
     
     // MARK: - Developer Tab
     
@@ -1420,7 +1541,27 @@ struct MainView: View {
     
     var developerContent: some View {
         VStack(spacing: 2) {
-            if diskMonitor.devCaches.isEmpty {
+            if !diskMonitor.hasCompletedCacheScan && diskMonitor.devCaches.isEmpty {
+                VStack(spacing: 8) {
+                    if diskMonitor.isScanningCaches || diskMonitor.isScanning {
+                        ProgressView()
+                            .controlSize(.regular)
+                    } else {
+                        Image(systemName: "archivebox")
+                            .font(.system(size: 30))
+                            .foregroundColor(.secondary)
+                    }
+                    Text(diskMonitor.isScanningCaches || diskMonitor.isScanning ? "Scanning caches…" : "Not scanned yet")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Scan all known cache locations to see what can be reclaimed.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
+                .padding(.top, 40)
+            } else if diskMonitor.devCaches.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 32))
@@ -1434,11 +1575,10 @@ struct MainView: View {
                 }
                 .padding(.top, 40)
             } else {
-                let totalDev = diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size }
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text("Caches")
+                            Text("Cache Locations")
                                 .font(.system(size: 12, weight: .semibold))
                             Text("DEVELOPER")
                                 .font(.system(size: 8, weight: .bold))
@@ -1452,9 +1592,9 @@ struct MainView: View {
                             .foregroundColor(.secondary)
                     }
                     Spacer()
-                    Text(formatBytes(totalDev))
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .foregroundColor(.purple)
+                    Text("\(diskMonitor.devCaches.count)")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

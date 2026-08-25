@@ -59,12 +59,15 @@ struct DiskSpaceTreemapView: View {
                         hoveredTileID = point.flatMap { tile(at: $0, in: tiles)?.id }
                     },
                     onClick: { point, clickCount in
+                        // The first mouse-up opens a folder. Ignore the second mouse-up of a
+                        // traditional double-click so it cannot accidentally open two levels.
+                        guard clickCount == 1 else { return }
                         guard let tile = tile(at: point, in: tiles) else {
                             onSelect(nil)
                             return
                         }
                         guard let nodeID = tile.nodeID else { return }
-                        if clickCount >= 2, tile.isDirectory {
+                        if tile.isDirectory {
                             onOpen(nodeID)
                         } else {
                             onSelect(nodeID)
@@ -90,7 +93,7 @@ struct DiskSpaceTreemapView: View {
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Disk usage treemap")
-            .accessibilityHint("Click an item to select it. Double-click a folder to open it.")
+            .accessibilityHint("Click a folder to open it, or click a file to select it.")
         }
     }
 

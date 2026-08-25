@@ -460,31 +460,36 @@ struct DiskSpaceCompactView: View {
             }
 
             let favorites = store.locations.filter { $0.kind == .favorite }
-            if !favorites.isEmpty {
-                Text("QUICK LOCATIONS")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .tracking(0.6)
+            Text("QUICK LOCATIONS")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.6)
 
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 8),
-                        GridItem(.flexible(), spacing: 8)
-                    ],
-                    spacing: 8
-                ) {
-                    ForEach(favorites) { location in
-                        DiskSpaceQuickLocationCard(
-                            location: location,
-                            scannedNode: store.node(forLocationID: location.id),
-                            isScanning: store.phase == .scanning &&
-                                store.selectedLocationID == location.id,
-                            isDisabled: store.phase == .scanning &&
-                                store.selectedLocationID != location.id,
-                            action: { openLocation(location) }
-                        )
-                    }
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8)
+                ],
+                spacing: 8
+            ) {
+                ForEach(favorites) { location in
+                    DiskSpaceQuickLocationCard(
+                        location: location,
+                        scannedNode: store.node(forLocationID: location.id),
+                        isScanning: store.phase == .scanning &&
+                            store.selectedLocationID == location.id,
+                        isDisabled: store.phase == .scanning &&
+                            store.selectedLocationID != location.id,
+                        action: { openLocation(location) }
+                    )
                 }
+
+                DiskSpaceCachesLocationCard(
+                    hasScanned: diskMonitor.hasCompletedCacheScan,
+                    isScanning: diskMonitor.isScanningCaches || diskMonitor.isScanning,
+                    totalSize: diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size },
+                    action: onOpenCaches
+                )
             }
 
             let externalVolumes = store.locations.filter { $0.kind == .externalVolume }
@@ -513,17 +518,6 @@ struct DiskSpaceCompactView: View {
                 )
             }
 
-            Text("CLEANUP")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .tracking(0.6)
-                .padding(.top, 2)
-
-            DiskSpaceCachesLocationCard(
-                cacheCount: diskMonitor.devCaches.count,
-                totalSize: diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size },
-                action: onOpenCaches
-            )
         }
     }
 
@@ -917,7 +911,8 @@ private struct DiskSpaceMacLocationCard: View {
 }
 
 private struct DiskSpaceCachesLocationCard: View {
-    let cacheCount: Int
+    let hasScanned: Bool
+    let isScanning: Bool
     let totalSize: Int64
     let action: () -> Void
 
@@ -925,61 +920,51 @@ private struct DiskSpaceCachesLocationCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 11) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.purple.opacity(0.11))
-                    Image(systemName: "archivebox.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color.purple)
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.11))
+                        Image(systemName: "archivebox.fill")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.purple)
+                    }
+                    .frame(width: 30, height: 30)
+
+                    Spacer()
+
+                    if isScanning {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-                .frame(width: 34, height: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text("Caches")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("DEVELOPER")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundStyle(Color.purple)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.purple.opacity(0.10), in: Capsule())
-                    }
-                    Text(
-                        cacheCount == 0
-                            ? "No developer caches found"
-                            : "\(cacheCount) developer locations ready to review"
-                    )
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    Text("Caches")
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Text(statusText)
+                        .font(.system(size: 9))
+                        .foregroundStyle(hasScanned ? .secondary : .tertiary)
+                        .lineLimit(1)
                 }
-
-                Spacer(minLength: 5)
-
-                if totalSize > 0 {
-                    Text(formatBytes(totalSize))
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.tertiary)
             }
             .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 87, alignment: .leading)
             .background(
                 isHovered
-                    ? Color.purple.opacity(0.075)
+                    ? Color.accentColor.opacity(0.075)
                     : Color.primary.opacity(0.028),
                 in: RoundedRectangle(cornerRadius: 11, style: .continuous)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .strokeBorder(
-                        isHovered ? Color.purple.opacity(0.22) : Color.primary.opacity(0.07),
+                        isHovered ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.07),
                         lineWidth: 0.5
                     )
             }
@@ -988,6 +973,13 @@ private struct DiskSpaceCachesLocationCard: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .help("Review caches")
+    }
+
+    private var statusText: String {
+        if isScanning { return "Scanning…" }
+        if !hasScanned { return "Not scanned yet" }
+        if totalSize == 0 { return "No caches found" }
+        return formatBytes(totalSize)
     }
 }
 
