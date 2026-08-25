@@ -44,6 +44,7 @@ public nonisolated struct ScanBackendNode: Identifiable, Sendable {
     public let url: URL
     public let name: String
     public let childIDs: [String]
+    public let parentID: String?
     public let isDirectory: Bool
     public let isSymbolicLink: Bool
     public let isPackage: Bool
@@ -78,12 +79,72 @@ public nonisolated struct ScanBackendCapacity: Sendable {
 
 public nonisolated struct ScanBackendSnapshot: Sendable {
     public let rootID: String
-    public let nodes: [ScanBackendNode]
     public let warnings: [ScanBackendWarning]
     public let statistics: ScanBackendStatistics
     public let capacity: ScanBackendCapacity?
     public let startedAt: Date
     public let finishedAt: Date?
+
+    private let storage: ScanSnapshot
+
+    public var nodeCount: Int {
+        storage.treeStore.nodeCount
+    }
+
+    public var root: ScanBackendNode? {
+        node(id: rootID)
+    }
+
+    public func node(id: String) -> ScanBackendNode? {
+        guard let record = storage.treeStore.node(id: id) else { return nil }
+        return Self.export(record, from: storage.treeStore)
+    }
+
+    public func children(of nodeID: String) -> [ScanBackendNode] {
+        storage.treeStore.children(of: nodeID).map {
+            Self.export($0, from: storage.treeStore)
+        }
+    }
+
+    fileprivate init(
+        storage: ScanSnapshot,
+        warnings: [ScanBackendWarning],
+        statistics: ScanBackendStatistics,
+        capacity: ScanBackendCapacity?
+    ) {
+        self.rootID = storage.treeStore.rootID
+        self.warnings = warnings
+        self.statistics = statistics
+        self.capacity = capacity
+        self.startedAt = storage.startedAt
+        self.finishedAt = storage.finishedAt
+        self.storage = storage
+    }
+
+    private static func export(
+        _ node: FileNodeRecord,
+        from treeStore: FileTreeStore
+    ) -> ScanBackendNode {
+        ScanBackendNode(
+            id: node.id,
+            url: node.url,
+            name: node.name,
+            childIDs: treeStore.childIDs(of: node.id),
+            parentID: treeStore.parentID(of: node.id),
+            isDirectory: node.isDirectory,
+            isSymbolicLink: node.isSymbolicLink,
+            isPackage: node.isPackage,
+            isAccessible: node.isAccessible,
+            isSynthetic: node.isSynthetic,
+            wasSummarized: node.isAutoSummarized,
+            allocatedBytes: node.allocatedSize,
+            logicalBytes: node.logicalSize,
+            descendantFileCount: node.descendantFileCount,
+            lastModified: node.lastModified,
+            linkCount: node.linkCount,
+            mayShareAPFSBlocks: node.mayShareDataBlocks
+        )
+    }
 }
 
 public nonisolated enum ScanBackendEvent: Sendable {
@@ -92,13 +153,12 @@ public nonisolated enum ScanBackendEvent: Sendable {
     case completed(ScanBackendSnapshot)
 }
 
-@MainActor
 public final class FullDiskScannerBackend {
     private let engine = ScanEngine()
 
-    public init() {}
+    public nonisolated init() {}
 
-    public func scan(
+    public nonisolated func scan(
         options: ScanBackendScanOptions
     ) -> AsyncThrowingStream<ScanBackendEvent, Error> {
         let target = ScanTarget(url: options.rootURL)
@@ -111,17 +171,38 @@ public final class FullDiskScannerBackend {
         let source = engine.scan(target: target, options: scanOptions)
 
         return AsyncThrowingStream { continuation in
-            let task = Task {
+            let task = Task.detached(priority: .userInitiated) {
+                var latestProgress: ScanBackendProgress?
                 do {
                     for try await event in source {
                         switch event {
                         case .executionMode:
                             continue
                         case .progress(let metrics):
-                            continuation.yield(.progress(Self.makeProgress(metrics)))
+                            var mapped = Self.makeProgress(metrics)
+                            if mapped.fractionCompleted >= 1 {
+                                mapped = ScanBackendProgress(
+                                    filesVisited: mapped.filesVisited,
+                                    directoriesVisited: mapped.directoriesVisited,
+                                    bytesDiscovered: mapped.bytesDiscovered,
+                                    currentPath: "Preparing visualization…",
+                                    fractionCompleted: 0.99
+                                )
+                            }
+                            latestProgress = mapped
+                            continuation.yield(.progress(mapped))
                         case .warning(let warning):
                             continuation.yield(.warning(Self.makeWarning(warning)))
                         case .finished(let snapshot):
+                            if let latestProgress {
+                                continuation.yield(.progress(ScanBackendProgress(
+                                    filesVisited: latestProgress.filesVisited,
+                                    directoriesVisited: latestProgress.directoriesVisited,
+                                    bytesDiscovered: latestProgress.bytesDiscovered,
+                                    currentPath: "Preparing visualization…",
+                                    fractionCompleted: 0.995
+                                )))
+                            }
                             continuation.yield(.completed(Self.makeSnapshot(snapshot)))
                         }
                     }
@@ -159,29 +240,6 @@ public final class FullDiskScannerBackend {
     }
 
     private nonisolated static func makeSnapshot(_ snapshot: ScanSnapshot) -> ScanBackendSnapshot {
-        let childIDs = snapshot.treeStore.childIDsByID
-        let nodes = snapshot.treeStore.nodesByID.values
-            .map { node in
-                ScanBackendNode(
-                    id: node.id,
-                    url: node.url,
-                    name: node.name,
-                    childIDs: childIDs[node.id] ?? [],
-                    isDirectory: node.isDirectory,
-                    isSymbolicLink: node.isSymbolicLink,
-                    isPackage: node.isPackage,
-                    isAccessible: node.isAccessible,
-                    isSynthetic: node.isSynthetic,
-                    wasSummarized: node.isAutoSummarized,
-                    allocatedBytes: node.allocatedSize,
-                    logicalBytes: node.logicalSize,
-                    descendantFileCount: node.descendantFileCount,
-                    lastModified: node.lastModified,
-                    linkCount: node.linkCount,
-                    mayShareAPFSBlocks: node.mayShareDataBlocks
-                )
-            }
-            .sorted { $0.id < $1.id }
         let stats = snapshot.aggregateStats
         let capacity = snapshot.volumeCapacity.map {
             ScanBackendCapacity(
@@ -191,8 +249,7 @@ public final class FullDiskScannerBackend {
         }
 
         return ScanBackendSnapshot(
-            rootID: snapshot.treeStore.rootID,
-            nodes: nodes,
+            storage: snapshot,
             warnings: snapshot.scanWarnings.map(makeWarning),
             statistics: ScanBackendStatistics(
                 allocatedBytes: stats.totalAllocatedSize,
@@ -202,9 +259,7 @@ public final class FullDiskScannerBackend {
                 accessibleItemCount: stats.accessibleItemCount,
                 inaccessibleItemCount: stats.inaccessibleItemCount
             ),
-            capacity: capacity,
-            startedAt: snapshot.startedAt,
-            finishedAt: snapshot.finishedAt
+            capacity: capacity
         )
     }
 }

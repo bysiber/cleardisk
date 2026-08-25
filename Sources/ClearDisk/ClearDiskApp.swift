@@ -52,6 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
+    var diskSpaceStore: DiskSpaceStore!
     var primaryModePanelController: PrimaryModePanelController!
     var diskSpaceWindowController: DiskSpaceWindowController!
     var eventMonitor: Any?
@@ -59,8 +60,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
+        diskSpaceStore = DiskSpaceStore()
         primaryModePanelController = PrimaryModePanelController(diskMonitor: diskMonitor)
-        diskSpaceWindowController = DiskSpaceWindowController(diskMonitor: diskMonitor)
+        diskSpaceWindowController = DiskSpaceWindowController(
+            diskMonitor: diskMonitor,
+            store: diskSpaceStore
+        )
         diskMonitor.setupNotifications()
         diskMonitor.loadCleanupTotals()
         
@@ -83,7 +88,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.delegate = self
         popover.contentViewController = NSHostingController(
-            rootView: MainView(diskMonitor: diskMonitor)
+            rootView: MainView(
+                diskMonitor: diskMonitor,
+                diskSpaceStore: diskSpaceStore
+            )
         )
         
         // Start monitoring

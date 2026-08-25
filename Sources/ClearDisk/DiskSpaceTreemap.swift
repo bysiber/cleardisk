@@ -6,24 +6,25 @@ import SwiftUI
 struct DiskSpaceTreemapView: View {
     let nodes: [DiskFileNode]
     let selectedNodeID: String?
+    let groupingThresholdBytes: Int64?
     let onSelect: (String?) -> Void
     let onOpen: (String) -> Void
 
     @State private var hoveredTileID: String?
-    @State private var pointerLocation: CGPoint?
 
     var body: some View {
         GeometryReader { geometry in
+            let tooltipRailHeight = CGFloat(58)
             let chartBounds = CGRect(
                 x: 14,
                 y: 14,
                 width: max(geometry.size.width - 28, 0),
-                height: max(geometry.size.height - 28, 0)
+                height: max(geometry.size.height - 28 - tooltipRailHeight, 0)
             )
             let tiles = DiskSpaceTreemapLayout.tiles(
                 for: nodes,
                 in: chartBounds,
-                minimumTileArea: 130
+                groupingThresholdBytes: groupingThresholdBytes
             )
 
             ZStack(alignment: .topLeading) {
@@ -39,9 +40,22 @@ struct DiskSpaceTreemapView: View {
                 }
                 .allowsHitTesting(false)
 
+                // Every tile stays in the Canvas. Only create SwiftUI label views where at least
+                // an icon can fit; this keeps an unfiltered folder with thousands of children
+                // responsive without hiding any data from the map or hit testing.
+                ForEach(tiles.filter { $0.rect.width >= 20 && $0.rect.height >= 20 }) { tile in
+                    DiskSpaceTreemapTileLabel(tile: tile)
+                        .frame(
+                            width: max(tile.rect.width - 12, 0),
+                            height: max(tile.rect.height - 10, 0)
+                        )
+                        .position(x: tile.rect.midX, y: tile.rect.midY)
+                        .clipped()
+                        .allowsHitTesting(false)
+                }
+
                 DiskSpacePointerLayer(
                     onHover: { point in
-                        pointerLocation = point
                         hoveredTileID = point.flatMap { tile(at: $0, in: tiles)?.id }
                     },
                     onClick: { point, clickCount in
@@ -58,16 +72,16 @@ struct DiskSpaceTreemapView: View {
                     }
                 )
 
-                if let hoveredTile = tiles.first(where: { $0.id == hoveredTileID }),
-                   let pointerLocation {
+                if let hoveredTile = tiles.first(where: { $0.id == hoveredTileID }) {
                     DiskSpaceTreemapTooltip(tile: hoveredTile)
                         .fixedSize()
                         .position(
-                            tooltipPosition(
-                                pointer: pointerLocation,
-                                tooltipSize: CGSize(width: 220, height: 62),
-                                containerSize: geometry.size
-                            )
+                            x: tooltipXPosition(
+                                for: hoveredTile,
+                                tooltipWidth: 220,
+                                containerWidth: geometry.size.width
+                            ),
+                            y: chartBounds.maxY + (tooltipRailHeight / 2)
                         )
                         .allowsHitTesting(false)
                 }
@@ -123,41 +137,17 @@ struct DiskSpaceTreemapView: View {
             )
         }
 
-        guard rect.width >= 74, rect.height >= 38 else { return }
-
-        let label = Text(tile.label)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(.white)
-        context.draw(
-            label,
-            at: CGPoint(x: rect.minX + 8, y: rect.minY + 8),
-            anchor: .topLeading
-        )
-
-        if rect.width >= 96, rect.height >= 58 {
-            let size = Text(formatBytes(tile.allocatedBytes))
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundColor(.white.opacity(0.78))
-            context.draw(
-                size,
-                at: CGPoint(x: rect.minX + 8, y: rect.minY + 27),
-                anchor: .topLeading
-            )
-        }
     }
 
-    private func tooltipPosition(
-        pointer: CGPoint,
-        tooltipSize: CGSize,
-        containerSize: CGSize
-    ) -> CGPoint {
-        let halfWidth = tooltipSize.width / 2
-        let halfHeight = tooltipSize.height / 2
-        let preferredX = pointer.x + halfWidth + 14
-        let preferredY = pointer.y + halfHeight + 14
-        return CGPoint(
-            x: min(max(preferredX, halfWidth + 8), containerSize.width - halfWidth - 8),
-            y: min(max(preferredY, halfHeight + 8), containerSize.height - halfHeight - 8)
+    private func tooltipXPosition(
+        for tile: DiskSpaceTreemapTile,
+        tooltipWidth: CGFloat,
+        containerWidth: CGFloat
+    ) -> CGFloat {
+        let halfWidth = tooltipWidth / 2
+        return min(
+            max(tile.rect.midX, halfWidth + 8),
+            containerWidth - halfWidth - 8
         )
     }
 
@@ -171,6 +161,45 @@ struct DiskSpaceTreemapView: View {
         Color(red: 0.50, green: 0.67, blue: 0.20),
         Color(red: 0.84, green: 0.38, blue: 0.72)
     ]
+}
+
+private struct DiskSpaceTreemapTileLabel: View {
+    let tile: DiskSpaceTreemapTile
+
+    var body: some View {
+        Group {
+            if tile.rect.width >= 52, tile.rect.height >= 27 {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tile.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .minimumScaleFactor(0.72)
+
+                    if tile.rect.width >= 78, tile.rect.height >= 48 {
+                        Text(detailText)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if tile.rect.width >= 20, tile.rect.height >= 20 {
+                Image(systemName: tile.isAggregate ? "ellipsis" : tile.isDirectory ? "folder.fill" : "doc.fill")
+                    .font(.system(size: min(12, max(min(tile.rect.width, tile.rect.height) * 0.42, 8))))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.28), radius: 1, y: 1)
+    }
+
+    private var detailText: String {
+        if let groupedItemCount = tile.groupedItemCount {
+            return "\(groupedItemCount.formatted()) items"
+        }
+        return formatBytes(tile.allocatedBytes)
+    }
 }
 
 private struct DiskSpaceTreemapTooltip: View {
@@ -300,7 +329,7 @@ private enum DiskSpaceTreemapLayout {
     static func tiles(
         for nodes: [DiskFileNode],
         in bounds: CGRect,
-        minimumTileArea: CGFloat
+        groupingThresholdBytes: Int64?
     ) -> [DiskSpaceTreemapTile] {
         guard bounds.width > 0, bounds.height > 0, !nodes.isEmpty else { return [] }
 
@@ -313,18 +342,13 @@ private enum DiskSpaceTreemapLayout {
                 return lhs.allocatedBytes > rhs.allocatedBytes
             }
 
-        let totalBytes = sortedNodes.reduce(0.0) {
-            $0 + Double(max($1.allocatedBytes, 1))
-        }
-        let availableArea = max(bounds.width * bounds.height, 1)
         var visibleEntries: [Entry] = []
         var groupedBytes: Int64 = 0
         var groupedCount = 0
 
         for (index, node) in sortedNodes.enumerated() {
-            let projectedArea = availableArea
-                * CGFloat(Double(max(node.allocatedBytes, 1)) / max(totalBytes, 1))
-            if projectedArea < minimumTileArea {
+            if let groupingThresholdBytes,
+               node.allocatedBytes < groupingThresholdBytes {
                 groupedCount += 1
                 groupedBytes = addingClamped(groupedBytes, node.allocatedBytes)
             } else {

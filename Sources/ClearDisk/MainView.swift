@@ -21,6 +21,7 @@ private enum ActiveProjectSheet: Int, Identifiable {
 // MARK: - Main View
 struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
+    @ObservedObject var diskSpaceStore: DiskSpaceStore
     @State private var selectedTab: Tab = .developer
     @State private var showCleanConfirm = false
     @State private var showCleanSafeConfirm = false
@@ -42,6 +43,7 @@ struct MainView: View {
     @State private var isCleaning = false
     @State private var isExpanded = false
     @State private var expandedGroups: Set<String> = []
+    @State private var compactDiskSpacePage: DiskSpaceCompactPage = .locations
     @State private var fileToDelete: LargeFile?
     @State private var showDeleteFileConfirm = false
     @State private var expandedLargeFileFolder: String? = nil
@@ -49,6 +51,7 @@ struct MainView: View {
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     
     enum Tab: String, CaseIterable {
+        case diskSpace = "Disk Space"
         case developer = "Developer"
         case projects = "Projects"
         case overview = "Overview"
@@ -730,7 +733,16 @@ struct MainView: View {
                         
                         // Left: back button, Right: refresh
                         HStack {
-                            Button(action: { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isExpanded = false } }) {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                    if selectedTab == .diskSpace,
+                                       compactDiskSpacePage != .locations {
+                                        compactDiskSpacePage = .locations
+                                    } else {
+                                        isExpanded = false
+                                    }
+                                }
+                            }) {
                                 HStack(spacing: 4) {
                                     Image(systemName: "chevron.left")
                                         .font(.system(size: 11))
@@ -765,6 +777,13 @@ struct MainView: View {
                     
                     ScrollView {
                         switch selectedTab {
+                        case .diskSpace:
+                            DiskSpaceCompactView(
+                                store: diskSpaceStore,
+                                diskMonitor: diskMonitor,
+                                isExpanded: true,
+                                page: $compactDiskSpacePage
+                            )
                         case .overview:
                             overviewContent
                         case .developer:
@@ -797,7 +816,10 @@ struct MainView: View {
                     
                     // Cleanable summary card (only when there's stuff to clean)
                     let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
-                    if diskMonitor.safeCleanable > 10_485_760 || diskMonitor.riskyCleanable > 10_485_760 || artifactTotal > 10_485_760 {
+                    if selectedTab != .diskSpace &&
+                        (diskMonitor.safeCleanable > 10_485_760 ||
+                         diskMonitor.riskyCleanable > 10_485_760 ||
+                         artifactTotal > 10_485_760) {
                         cleanableSummary
                         Divider()
                     }
@@ -821,6 +843,13 @@ struct MainView: View {
                     // Content
                     ScrollView {
                         switch selectedTab {
+                        case .diskSpace:
+                            DiskSpaceCompactView(
+                                store: diskSpaceStore,
+                                diskMonitor: diskMonitor,
+                                isExpanded: false,
+                                page: $compactDiskSpacePage
+                            )
                         case .overview:
                             overviewContent
                         case .developer:
@@ -1098,8 +1127,10 @@ struct MainView: View {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button(action: { selectedTab = tab }) {
                     Text(tab.rawValue)
-                        .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .regular))
+                        .font(.system(size: 11, weight: selectedTab == tab ? .semibold : .regular))
                         .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                         .contentShape(Rectangle()) // Makes entire area clickable, not just text

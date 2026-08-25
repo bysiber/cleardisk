@@ -2,7 +2,7 @@ import AppKit
 import DiskScannerCore
 import SwiftUI
 
-private struct DiskSpaceLocation: Identifiable, Hashable {
+struct DiskSpaceLocation: Identifiable, Hashable {
     enum Kind: Hashable {
         case startupDisk
         case externalVolume
@@ -18,7 +18,7 @@ private struct DiskSpaceLocation: Identifiable, Hashable {
 }
 
 @MainActor
-private final class DiskSpaceStore: ObservableObject {
+final class DiskSpaceStore: ObservableObject {
     enum Phase: Equatable {
         case idle
         case scanning
@@ -37,9 +37,8 @@ private final class DiskSpaceStore: ObservableObject {
 
     private let scanner = DiskScanner()
     private var scanTask: Task<Void, Never>?
+    private var activeScanID: UUID?
     private var scannedRootPath: String?
-    private var nodeIDByPath: [String: String] = [:]
-    private var parentIDByNodeID: [String: String] = [:]
 
     init() {
         reloadLocations()
@@ -90,7 +89,7 @@ private final class DiskSpaceStore: ObservableObject {
         var result = [displayedNode]
         var currentID = displayedNode.id
         while currentID != locationRootNode.id,
-              let parentID = parentIDByNodeID[currentID],
+              let parentID = snapshot.node(id: currentID)?.parentID,
               let parent = snapshot.node(id: parentID) {
             result.append(parent)
             currentID = parentID
@@ -161,14 +160,21 @@ private final class DiskSpaceStore: ObservableObject {
         stopScan(resetToIdle: false)
 
         let location = selectedLocation
+        let scanID = UUID()
+        activeScanID = scanID
         phase = .scanning
         progress = nil
         issues = []
+        // A rescan must not retain the previous full-volume tree while a second
+        // one is being assembled. On file-heavy Macs that alone can double RAM.
+        snapshot = nil
+        scannedRootPath = nil
         focusedNodeID = nil
         selectedNodeID = nil
 
         scanTask = Task { [weak self] in
             guard let self else { return }
+            var collectedIssues: [DiskScanIssue] = []
             do {
                 let request = DiskScanRequest(
                     rootURL: location.url,
@@ -177,43 +183,44 @@ private final class DiskSpaceStore: ObservableObject {
                 )
 
                 for try await event in scanner.events(for: request) {
-                    guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled, activeScanID == scanID else { return }
                     switch event {
                     case .progress(let nextProgress):
                         progress = nextProgress
                     case .issue(let issue):
-                        issues.append(issue)
+                        // Publishing every permission warning can invalidate the whole
+                        // SwiftUI hierarchy hundreds of times during a volume scan.
+                        // The complete list is published once with the snapshot.
+                        collectedIssues.append(issue)
                     case .completed(let completedSnapshot):
                         snapshot = completedSnapshot
-                        issues = completedSnapshot.issues
+                        issues = completedSnapshot.issues.isEmpty
+                            ? collectedIssues
+                            : completedSnapshot.issues
                         scannedRootPath = normalizedPath(location.url.path)
-                        nodeIDByPath = completedSnapshot.nodesByID.values.reduce(into: [:]) {
-                            index, node in
-                            // Synthetic/hard-linked records can resolve to the same filesystem
-                            // path. Keeping the first avoids turning a valid scan into a crash.
-                            let path = normalizedPath(node.url.path)
-                            if index[path] == nil { index[path] = node.id }
-                        }
-                        parentIDByNodeID = completedSnapshot.nodesByID.values.reduce(into: [:]) {
-                            parents, node in
-                            for childID in node.childIDs where parents[childID] == nil {
-                                parents[childID] = node.id
-                            }
-                        }
                         focusedNodeID = completedSnapshot.rootID
                         selectedNodeID = nil
+                        progress = nil
                         phase = .finished
                     }
                 }
             } catch is CancellationError {
-                if phase == .scanning { phase = .idle }
+                if activeScanID == scanID, phase == .scanning { phase = .idle }
             } catch {
-                phase = .failed(error.localizedDescription)
+                if activeScanID == scanID {
+                    phase = .failed(error.localizedDescription)
+                }
+            }
+
+            if activeScanID == scanID {
+                activeScanID = nil
+                scanTask = nil
             }
         }
     }
 
     func stopScan(resetToIdle: Bool = true) {
+        activeScanID = nil
         scanTask?.cancel()
         scanTask = nil
         if resetToIdle && phase == .scanning {
@@ -222,11 +229,21 @@ private final class DiskSpaceStore: ObservableObject {
     }
 
     func selectLocation(_ id: String?) {
-        guard let id, id != selectedLocationID else { return }
+        guard let id, locations.contains(where: { $0.id == id }) else { return }
         selectedLocationID = id
-        focusedNodeID = nodeIDByPath[normalizedPath(selectedLocation.url.path)]
+        focusedNodeID = snapshot?.node(id: normalizedPath(selectedLocation.url.path))?.id
         selectedNodeID = nil
         if case .failed = phase { phase = .idle }
+    }
+
+    func node(forLocationID id: String) -> DiskFileNode? {
+        guard let snapshot,
+              let location = locations.first(where: { $0.id == id }) else { return nil }
+        let path = normalizedPath(location.url.path)
+        if path == scannedRootPath {
+            return snapshot.root
+        }
+        return snapshot.node(id: path)
     }
 
     func selectNode(_ id: String?) {
@@ -253,7 +270,7 @@ private final class DiskSpaceStore: ObservableObject {
     func navigateUp() {
         guard canNavigateUp,
               let focusedNodeID,
-              let parentID = parentIDByNodeID[focusedNodeID] else { return }
+              let parentID = snapshot?.node(id: focusedNodeID)?.parentID else { return }
         focus(parentID)
     }
 
@@ -268,8 +285,7 @@ private final class DiskSpaceStore: ObservableObject {
         if selectedPath == scannedRootPath {
             return snapshot.root
         }
-        guard let nodeID = nodeIDByPath[selectedPath] else { return nil }
-        return snapshot.node(id: nodeID)
+        return snapshot.node(id: selectedPath)
     }
 
     private static func startupDiskLocation() -> DiskSpaceLocation {
@@ -289,10 +305,11 @@ private final class DiskSpaceStore: ObservableObject {
 
 @MainActor
 final class DiskSpaceWindowController: NSObject, NSWindowDelegate {
-    private let store = DiskSpaceStore()
+    private let store: DiskSpaceStore
     private let window: NSWindow
 
-    init(diskMonitor: DiskMonitor) {
+    init(diskMonitor: DiskMonitor, store: DiskSpaceStore) {
+        self.store = store
         let rootView = DiskSpaceRootView(store: store, diskMonitor: diskMonitor)
         let hostingController = NSHostingController(rootView: rootView)
 
@@ -358,6 +375,643 @@ private struct DiskSpaceRootView: View {
                 .navigationTitle("Disk Space")
         }
         .frame(minWidth: 820, minHeight: 560)
+    }
+}
+
+enum DiskSpaceCompactPage {
+    case locations
+    case workspace
+}
+
+struct DiskSpaceCompactView: View {
+    @ObservedObject var store: DiskSpaceStore
+    @ObservedObject var diskMonitor: DiskMonitor
+    let isExpanded: Bool
+    @Binding var page: DiskSpaceCompactPage
+
+    @AppStorage("diskSpaceTreemapGroupingEnabled") private var groupingEnabled = false
+    @AppStorage("diskSpaceTreemapGroupingThresholdMB") private var groupingThresholdMB = 10
+
+    private var groupingThresholdBytes: Int64? {
+        guard groupingEnabled else { return nil }
+        return Int64(max(groupingThresholdMB, 1)) * 1_048_576
+    }
+
+    var body: some View {
+        Group {
+            if page == .locations {
+                compactLocations
+            } else {
+                switch store.phase {
+                case .scanning:
+                    compactScanning
+                case .finished where store.hasResultsForSelection:
+                    compactResults
+                case .failed(let message):
+                    compactWorkspaceUnavailable(errorMessage: message)
+                default:
+                    compactWorkspaceUnavailable()
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    private var compactLocations: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Storage Locations")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Choose where you want to look.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if store.phase == .scanning {
+                    Button {
+                        page = .workspace
+                    } label: {
+                        HStack(spacing: 5) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("Scanning")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+            }
+
+            if let startupDisk = store.locations.first(where: { $0.kind == .startupDisk }) {
+                DiskSpaceMacLocationCard(
+                    location: startupDisk,
+                    diskMonitor: diskMonitor,
+                    scannedNode: store.node(forLocationID: startupDisk.id),
+                    isScanning: store.phase == .scanning &&
+                        store.selectedLocationID == startupDisk.id,
+                    isDisabled: store.phase == .scanning &&
+                        store.selectedLocationID != startupDisk.id,
+                    action: { openLocation(startupDisk) }
+                )
+            }
+
+            let favorites = store.locations.filter { $0.kind == .favorite }
+            if !favorites.isEmpty {
+                Text("QUICK LOCATIONS")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.6)
+
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 8),
+                        GridItem(.flexible(), spacing: 8)
+                    ],
+                    spacing: 8
+                ) {
+                    ForEach(favorites) { location in
+                        DiskSpaceQuickLocationCard(
+                            location: location,
+                            scannedNode: store.node(forLocationID: location.id),
+                            isScanning: store.phase == .scanning &&
+                                store.selectedLocationID == location.id,
+                            isDisabled: store.phase == .scanning &&
+                                store.selectedLocationID != location.id,
+                            action: { openLocation(location) }
+                        )
+                    }
+                }
+            }
+
+            let externalVolumes = store.locations.filter { $0.kind == .externalVolume }
+            if !externalVolumes.isEmpty {
+                Text("EXTERNAL VOLUMES")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.6)
+                    .padding(.top, 2)
+
+                VStack(spacing: 1) {
+                    ForEach(externalVolumes) { location in
+                        DiskSpaceExternalLocationRow(
+                            location: location,
+                            scannedNode: store.node(forLocationID: location.id),
+                            isDisabled: store.phase == .scanning &&
+                                store.selectedLocationID != location.id,
+                            action: { openLocation(location) }
+                        )
+                    }
+                }
+                .padding(5)
+                .background(
+                    Color.primary.opacity(0.025),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+            }
+        }
+    }
+
+    private func compactWorkspaceUnavailable(errorMessage: String? = nil) -> some View {
+        VStack(spacing: 14) {
+            compactWorkspaceNavigation
+
+            VStack(spacing: 9) {
+                Image(systemName: errorMessage == nil ? "internaldrive" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 27))
+                    .foregroundStyle(errorMessage == nil ? Color.accentColor : .orange)
+                Text(errorMessage == nil ? "No scan available" : "Scan couldn’t finish")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(errorMessage ?? "Return to Locations and choose an area to analyze.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Back to Locations") {
+                    page = .locations
+                }
+                .controlSize(.small)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity)
+            .background(
+                Color.primary.opacity(0.025),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+        }
+    }
+
+    private func openLocation(_ location: DiskSpaceLocation) {
+        if store.phase == .scanning {
+            page = .workspace
+            return
+        }
+
+        store.selectLocation(location.id)
+        page = .workspace
+        if !store.hasResultsForSelection {
+            store.startScan()
+        }
+    }
+
+    private var compactWorkspaceNavigation: some View {
+        HStack(spacing: 6) {
+            Button {
+                page = .locations
+            } label: {
+                Label("Locations", systemImage: "chevron.left")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.accentColor)
+
+            Spacer()
+        }
+    }
+
+    private var compactScanning: some View {
+        VStack(spacing: 12) {
+            compactWorkspaceNavigation
+
+            HStack {
+                Label("Scanning \(store.selectedLocation.name)", systemImage: "internaldrive.fill.badge.magnifyingglass")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button("Stop", role: .cancel) { store.stopScan() }
+                    .controlSize(.small)
+            }
+
+            DiskSpaceScanVisualizer(compact: true)
+
+            DiskSpaceScanProgressTrack(value: store.progress?.fractionCompleted ?? 0)
+                .frame(height: 5)
+
+            if let progress = store.progress {
+                HStack(spacing: 8) {
+                    Text(scanStageTitle(for: progress))
+                        .font(.system(size: 10, weight: .medium))
+                    Spacer(minLength: 6)
+                    Text("\(Int(min(max(progress.fractionCompleted, 0), 0.999) * 100))%")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+
+                if !progress.currentPath.hasSuffix("…") {
+                    Text(abbreviatedPath(progress.currentPath))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                HStack {
+                    Text("\(progress.filesVisited.formatted()) files")
+                    Spacer()
+                    Text("\(progress.directoriesVisited.formatted()) folders")
+                    Spacer()
+                    Text(formatBytes(progress.bytesDiscovered))
+                }
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            }
+        }
+        .padding(14)
+        .background(
+            Color.accentColor.opacity(0.055),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+    }
+
+    private var compactResults: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Button {
+                    page = .locations
+                } label: {
+                    Label("Locations", systemImage: "chevron.left")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+
+                Spacer()
+
+                DiskSpaceTreemapOptionsButton(
+                    isEnabled: $groupingEnabled,
+                    thresholdMB: $groupingThresholdMB
+                )
+
+                Button {
+                    store.startScan()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .help("Rescan")
+            }
+
+            DiskSpaceBreadcrumb(store: store)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let node = store.displayedNode {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(node.name)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                        Text("\(formatBytes(node.allocatedBytes)) · \(node.descendantFileCount.formatted()) files")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if !store.issues.isEmpty {
+                        Label(store.issues.count.formatted(), systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+
+            DiskSpaceTreemapView(
+                nodes: store.displayedChildren,
+                selectedNodeID: store.selectedNodeID,
+                groupingThresholdBytes: groupingThresholdBytes,
+                onSelect: store.selectNode,
+                onOpen: store.openNode
+            )
+            .frame(height: isExpanded ? 360 : 250)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            }
+
+            if let selectedNode = store.selectedNode {
+                HStack(spacing: 8) {
+                    Image(systemName: selectedNode.isDirectory ? "folder.fill" : "doc.fill")
+                        .foregroundStyle(selectedNode.isDirectory ? Color.accentColor : .secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(selectedNode.name)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                        Text(formatBytes(selectedNode.allocatedBytes))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if selectedNode.isDirectory, !selectedNode.childIDs.isEmpty {
+                        Button("Open") { store.openNode(selectedNode.id) }
+                            .controlSize(.mini)
+                    }
+                    Button {
+                        store.revealInFinder(selectedNode.id)
+                    } label: {
+                        Image(systemName: "finder")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show in Finder")
+                }
+                .padding(9)
+                .background(
+                    Color.accentColor.opacity(0.06),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                )
+            }
+
+            HStack {
+                Text("Contents")
+                    .font(.system(size: 11, weight: .semibold))
+                Spacer()
+                Text("\(store.displayedChildren.count.formatted()) items")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 2)
+
+            LazyVStack(spacing: 1) {
+                ForEach(store.displayedChildren) { node in
+                    DiskSpaceCompactRow(
+                        node: node,
+                        isSelected: node.id == store.selectedNodeID,
+                        select: { store.selectNode(node.id) },
+                        open: { store.openNode(node.id) },
+                        reveal: { store.revealInFinder(node.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct DiskSpaceMacLocationCard: View {
+    let location: DiskSpaceLocation
+    @ObservedObject var diskMonitor: DiskMonitor
+    let scannedNode: DiskFileNode?
+    let isScanning: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    private var usedFraction: Double {
+        guard diskMonitor.totalSpace > 0 else { return 0 }
+        return min(max(Double(diskMonitor.usedSpace) / Double(diskMonitor.totalSpace), 0), 1)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.13), lineWidth: 6)
+                    Circle()
+                        .trim(from: 0, to: usedFraction)
+                        .stroke(
+                            ringColor,
+                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                    Text("\(Int((usedFraction * 100).rounded()))%")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .frame(width: 54, height: 54)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: location.icon)
+                            .foregroundStyle(Color.accentColor)
+                        Text(location.name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(1)
+                    }
+
+                    Text("\(formatBytes(diskMonitor.freeSpace)) available")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+
+                    Text(scannedNode.map { "\(formatBytes($0.allocatedBytes)) indexed" } ?? "Analyze the complete startup disk")
+                        .font(.system(size: 9))
+                        .foregroundStyle(
+                            scannedNode == nil
+                                ? Color.secondary.opacity(0.72)
+                                : Color.accentColor
+                        )
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                locationActionLabel
+            }
+            .padding(13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isHovered
+                    ? Color.accentColor.opacity(0.085)
+                    : Color.primary.opacity(0.035),
+                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(
+                        isHovered ? Color.accentColor.opacity(0.24) : Color.primary.opacity(0.08),
+                        lineWidth: 0.5
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.48 : 1)
+        .onHover { isHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var locationActionLabel: some View {
+        if isScanning {
+            ProgressView()
+                .controlSize(.small)
+        } else {
+            HStack(spacing: 4) {
+                Text(scannedNode == nil ? "Analyze" : "View")
+                    .font(.system(size: 9, weight: .semibold))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 8)
+            .frame(height: 24)
+            .background(Color.accentColor.opacity(0.10), in: Capsule())
+        }
+    }
+
+    private var ringColor: Color {
+        if usedFraction >= 0.9 { return .red }
+        if usedFraction >= 0.75 { return .orange }
+        return .accentColor
+    }
+}
+
+private struct DiskSpaceQuickLocationCard: View {
+    let location: DiskSpaceLocation
+    let scannedNode: DiskFileNode?
+    let isScanning: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.11))
+                        Image(systemName: location.icon)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .frame(width: 30, height: 30)
+
+                    Spacer()
+
+                    if isScanning {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(location.name)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Text(scannedNode.map { formatBytes($0.allocatedBytes) } ?? "Not analyzed")
+                        .font(.system(size: 9))
+                        .foregroundStyle(scannedNode == nil ? .tertiary : .secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 87, alignment: .leading)
+            .background(
+                isHovered
+                    ? Color.accentColor.opacity(0.075)
+                    : Color.primary.opacity(0.028),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(
+                        isHovered ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.07),
+                        lineWidth: 0.5
+                    )
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.48 : 1)
+        .onHover { isHovered = $0 }
+    }
+}
+
+private struct DiskSpaceExternalLocationRow: View {
+    let location: DiskSpaceLocation
+    let scannedNode: DiskFileNode?
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                Image(systemName: location.icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(location.name)
+                        .font(.system(size: 10, weight: .medium))
+                    Text(scannedNode.map { formatBytes($0.allocatedBytes) } ?? location.subtitle)
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 34)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.48 : 1)
+    }
+}
+
+private struct DiskSpaceCompactRow: View {
+    let node: DiskFileNode
+    let isSelected: Bool
+    let select: () -> Void
+    let open: () -> Void
+    let reveal: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(action: select) {
+                HStack(spacing: 7) {
+                    Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
+                        .frame(width: 16)
+
+                    Text(node.name)
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+
+                    Spacer(minLength: 5)
+
+                    Text(formatBytes(node.allocatedBytes))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if node.isDirectory, !node.childIDs.isEmpty {
+                Button(action: open) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help("Open Folder")
+            }
+        }
+        .padding(.horizontal, 7)
+        .frame(height: 28)
+        .background(
+            isSelected ? Color.accentColor.opacity(0.10) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+        )
+        .contextMenu {
+            if node.isDirectory, !node.childIDs.isEmpty {
+                Button("Open Folder", action: open)
+            }
+            Button("Show in Finder", action: reveal)
+        }
     }
 }
 
@@ -568,6 +1222,113 @@ private struct DiskCapacityCard: View {
     }
 }
 
+private struct DiskSpaceScanVisualizer: View {
+    let compact: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { proxy in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: reduceMotion)) { timeline in
+                let elapsed = timeline.date.timeIntervalSinceReferenceDate
+                let phase = reduceMotion ? 0.52 : elapsed.truncatingRemainder(dividingBy: 2.8) / 2.8
+                let pulse = reduceMotion ? 0.5 : (sin(elapsed * 2.4) + 1) / 2
+                let sweepWidth = max(proxy.size.width * 0.24, 58)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.accentColor.opacity(0.035),
+                                    Color.primary.opacity(0.018),
+                                    Color.accentColor.opacity(0.07)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    Ellipse()
+                        .stroke(Color.accentColor.opacity(0.11 + pulse * 0.07), lineWidth: 1)
+                        .frame(width: compact ? 102 : 156, height: compact ? 34 : 52)
+                        .scaleEffect(0.92 + pulse * 0.09)
+
+                    Ellipse()
+                        .stroke(Color.accentColor.opacity(0.08), lineWidth: 0.75)
+                        .frame(width: compact ? 142 : 220, height: compact ? 48 : 72)
+                        .scaleEffect(0.96 + pulse * 0.05)
+
+                    Image(systemName: "internaldrive.fill")
+                        .font(.system(size: compact ? 24 : 36, weight: .medium))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(Color.accentColor)
+                        .shadow(color: Color.accentColor.opacity(0.28), radius: compact ? 7 : 12)
+
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .clear,
+                                    Color.white.opacity(0.08),
+                                    Color.accentColor.opacity(0.48),
+                                    Color.white.opacity(0.22),
+                                    .clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: sweepWidth)
+                        .blur(radius: compact ? 3 : 5)
+                        .offset(x: -proxy.size.width / 2 - sweepWidth + phase * (proxy.size.width + sweepWidth * 2))
+                        .blendMode(.screen)
+                        .mask(
+                            RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous)
+                        )
+
+                    RoundedRectangle(cornerRadius: compact ? 12 : 18, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+                }
+                .drawingGroup(opaque: false, colorMode: .linear)
+            }
+        }
+        .frame(height: compact ? 70 : 122)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct DiskSpaceScanProgressTrack: View {
+    let value: Double
+
+    private var clampedValue: Double {
+        min(max(value, 0.012), 0.998)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.08))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.72), Color.accentColor],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(proxy.size.width * clampedValue, proxy.size.height))
+                    .shadow(color: Color.accentColor.opacity(0.25), radius: 3)
+            }
+        }
+        .animation(.smooth(duration: 0.35), value: clampedValue)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Scan progress")
+        .accessibilityValue("\(Int(clampedValue * 100)) percent")
+    }
+}
+
 private struct DiskSpaceScanningView: View {
     @ObservedObject var store: DiskSpaceStore
 
@@ -579,9 +1340,8 @@ private struct DiskSpaceScanningView: View {
         VStack(spacing: 18) {
             Spacer()
 
-            Image(systemName: "internaldrive.fill.badge.magnifyingglass")
-                .font(.system(size: 42))
-                .foregroundStyle(Color.accentColor)
+            DiskSpaceScanVisualizer(compact: false)
+                .frame(maxWidth: 430)
 
             VStack(spacing: 6) {
                 Text("Scanning \(store.selectedLocation.name)")
@@ -590,23 +1350,29 @@ private struct DiskSpaceScanningView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Group {
-                if progressValue > 0 {
-                    ProgressView(value: progressValue)
-                } else {
-                    ProgressView()
+            VStack(spacing: 7) {
+                HStack {
+                    Text(store.progress.map(scanStageTitle(for:)) ?? "Starting scan…")
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Text("\(Int(min(progressValue, 0.999) * 100))%")
+                        .font(.caption.weight(.semibold).monospacedDigit())
                 }
+                DiskSpaceScanProgressTrack(value: progressValue)
+                    .frame(height: 6)
             }
-            .frame(width: 320)
+            .frame(width: 360)
 
             if let progress = store.progress {
                 VStack(spacing: 8) {
-                    Text(abbreviatedPath(progress.currentPath))
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 520)
+                    if !progress.currentPath.hasSuffix("…") {
+                        Text(abbreviatedPath(progress.currentPath))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 520)
+                    }
 
                     Text("\(progress.filesVisited.formatted()) files  ·  \(progress.directoriesVisited.formatted()) folders  ·  \(formatBytes(progress.bytesDiscovered)) found")
                         .font(.caption.monospacedDigit())
@@ -626,6 +1392,13 @@ private struct DiskSpaceScanningView: View {
 
 private struct DiskSpaceResultsView: View {
     @ObservedObject var store: DiskSpaceStore
+    @AppStorage("diskSpaceTreemapGroupingEnabled") private var groupingEnabled = false
+    @AppStorage("diskSpaceTreemapGroupingThresholdMB") private var groupingThresholdMB = 10
+
+    private var groupingThresholdBytes: Int64? {
+        guard groupingEnabled else { return nil }
+        return Int64(max(groupingThresholdMB, 1)) * 1_048_576
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -650,6 +1423,11 @@ private struct DiskSpaceResultsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+
+                            DiskSpaceTreemapOptionsButton(
+                                isEnabled: $groupingEnabled,
+                                thresholdMB: $groupingThresholdMB
+                            )
                         }
                         .padding(.horizontal, 16)
                         .frame(height: 36)
@@ -659,6 +1437,7 @@ private struct DiskSpaceResultsView: View {
                         DiskSpaceTreemapView(
                             nodes: store.displayedChildren,
                             selectedNodeID: store.selectedNodeID,
+                            groupingThresholdBytes: groupingThresholdBytes,
                             onSelect: store.selectNode,
                             onOpen: store.openNode
                         )
@@ -670,6 +1449,94 @@ private struct DiskSpaceResultsView: View {
                 }
             }
         }
+    }
+}
+
+private struct DiskSpaceTreemapOptionsButton: View {
+    @Binding var isEnabled: Bool
+    @Binding var thresholdMB: Int
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isEnabled ? "eye.fill" : "eye")
+                if isEnabled {
+                    Text("< \(thresholdMB) MB")
+                        .font(.caption.monospacedDigit())
+                }
+            }
+            .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
+            .padding(.horizontal, isEnabled ? 8 : 6)
+            .frame(height: 24)
+            .background(
+                isEnabled ? Color.accentColor.opacity(0.10) : Color.clear,
+                in: Capsule()
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Treemap Display Options")
+        .accessibilityLabel("Treemap Display Options")
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Treemap Display")
+                        .font(.headline)
+                    Text("Every item is shown unless you enable grouping.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Toggle("Group smaller items", isOn: $isEnabled)
+
+                if isEnabled {
+                    HStack(spacing: 8) {
+                        Text("Group items smaller than")
+                        TextField(
+                            "10",
+                            value: thresholdBinding,
+                            format: .number.grouping(.never)
+                        )
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64)
+                        Text("MB")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.subheadline)
+
+                    Text("Items below this size appear as one group in the map. They remain individually visible in the table.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider()
+
+                HStack {
+                    Text("Saved automatically")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    if isEnabled {
+                        Button("Show Every Item") {
+                            isEnabled = false
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .frame(width: 340)
+        }
+    }
+
+    private var thresholdBinding: Binding<Int> {
+        Binding(
+            get: { thresholdMB },
+            set: { thresholdMB = min(max($0, 1), 1_000_000) }
+        )
     }
 }
 
@@ -863,6 +1730,19 @@ private struct DiskSpaceMetric: View {
 
 private func normalizedPath(_ path: String) -> String {
     URL(fileURLWithPath: path).standardizedFileURL.path
+}
+
+private func scanStageTitle(for progress: DiskScanProgress) -> String {
+    switch progress.currentPath {
+    case "Summarizing results…":
+        return "Summarizing files…"
+    case "Preparing visualization…":
+        return "Preparing disk map…"
+    case "Building disk map…":
+        return "Building disk map…"
+    default:
+        return progress.visitedItemCount == 0 ? "Starting scan…" : "Scanning files…"
+    }
 }
 
 private func abbreviatedPath(_ path: String) -> String {

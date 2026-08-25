@@ -946,7 +946,11 @@ actor ScanEngine {
         preservingBehaviorOf scanTarget: ScanTarget
     ) -> AsyncThrowingStream<ScanProgressEvent, Error> {
         AsyncThrowingStream { continuation in
-            let task = Task(priority: .userInitiated) {
+            // `scan()` is usually requested by a MainActor-owned view model. An
+            // unstructured Task would inherit that actor, making the synchronous
+            // bottom-up assembly phase freeze every window near 99%. Keep the full
+            // pipeline on the cooperative worker pool instead.
+            let task = Task.detached(priority: .userInitiated) {
                 do {
                     let snapshot = try await self.performScan(
                         target: target,

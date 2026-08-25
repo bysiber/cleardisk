@@ -44,26 +44,9 @@ public struct DiskScanIssue: Identifiable, Sendable {
     public let kind: Kind
 }
 
-/// A flat tree record. `childIDs` keeps large scans compact and lets the UI request only the
-/// branch it is currently displaying instead of materializing a recursive Swift value tree.
-public struct DiskFileNode: Identifiable, Sendable {
-    public let id: String
-    public let url: URL
-    public let name: String
-    public let childIDs: [String]
-    public let isDirectory: Bool
-    public let isSymbolicLink: Bool
-    public let isPackage: Bool
-    public let isAccessible: Bool
-    public let isSynthetic: Bool
-    public let wasSummarized: Bool
-    public let allocatedBytes: Int64
-    public let logicalBytes: Int64
-    public let descendantFileCount: Int
-    public let lastModified: Date?
-    public let linkCount: UInt64
-    public let mayShareAPFSBlocks: Bool
-}
+/// A flat tree record. Sharing the backend's immutable value avoids retaining a
+/// second copy of every file just to rename the type at the product boundary.
+public typealias DiskFileNode = ScanBackendNode
 
 public struct DiskScanStatistics: Sendable {
     public let allocatedBytes: Int64
@@ -85,24 +68,46 @@ public struct DiskVolumeCapacity: Sendable {
 
 public struct DiskScanSnapshot: Sendable {
     public let rootID: String
-    public let nodesByID: [String: DiskFileNode]
     public let issues: [DiskScanIssue]
     public let statistics: DiskScanStatistics
     public let capacity: DiskVolumeCapacity?
     public let startedAt: Date
     public let finishedAt: Date?
 
+    private let backendSnapshot: ScanBackendSnapshot
+
+    public var nodeCount: Int {
+        backendSnapshot.nodeCount
+    }
+
     public var root: DiskFileNode? {
-        nodesByID[rootID]
+        backendSnapshot.root
     }
 
     public func node(id: String) -> DiskFileNode? {
-        nodesByID[id]
+        backendSnapshot.node(id: id)
     }
 
     public func children(of nodeID: String) -> [DiskFileNode] {
-        guard let node = nodesByID[nodeID] else { return [] }
-        return node.childIDs.compactMap { nodesByID[$0] }
+        backendSnapshot.children(of: nodeID)
+    }
+
+    fileprivate init(
+        rootID: String,
+        issues: [DiskScanIssue],
+        statistics: DiskScanStatistics,
+        capacity: DiskVolumeCapacity?,
+        startedAt: Date,
+        finishedAt: Date?,
+        backendSnapshot: ScanBackendSnapshot
+    ) {
+        self.rootID = rootID
+        self.issues = issues
+        self.statistics = statistics
+        self.capacity = capacity
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+        self.backendSnapshot = backendSnapshot
     }
 }
 
@@ -114,15 +119,14 @@ public enum DiskScanEvent: Sendable {
 
 /// Product-facing boundary for the full-disk scanner. ClearDisk's cache scanner intentionally
 /// does not appear in this module; cleanup classification will be layered on top later.
-@MainActor
 public final class DiskScanner {
     private let backend: FullDiskScannerBackend
 
-    public init() {
+    public nonisolated init() {
         backend = FullDiskScannerBackend()
     }
 
-    public func events(
+    public nonisolated func events(
         for request: DiskScanRequest
     ) -> AsyncThrowingStream<DiskScanEvent, Error> {
         let source = backend.scan(
@@ -135,9 +139,18 @@ public final class DiskScanner {
         )
 
         return AsyncThrowingStream { continuation in
-            let task = Task {
+            let task = Task.detached(priority: .userInitiated) {
                 do {
                     for try await event in source {
+                        if case .completed(let snapshot) = event {
+                            continuation.yield(.progress(DiskScanProgress(
+                                filesVisited: snapshot.statistics.fileCount,
+                                directoriesVisited: snapshot.statistics.directoryCount,
+                                bytesDiscovered: snapshot.statistics.allocatedBytes,
+                                currentPath: "Building disk map…",
+                                fractionCompleted: 0.998
+                            )))
+                        }
                         continuation.yield(Self.map(event))
                     }
                     continuation.finish()
@@ -169,11 +182,9 @@ public final class DiskScanner {
         case .warning(let warning):
             return .issue(map(warning))
         case .completed(let snapshot):
-            let nodes = snapshot.nodes.map(map)
             return .completed(
                 DiskScanSnapshot(
                     rootID: snapshot.rootID,
-                    nodesByID: Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) }),
                     issues: snapshot.warnings.map(map),
                     statistics: DiskScanStatistics(
                         allocatedBytes: snapshot.statistics.allocatedBytes,
@@ -190,7 +201,8 @@ public final class DiskScanner {
                         )
                     },
                     startedAt: snapshot.startedAt,
-                    finishedAt: snapshot.finishedAt
+                    finishedAt: snapshot.finishedAt,
+                    backendSnapshot: snapshot
                 )
             )
         }
@@ -205,24 +217,4 @@ public final class DiskScanner {
         )
     }
 
-    private nonisolated static func map(_ node: ScanBackendNode) -> DiskFileNode {
-        DiskFileNode(
-            id: node.id,
-            url: node.url,
-            name: node.name,
-            childIDs: node.childIDs,
-            isDirectory: node.isDirectory,
-            isSymbolicLink: node.isSymbolicLink,
-            isPackage: node.isPackage,
-            isAccessible: node.isAccessible,
-            isSynthetic: node.isSynthetic,
-            wasSummarized: node.wasSummarized,
-            allocatedBytes: node.allocatedBytes,
-            logicalBytes: node.logicalBytes,
-            descendantFileCount: node.descendantFileCount,
-            lastModified: node.lastModified,
-            linkCount: node.linkCount,
-            mayShareAPFSBlocks: node.mayShareAPFSBlocks
-        )
-    }
 }
