@@ -15,12 +15,26 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Select Swift 6.2 toolchain
+        run: |
+          XCODE_PATH="/Applications/Xcode_26.3.app/Contents/Developer"
+          [ -d "$XCODE_PATH" ] \
+            || { echo "::error::Required Xcode 26.3 toolchain is unavailable"; exit 1; }
+          sudo xcode-select --switch "$XCODE_PATH"
+          xcodebuild -version
+          swift --version
+          swift -e '#if compiler(>=6.2)
+          print("Swift 6.2 toolchain ready")
+          #else
+          fatalError("Swift 6.2 or newer is required")
+          #endif'
 
       - name: Verify tag matches changelog
         if: startsWith(github.ref, 'refs/tags/')
