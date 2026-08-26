@@ -24,6 +24,7 @@ struct MainView: View {
     @ObservedObject var diskSpaceStore: DiskSpaceStore
     let checkForUpdates: () -> Void
     @State private var selectedTab: Tab = .diskSpace
+    @State private var hoveredTab: Tab?
     @State private var showCleanConfirm = false
     @State private var showCleanSafeConfirm = false
     @State private var activeProjectSheet: ActiveProjectSheet?
@@ -529,10 +530,21 @@ struct MainView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
 
-                        if cautionTotal > 0 || riskyTotal > 0 || largeFileTotal > 0 {
-                            reviewSectionHeader(title: "Needs your decision", detail: "Never auto-selected")
+                        if safeTotal > 0 || cautionTotal > 0 || riskyTotal > 0 || largeFileTotal > 0 {
+                            reviewSectionHeader(title: "Review by safety", detail: "Nothing is selected automatically")
 
                             VStack(spacing: 0) {
+                                if safeTotal > 0 {
+                                    reviewNavigationRow(
+                                        icon: "checkmark.circle.fill",
+                                        color: .green,
+                                        title: "Safe caches",
+                                        subtitle: "Known locations that apps can rebuild",
+                                        size: safeTotal,
+                                        actionTitle: "Review"
+                                    ) { openCacheReview(mode: .safe) }
+                                }
+
                                 if cautionTotal > 0 {
                                     reviewNavigationRow(
                                         icon: "exclamationmark.circle.fill",
@@ -557,7 +569,7 @@ struct MainView: View {
 
                                 if largeFileTotal > 0 {
                                     reviewNavigationRow(
-                                        icon: "doc.badge.magnifyingglass",
+                                        icon: "doc.on.doc.fill",
                                         color: .blue,
                                         title: "Large personal files",
                                         subtitle: "\(diskMonitor.largeFiles.count) files over 100 MB",
@@ -601,7 +613,7 @@ struct MainView: View {
                         openCleanerTab(.largeFiles)
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "doc.badge.magnifyingglass")
+                            Image(systemName: "doc.on.doc.fill")
                                 .foregroundColor(.blue)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("View Large Files")
@@ -825,18 +837,7 @@ struct MainView: View {
                     headerView
                     
                     Divider()
-                    
 
-                    
-                    // Cleanable summary card (only when there's stuff to clean)
-                    let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
-                    if selectedTab != .diskSpace &&
-                        (diskMonitor.totalCleanable > 10_485_760 ||
-                         artifactTotal > 10_485_760) {
-                        cleanableSummary
-                        Divider()
-                    }
-                    
                     // Tab bar with expand button
                     HStack(spacing: 0) {
                         tabBar
@@ -852,6 +853,16 @@ struct MainView: View {
                     }
                     
                     Divider()
+
+                    // Keep navigation anchored below the header. Per-tab summaries belong to the
+                    // content region so switching tabs never moves the controls vertically.
+                    let artifactTotal = diskMonitor.projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+                    if selectedTab != .diskSpace &&
+                        (diskMonitor.totalCleanable > 10_485_760 ||
+                         artifactTotal > 10_485_760) {
+                        cleanableSummary
+                        Divider()
+                    }
                     
                     // Content
                     ScrollView {
@@ -977,53 +988,72 @@ struct MainView: View {
                 Spacer()
             }
             
-            // Action buttons
+            // Review entry points use neutral language and restrained colors because opening
+            // either screen is non-destructive; deletion remains an explicit second step.
             HStack(spacing: 8) {
                 let cacheTotal = safeCacheTotal + moderateTotal + riskyCacheTotal
                 if cacheTotal > 0 {
-                    Button(action: {
+                    summaryReviewButton(
+                        title: "Review Caches",
+                        icon: "magnifyingglass",
+                        tint: .blue
+                    ) {
                         activeScreen = .cleanCaches
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10))
-                            Text("Clean Caches")
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.green.opacity(0.15))
-                        .cornerRadius(6)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.green)
                 }
                 if artifactTotal > 0 {
-                    Button(action: {
+                    summaryReviewButton(
+                        title: "Review Projects",
+                        icon: "shippingbox.fill",
+                        tint: .cyan
+                    ) {
                         selectedArtifactIDs = []
                         projectFilterMode = .all
                         activeScreen = .cleanProjects
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10))
-                            Text("Sweep Project Caches")
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.mint.opacity(0.18))
-                        .cornerRadius(6)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.mint)
                 }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    private func summaryReviewButton(
+        title: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 23, height: 23)
+                    .background(tint.opacity(0.11), in: RoundedRectangle(cornerRadius: 6))
+
+                Text(title)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 2)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
     }
     
     // MARK: - Header
@@ -1128,29 +1158,67 @@ struct MainView: View {
     
     // MARK: - Tab Bar
     var tabBar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 5) {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button(action: { selectedTab = tab }) {
                     Text(tab.rawValue)
-                        .font(.system(size: 11, weight: selectedTab == tab ? .semibold : .regular))
+                        .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .medium))
                         .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.78)
+                        .minimumScaleFactor(0.72)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .contentShape(Rectangle()) // Makes entire area clickable, not just text
-                        .background(
-                            selectedTab == tab
-                                ? Color.accentColor.opacity(0.1)
-                                : Color.clear
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 7)
+                        .contentShape(RoundedRectangle(cornerRadius: 7))
+                        .background {
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(tabBackgroundColor(tab))
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 7)
+                                .stroke(tabBorderColor(tab), lineWidth: 1)
+                        }
+                        .shadow(
+                            color: selectedTab == tab ? Color.accentColor.opacity(0.08) : .clear,
+                            radius: 2,
+                            y: 1
                         )
-                        .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
+                .onHover { isHovering in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        if isHovering {
+                            hoveredTab = tab
+                        } else if hoveredTab == tab {
+                            hoveredTab = nil
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
+        .animation(.easeOut(duration: 0.16), value: selectedTab)
+    }
+
+    private func tabBackgroundColor(_ tab: Tab) -> Color {
+        if selectedTab == tab {
+            return Color.accentColor.opacity(0.12)
+        }
+        if hoveredTab == tab {
+            return Color.primary.opacity(0.065)
+        }
+        return Color.primary.opacity(0.028)
+    }
+
+    private func tabBorderColor(_ tab: Tab) -> Color {
+        if selectedTab == tab {
+            return Color.accentColor.opacity(0.24)
+        }
+        if hoveredTab == tab {
+            return Color.primary.opacity(0.13)
+        }
+        return Color.primary.opacity(0.075)
     }
     
     // MARK: - Overview Tab
@@ -1765,7 +1833,9 @@ struct MainView: View {
     }
     
     func cacheRow(_ cache: DevCache, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let showsTechnicalDetails = cache.section == .developer
+
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: cache.icon)
                     .font(.system(size: 12, weight: .medium))
@@ -1788,10 +1858,12 @@ struct MainView: View {
                                 )
                         }
                     }
-                    Text(cache.cacheDescription)
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if showsTechnicalDetails {
+                        Text(cache.cacheDescription)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 Spacer()
                 HStack(spacing: 4) {
@@ -1831,49 +1903,51 @@ struct MainView: View {
                 .help("Show in Finder")
             }
 
-            HStack(spacing: 4) {
-                Image(systemName: "folder")
-                    .font(.system(size: 8))
-                Text(cache.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .font(.system(size: 8.5))
-            .foregroundStyle(.tertiary)
-            .padding(.leading, 36)
-
-            if let impact = cache.safetyDetails {
-                VStack(alignment: .leading, spacing: 3) {
-                    cacheImpactLine(icon: "minus.circle.fill", color: .orange, title: "Removes", text: impact.removes)
-                    cacheImpactLine(icon: "checkmark.shield.fill", color: .green, title: "Keeps", text: impact.keeps)
-                    cacheImpactLine(icon: "info.circle.fill", color: .blue, title: "Before cleaning", text: impact.note)
-                }
-                .padding(7)
-                .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
-                .padding(.leading, 36)
-            }
-            
-            // DerivedData project breakdown
-            if let detail = cache.detail {
+            if showsTechnicalDetails {
                 HStack(spacing: 4) {
-                    Image(systemName: "doc.text.magnifyingglass")
+                    Image(systemName: "folder")
                         .font(.system(size: 8))
-                        .foregroundColor(accent.opacity(0.6))
-                    Text(detail)
-                        .font(.system(size: 9))
-                        .foregroundColor(accent.opacity(0.7))
+                    Text(cache.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
                         .lineLimit(1)
-                        .truncationMode(.tail)
+                        .truncationMode(.middle)
                 }
+                .font(.system(size: 8.5))
+                .foregroundStyle(.tertiary)
                 .padding(.leading, 36)
-            }
-            
-            // Smart suggestion
-            if let suggestion = cache.suggestion {
-                Text(suggestion)
-                    .font(.system(size: 10))
-                    .foregroundColor(.orange)
+
+                if let impact = cache.safetyDetails {
+                    VStack(alignment: .leading, spacing: 3) {
+                        cacheImpactLine(icon: "minus.circle.fill", color: .orange, title: "Removes", text: impact.removes)
+                        cacheImpactLine(icon: "checkmark.shield.fill", color: .green, title: "Keeps", text: impact.keeps)
+                        cacheImpactLine(icon: "info.circle.fill", color: .blue, title: "Before cleaning", text: impact.note)
+                    }
+                    .padding(7)
+                    .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
                     .padding(.leading, 36)
+                }
+
+                // DerivedData project breakdown
+                if let detail = cache.detail {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 8))
+                            .foregroundColor(accent.opacity(0.6))
+                        Text(detail)
+                            .font(.system(size: 9))
+                            .foregroundColor(accent.opacity(0.7))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .padding(.leading, 36)
+                }
+
+                // Smart suggestion
+                if let suggestion = cache.suggestion {
+                    Text(suggestion)
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                        .padding(.leading, 36)
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -2483,7 +2557,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
                 Spacer()
-                Text("Clean Caches")
+                Text("Review Caches")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 // Invisible balancer
@@ -2608,19 +2682,21 @@ struct MainView: View {
                                                 .font(.system(size: 7, weight: .bold))
                                                 .foregroundStyle(cache.section == .app ? Color.pink : Color.blue)
                                         }
-                                        Text(cache.cacheDescription)
-                                            .font(.system(size: 9.5))
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
-                                        if let impact = cache.safetyDetails {
-                                            HStack(spacing: 3) {
-                                                Image(systemName: "checkmark.shield.fill")
-                                                    .foregroundStyle(.green)
-                                                Text("Keeps: \(impact.keeps)")
-                                                    .lineLimit(1)
+                                        if cache.section == .developer {
+                                            Text(cache.cacheDescription)
+                                                .font(.system(size: 9.5))
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(1)
+                                            if let impact = cache.safetyDetails {
+                                                HStack(spacing: 3) {
+                                                    Image(systemName: "checkmark.shield.fill")
+                                                        .foregroundStyle(.green)
+                                                    Text("Keeps: \(impact.keeps)")
+                                                        .lineLimit(1)
+                                                }
+                                                .font(.system(size: 8.5))
+                                                .foregroundStyle(.secondary)
                                             }
-                                            .font(.system(size: 8.5))
-                                            .foregroundStyle(.secondary)
                                         }
                                     }
                                     
@@ -2755,7 +2831,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.accentColor)
                 Spacer()
-                Text("Sweep Project Caches")
+                Text("Review Projects")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button(action: { activeProjectSheet = .history }) {

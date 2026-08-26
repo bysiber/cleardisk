@@ -2,6 +2,16 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.0.1] - 2026-08-26
+### Changed
+- App-cache rows now stay compact and omit implementation details intended for developer caches.
+- Cleanup entry points use **Review Caches** and **Review Projects**, with calmer non-destructive styling before the user selects anything to clean.
+- The Review workspace includes an explicit Safe cache category alongside Caution and Risky findings.
+- Main workspace tabs are larger, individually separated, hover-responsive and anchored below the header so switching sections no longer moves the navigation vertically.
+
+### Fixed
+- Large Personal Files now uses a supported system icon instead of rendering with a missing symbol.
+
 ## [2.0.0] - 2026-08-26
 ### Added
 - **Full disk space scanner** with startup-disk, Home, Desktop, Downloads, Documents, Applications, temporary-files and safe system-area entry points.
