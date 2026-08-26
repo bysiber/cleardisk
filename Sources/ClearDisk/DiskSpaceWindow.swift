@@ -17,8 +17,24 @@ struct DiskSpaceLocation: Identifiable, Hashable {
     let subtitle: String
 }
 
+private enum DiskSpaceScanError: LocalizedError {
+    case noTemporaryLocations
+    case noTemporaryFiles
+
+    var errorDescription: String? {
+        switch self {
+        case .noTemporaryLocations:
+            return "No temporary locations are available on this Mac."
+        case .noTemporaryFiles:
+            return "Temporary locations could not be analyzed."
+        }
+    }
+}
+
 @MainActor
 final class DiskSpaceStore: ObservableObject {
+    private static let temporaryFilesLocationID = "cleardisk://temporary-files"
+
     enum Phase: Equatable {
         case idle
         case scanning
@@ -52,6 +68,12 @@ final class DiskSpaceStore: ObservableObject {
         locations.first(where: { $0.id == selectedLocationID })
             ?? locations.first
             ?? Self.startupDiskLocation()
+    }
+
+    var selectedLocationDetail: String {
+        selectedLocation.id == Self.temporaryFilesLocationID
+            ? selectedLocation.subtitle
+            : selectedLocation.url.path
     }
 
     var displayedNode: DiskFileNode? {
@@ -133,12 +155,43 @@ final class DiskSpaceStore: ObservableObject {
             ("Home", home, "house.fill"),
             ("Desktop", home.appendingPathComponent("Desktop", isDirectory: true), "menubar.dock.rectangle"),
             ("Documents", home.appendingPathComponent("Documents", isDirectory: true), "doc.fill"),
-            ("Downloads", home.appendingPathComponent("Downloads", isDirectory: true), "arrow.down.circle.fill"),
-            ("Applications", URL(fileURLWithPath: "/Applications", isDirectory: true), "app.fill"),
-            ("Library", home.appendingPathComponent("Library", isDirectory: true), "books.vertical.fill")
+            ("Downloads", home.appendingPathComponent("Downloads", isDirectory: true), "arrow.down.circle.fill")
         ]
+        values.append(contentsOf: Self.locations(
+            from: favoriteDefinitions,
+            fileManager: fileManager
+        ))
 
-        values.append(contentsOf: favoriteDefinitions.compactMap { name, url, icon in
+        values.append(
+            DiskSpaceLocation(
+                id: Self.temporaryFilesLocationID,
+                name: "Temporary Files",
+                url: fileManager.temporaryDirectory,
+                icon: "clock.arrow.circlepath",
+                kind: .favorite,
+                subtitle: "User, shared, persistent, and sandboxed app temporary files"
+            )
+        )
+
+        values.append(contentsOf: Self.locations(
+            from: [
+                ("Applications", URL(fileURLWithPath: "/Applications", isDirectory: true), "app.fill"),
+                ("Library", home.appendingPathComponent("Library", isDirectory: true), "books.vertical.fill")
+            ],
+            fileManager: fileManager
+        ))
+
+        locations = values
+        if !values.contains(where: { $0.id == selectedLocationID }) {
+            selectedLocationID = "/"
+        }
+    }
+
+    private static func locations(
+        from definitions: [(String, URL, String)],
+        fileManager: FileManager
+    ) -> [DiskSpaceLocation] {
+        definitions.compactMap { name, url, icon in
             guard fileManager.fileExists(atPath: url.path) else { return nil }
             return DiskSpaceLocation(
                 id: normalizedPath(url.path),
@@ -148,11 +201,6 @@ final class DiskSpaceStore: ObservableObject {
                 kind: .favorite,
                 subtitle: abbreviatedPath(url.path)
             )
-        })
-
-        locations = values
-        if !values.contains(where: { $0.id == selectedLocationID }) {
-            selectedLocationID = "/"
         }
     }
 
@@ -174,35 +222,11 @@ final class DiskSpaceStore: ObservableObject {
 
         scanTask = Task { [weak self] in
             guard let self else { return }
-            var collectedIssues: [DiskScanIssue] = []
             do {
-                let request = DiskScanRequest(
-                    rootURL: location.url,
-                    includesHiddenItems: true,
-                    expandsPackages: false
-                )
-
-                for try await event in scanner.events(for: request) {
-                    guard !Task.isCancelled, activeScanID == scanID else { return }
-                    switch event {
-                    case .progress(let nextProgress):
-                        progress = nextProgress
-                    case .issue(let issue):
-                        // Publishing every permission warning can invalidate the whole
-                        // SwiftUI hierarchy hundreds of times during a volume scan.
-                        // The complete list is published once with the snapshot.
-                        collectedIssues.append(issue)
-                    case .completed(let completedSnapshot):
-                        snapshot = completedSnapshot
-                        issues = completedSnapshot.issues.isEmpty
-                            ? collectedIssues
-                            : completedSnapshot.issues
-                        scannedRootPath = normalizedPath(location.url.path)
-                        focusedNodeID = completedSnapshot.rootID
-                        selectedNodeID = nil
-                        progress = nil
-                        phase = .finished
-                    }
+                if location.id == Self.temporaryFilesLocationID {
+                    try await scanTemporaryFiles(location: location, scanID: scanID)
+                } else {
+                    try await scanSingleLocation(location, scanID: scanID)
                 }
             } catch is CancellationError {
                 if activeScanID == scanID, phase == .scanning { phase = .idle }
@@ -219,6 +243,151 @@ final class DiskSpaceStore: ObservableObject {
         }
     }
 
+    private func scanSingleLocation(
+        _ location: DiskSpaceLocation,
+        scanID: UUID
+    ) async throws {
+        var collectedIssues: [DiskScanIssue] = []
+        let request = DiskScanRequest(
+            rootURL: location.url,
+            includesHiddenItems: true,
+            expandsPackages: false
+        )
+
+        for try await event in scanner.events(for: request) {
+            try ensureScanIsActive(scanID)
+            switch event {
+            case .progress(let nextProgress):
+                progress = nextProgress
+            case .issue(let issue):
+                // Publishing every permission warning can invalidate the whole
+                // SwiftUI hierarchy hundreds of times during a volume scan.
+                collectedIssues.append(issue)
+            case .completed(let completedSnapshot):
+                completeScan(
+                    with: completedSnapshot,
+                    issues: completedSnapshot.issues.isEmpty
+                        ? collectedIssues
+                        : completedSnapshot.issues,
+                    scannedRootPath: normalizedPath(location.url.path)
+                )
+            }
+        }
+    }
+
+    private func scanTemporaryFiles(
+        location: DiskSpaceLocation,
+        scanID: UUID
+    ) async throws {
+        let plan = TemporaryFilesScanPlan.make()
+        let sourceCount = plan.reduce(0) { $0 + $1.sources.count }
+        guard sourceCount > 0 else {
+            throw DiskSpaceScanError.noTemporaryLocations
+        }
+
+        var completedSourceCount = 0
+        var completedFiles = 0
+        var completedDirectories = 0
+        var completedBytes: Int64 = 0
+        var collectedIssues: [DiskScanIssue] = []
+        var completedGroups: [DiskScanCompositeGroup] = []
+
+        for group in plan {
+            var completedSources: [DiskScanCompositeSource] = []
+
+            for source in group.sources {
+                var sourceSnapshot: DiskScanSnapshot?
+                let request = DiskScanRequest(
+                    rootURL: source.url,
+                    includesHiddenItems: true,
+                    expandsPackages: false
+                )
+
+                for try await event in scanner.events(for: request) {
+                    try ensureScanIsActive(scanID)
+                    switch event {
+                    case .progress(let sourceProgress):
+                        progress = DiskScanProgress(
+                            filesVisited: completedFiles + sourceProgress.filesVisited,
+                            directoriesVisited: completedDirectories + sourceProgress.directoriesVisited,
+                            bytesDiscovered: completedBytes + sourceProgress.bytesDiscovered,
+                            currentPath: sourceProgress.currentPath,
+                            fractionCompleted: (
+                                Double(completedSourceCount) + sourceProgress.fractionCompleted
+                            ) / Double(sourceCount)
+                        )
+                    case .issue(let issue):
+                        collectedIssues.append(issue)
+                    case .completed(let completedSnapshot):
+                        sourceSnapshot = completedSnapshot
+                    }
+                }
+
+                if let sourceSnapshot {
+                    completedSources.append(
+                        DiskScanCompositeSource(name: source.name, snapshot: sourceSnapshot)
+                    )
+                    completedFiles += sourceSnapshot.statistics.fileCount
+                    completedDirectories += sourceSnapshot.statistics.directoryCount
+                    completedBytes += sourceSnapshot.statistics.allocatedBytes
+                }
+                completedSourceCount += 1
+            }
+
+            if !completedSources.isEmpty {
+                completedGroups.append(
+                    DiskScanCompositeGroup(
+                        name: group.name,
+                        url: group.url,
+                        sources: completedSources
+                    )
+                )
+            }
+        }
+
+        try ensureScanIsActive(scanID)
+        guard let completedSnapshot = DiskScanSnapshot.composite(
+            id: Self.temporaryFilesLocationID,
+            name: location.name,
+            url: location.url,
+            groups: completedGroups
+        ) else {
+            throw DiskSpaceScanError.noTemporaryFiles
+        }
+
+        let allIssues = uniqueIssues(completedSnapshot.issues + collectedIssues)
+        completeScan(
+            with: completedSnapshot,
+            issues: allIssues,
+            scannedRootPath: location.id
+        )
+    }
+
+    private func ensureScanIsActive(_ scanID: UUID) throws {
+        guard !Task.isCancelled, activeScanID == scanID else {
+            throw CancellationError()
+        }
+    }
+
+    private func completeScan(
+        with completedSnapshot: DiskScanSnapshot,
+        issues completedIssues: [DiskScanIssue],
+        scannedRootPath: String
+    ) {
+        snapshot = completedSnapshot
+        issues = completedIssues
+        self.scannedRootPath = scannedRootPath
+        focusedNodeID = completedSnapshot.rootID
+        selectedNodeID = nil
+        progress = nil
+        phase = .finished
+    }
+
+    private func uniqueIssues(_ values: [DiskScanIssue]) -> [DiskScanIssue] {
+        var seenIDs = Set<UUID>()
+        return values.filter { seenIDs.insert($0.id).inserted }
+    }
+
     func stopScan(resetToIdle: Bool = true) {
         activeScanID = nil
         scanTask?.cancel()
@@ -231,7 +400,7 @@ final class DiskSpaceStore: ObservableObject {
     func selectLocation(_ id: String?) {
         guard let id, locations.contains(where: { $0.id == id }) else { return }
         selectedLocationID = id
-        focusedNodeID = snapshot?.node(id: normalizedPath(selectedLocation.url.path))?.id
+        focusedNodeID = node(forLocationID: id)?.id
         selectedNodeID = nil
         if case .failed = phase { phase = .idle }
     }
@@ -239,6 +408,9 @@ final class DiskSpaceStore: ObservableObject {
     func node(forLocationID id: String) -> DiskFileNode? {
         guard let snapshot,
               let location = locations.first(where: { $0.id == id }) else { return nil }
+        if location.id == scannedRootPath {
+            return snapshot.root
+        }
         let path = normalizedPath(location.url.path)
         if path == scannedRootPath {
             return snapshot.root
@@ -281,6 +453,9 @@ final class DiskSpaceStore: ObservableObject {
 
     private var locationRootNode: DiskFileNode? {
         guard let snapshot else { return nil }
+        if selectedLocation.id == scannedRootPath {
+            return snapshot.root
+        }
         let selectedPath = normalizedPath(selectedLocation.url.path)
         if selectedPath == scannedRootPath {
             return snapshot.root
@@ -1231,7 +1406,7 @@ private struct DiskSpaceToolbar: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(store.selectedLocation.name)
                     .font(.headline)
-                Text(store.selectedLocation.url.path)
+                Text(store.selectedLocationDetail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

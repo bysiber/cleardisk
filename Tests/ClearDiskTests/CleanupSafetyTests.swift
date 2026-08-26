@@ -115,4 +115,27 @@ final class CleanupSafetyTests: XCTestCase {
         XCTAssertEqual(definition?.riskLevel, "caution")
         XCTAssertTrue(definition?.safetyDetails?.note.localizedCaseInsensitiveContains("review") == true)
     }
+
+    func testShipItDownloadsRequireReview() throws {
+        let fm = FileManager.default
+        let temporaryHome = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let shipIt = temporaryHome.appendingPathComponent("Library/Caches/com.example.editor.ShipIt", isDirectory: true)
+        try fm.createDirectory(at: shipIt, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: temporaryHome) }
+
+        let definition = AppCacheCatalog.definitions(home: temporaryHome.path)
+            .first { $0.path == shipIt.path }
+        XCTAssertEqual(definition?.riskLevel, "caution")
+        XCTAssertTrue(definition?.safetyDetails?.note.localizedCaseInsensitiveContains("quit") == true)
+    }
+
+    func testCopilotCleanupNeverTargetsSessionStorage() {
+        let definitions = DiskMonitor().allCachePaths()
+        let copilot = definitions.filter { $0.name.contains("Copilot") }
+
+        XCTAssertFalse(copilot.isEmpty)
+        XCTAssertTrue(copilot.allSatisfy { $0.path.contains("/Library/Caches/") })
+        XCTAssertFalse(copilot.contains { $0.path.contains("/.copilot") })
+        XCTAssertTrue(copilot.allSatisfy { $0.riskLevel == "caution" })
+    }
 }

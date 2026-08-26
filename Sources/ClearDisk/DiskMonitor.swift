@@ -499,6 +499,9 @@ class DiskMonitor: ObservableObject {
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
         "rustup Toolchains": "Installed Rust toolchains (stable, beta, nightly) — a full compiler and standard library each. Reinstall with rustup toolchain install.",
         "Playwright Browsers": "Downloaded browser binaries for Playwright testing. Re-downloads on npx playwright install.",
+        "Playwright Go Browsers": "Browser packages downloaded by Playwright for Go. Re-downloads when the matching Playwright Go version installs its driver.",
+        "DotSlash Artifacts": "Verified executables and archives downloaded by DotSlash. They are fetched again the next time a matching DotSlash launcher runs.",
+        "Puccinialin Rust Environment": "A self-contained Rust compiler, Cargo registry, and tools. Removing it does not delete source code, but the full toolchain must be installed again.",
         "Puppeteer Browsers": "Downloaded Chromium binaries for Puppeteer. Re-downloads on npx puppeteer install.",
         "Prisma Engines": "Prisma ORM query engine binaries. Re-downloads on npx prisma generate.",
         "Flutter/Pub Cache": "Cached Dart/Flutter packages. Re-downloads on flutter pub get.",
@@ -514,6 +517,8 @@ class DiskMonitor: ObservableObject {
         "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
         "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull — large models take a while.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
+        "GitHub Copilot CLI Runtime": "Downloaded Copilot CLI runtime versions and bundled dependencies. Local sessions, settings, plugins, and logs under ~/.copilot are not targeted.",
+        "GitHub Copilot CLI Locked Runtime": "A separate downloaded Copilot CLI runtime channel. Local sessions and configuration under ~/.copilot are not targeted.",
         "Cursor": "Cursor's whole application-support directory: workspace state, chat history, extensions and settings. Not a cache — deleting it is permanent.",
         "Windsurf": "Windsurf's whole application-support directory: workspace state, chat history and settings. Not a cache — deleting it is permanent.",
         // Game Engines
@@ -540,7 +545,6 @@ class DiskMonitor: ObservableObject {
         "VS Code Extensions Cache": "Downloaded extension VSIX packages. Safe to delete, re-downloads when needed.",
         "VS Code Chromium Cache": "Chromium disk cache used by VS Code. Safe to delete, rebuilds on launch.",
         "VS Code Logs": "Old session logs and telemetry data. Safe to delete anytime.",
-        "VS Code Updater": "Update packages downloaded by the Squirrel updater. Safe to delete while VS Code is not installing an update — it re-downloads the next one.",
     ]
     
     /// Resolve DerivedData subfolders to project names using info.plist → WorkspacePath
@@ -656,8 +660,13 @@ class DiskMonitor: ObservableObject {
             ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe", nil),
             // Testing
             ("Playwright Browsers", "theatermasks.fill", "\(home)/Library/Caches/ms-playwright", "safe", nil),
+            ("Playwright Go Browsers", "theatermasks.circle.fill", "\(home)/Library/Caches/ms-playwright-go", "safe", nil),
             ("Puppeteer Browsers", "theatermasks", "\(home)/.cache/puppeteer", "safe", nil),
             ("Prisma Engines", "cylinder.fill", "\(home)/.cache/prisma", "safe", nil),
+            // Downloaded developer-tool artifacts. These are recoverable, but can be expensive to
+            // fetch again; Puccinialin contains a complete Rust toolchain rather than ordinary cache.
+            ("DotSlash Artifacts", "arrow.down.circle.fill", "\(home)/Library/Caches/dotslash", "caution", "Developer Tools"),
+            ("Puccinialin Rust Environment", "wrench.and.screwdriver.fill", "\(home)/Library/Caches/puccinialin", "caution", "Developer Tools"),
             // Mobile
             ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe", nil),
             // IDEs
@@ -674,10 +683,11 @@ class DiskMonitor: ObservableObject {
             ("VS Code Extensions Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/CachedExtensionVSIXs", "safe", "VS Code"),
             ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
             ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
-            // A sibling of the "VS Code Cache" directory above, not the same one: Squirrel parks downloaded
-            // update payloads in ~/Library/Caches/com.microsoft.VSCode.ShipIt and never prunes them.
-            ("VS Code Updater", "arrow.down.app.fill", "\(home)/Library/Caches/com.microsoft.VSCode.ShipIt", "safe", "VS Code"),
             // AI Tools
+            // Only downloaded CLI runtimes are targeted. ~/.copilot contains sessions, settings,
+            // plugins, and logs and is deliberately outside every cleanup definition.
+            ("GitHub Copilot CLI Runtime", "sparkles", "\(home)/Library/Caches/copilot/pkg", "caution", "AI Tools"),
+            ("GitHub Copilot CLI Locked Runtime", "lock.fill", "\(home)/Library/Caches/copilot-locked-25/pkg", "caution", "AI Tools"),
             // Both Claude entries are "risky", not "caution". They were "caution" until #27, where a
             // user lost every Claude CoWork session with no way back. These are not caches: on a
             // normal machine over 99% of ~/.claude is session transcripts, job state, file history,

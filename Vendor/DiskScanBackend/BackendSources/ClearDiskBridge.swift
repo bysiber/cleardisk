@@ -57,6 +57,44 @@ public nonisolated struct ScanBackendNode: Identifiable, Sendable {
     public let lastModified: Date?
     public let linkCount: UInt64
     public let mayShareAPFSBlocks: Bool
+
+    public init(
+        id: String,
+        url: URL,
+        name: String,
+        childIDs: [String],
+        parentID: String?,
+        isDirectory: Bool,
+        isSymbolicLink: Bool,
+        isPackage: Bool,
+        isAccessible: Bool,
+        isSynthetic: Bool,
+        wasSummarized: Bool,
+        allocatedBytes: Int64,
+        logicalBytes: Int64,
+        descendantFileCount: Int,
+        lastModified: Date?,
+        linkCount: UInt64,
+        mayShareAPFSBlocks: Bool
+    ) {
+        self.id = id
+        self.url = url
+        self.name = name
+        self.childIDs = childIDs
+        self.parentID = parentID
+        self.isDirectory = isDirectory
+        self.isSymbolicLink = isSymbolicLink
+        self.isPackage = isPackage
+        self.isAccessible = isAccessible
+        self.isSynthetic = isSynthetic
+        self.wasSummarized = wasSummarized
+        self.allocatedBytes = allocatedBytes
+        self.logicalBytes = logicalBytes
+        self.descendantFileCount = descendantFileCount
+        self.lastModified = lastModified
+        self.linkCount = linkCount
+        self.mayShareAPFSBlocks = mayShareAPFSBlocks
+    }
 }
 
 public nonisolated struct ScanBackendStatistics: Sendable {

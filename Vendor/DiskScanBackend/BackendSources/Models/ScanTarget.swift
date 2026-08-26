@@ -5,6 +5,7 @@
 //  Created by Codex on 4/2/26.
 //
 
+import Darwin
 import Foundation
 
 nonisolated enum ScanTargetKind: String, Hashable, Codable, Sendable {
@@ -42,8 +43,7 @@ nonisolated struct ScanTarget: Identifiable, Hashable, Sendable {
     }
 
     private nonisolated static func normalizedURL(from url: URL) -> URL {
-        let standardizedURL = url.standardizedFileURL
-        let path = standardizedURL.path
+        let path = url.path
 
         for syntheticPrefix in ["/.nofollow", "/.resolve"] {
             guard path == syntheticPrefix || path.hasPrefix(syntheticPrefix + "/") else { continue }
@@ -52,17 +52,25 @@ nonisolated struct ScanTarget: Identifiable, Hashable, Sendable {
             let normalizedPath = trimmedPath.isEmpty ? "/" : trimmedPath
             let syntheticResolvedURL = URL(
                 fileURLWithPath: normalizedPath,
-                isDirectory: standardizedURL.hasDirectoryPath
+                isDirectory: url.hasDirectoryPath
             )
             return normalizedRootURL(from: syntheticResolvedURL)
         }
 
-        return normalizedRootURL(from: standardizedURL)
+        return normalizedRootURL(from: url)
     }
 
     private nonisolated static func normalizedRootURL(from url: URL) -> URL {
-        let resolvedURL = url.resolvingSymlinksInPath().standardizedFileURL
-        return URL(fileURLWithPath: resolvedURL.path, isDirectory: url.hasDirectoryPath).standardizedFileURL
+        let resolvedPath = url.withUnsafeFileSystemRepresentation { fileSystemPath -> String? in
+            guard let fileSystemPath,
+                  let canonicalPath = Darwin.realpath(fileSystemPath, nil) else { return nil }
+            defer { Darwin.free(canonicalPath) }
+            return String(cString: canonicalPath)
+        }
+        if let resolvedPath {
+            return URL(fileURLWithPath: resolvedPath, isDirectory: url.hasDirectoryPath)
+        }
+        return url.resolvingSymlinksInPath().standardizedFileURL
     }
 
     nonisolated static func inferredKind(

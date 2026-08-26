@@ -67,7 +67,13 @@ enum AppCacheCatalog {
         let curated = curatedDefinitions(home: home)
         let reservedPaths = excludingPaths.union(curated.map(\.path))
         let appNames = installedAppNames()
-        let updates = sparkleUpdateDefinitions(home: home, excludingPaths: reservedPaths, appNames: appNames)
+        let sparkleUpdates = sparkleUpdateDefinitions(home: home, excludingPaths: reservedPaths, appNames: appNames)
+        let shipItUpdates = shipItUpdateDefinitions(
+            home: home,
+            excludingPaths: reservedPaths.union(sparkleUpdates.map(\.path)),
+            appNames: appNames
+        )
+        let updates = sparkleUpdates + shipItUpdates
         let allReservedPaths = reservedPaths.union(updates.map(\.path))
         return curated
             + updates
@@ -98,6 +104,7 @@ enum AppCacheCatalog {
             app("Chromium", "globe", "\(home)/Library/Caches/Chromium", "Browsers", "Cached Chromium web resources; browser profile data is not targeted.", browserImpact),
             app("Firefox", "flame.fill", "\(home)/Library/Caches/Firefox", "Browsers", "Firefox web, startup, thumbnail, and safe-browsing caches.", browserImpact),
             app("Firefox Developer Edition", "flame.fill", "\(home)/Library/Caches/Firefox Developer Edition", "Browsers", "Firefox Developer Edition cache files only.", browserImpact),
+            app("Firefox Update Download", "arrow.down.app.fill", "\(home)/Library/Caches/Mozilla/updates", "App Updates", "Downloaded Firefox update payloads and updater state.", CacheSafetyDetails(removes: "Downloaded or partially staged Firefox update files.", keeps: "Firefox, profiles, bookmarks, passwords, history, open tabs, and settings.", note: "Quit Firefox first. Firefox may download the update again."), riskLevel: "caution"),
             app("Safari", "safari.fill", "\(home)/Library/Caches/com.apple.Safari", "Browsers", "Safari's macOS cache container; website data is stored separately.", browserImpact),
             app("Microsoft Edge", "globe", "\(home)/Library/Caches/Microsoft Edge", "Browsers", "Cached Edge web resources; browser profile data is not targeted.", browserImpact),
             app("Microsoft Edge Beta", "globe", "\(home)/Library/Caches/Microsoft Edge Beta", "Browsers", "Cached Edge Beta web resources; browser profile data is not targeted.", browserImpact),
@@ -143,8 +150,13 @@ enum AppCacheCatalog {
             app("Notion Code Cache", "chevron.left.forwardslash.chevron.right", "\(home)/Library/Application Support/Notion/Code Cache", "Productivity", "Notion generated-code cache only.", electronImpact),
             app("Notion GPU Cache", "display", "\(home)/Library/Application Support/Notion/GPUCache", "Productivity", "Notion graphics cache only.", electronImpact),
             app("GitHub Desktop Web Cache", "chevron.left.forwardslash.chevron.right", "\(home)/Library/Application Support/GitHub Desktop/Cache", "Productivity", "GitHub Desktop HTTP cache only; repositories are not targeted.", electronImpact),
+            app("Codex Web Cache", "bubble.right.fill", "\(home)/Library/Caches/Codex/Default/Cache", "Productivity", "Codex HTTP cache only; task and account data are not targeted.", electronImpact),
+            app("Codex Browser Cache", "globe", "\(home)/Library/Caches/Codex/Default/Partitions/codex-browser-app/Cache", "Productivity", "HTTP cache for Codex's isolated browser partition.", CacheSafetyDetails(removes: "Cached browser responses used by Codex.", keeps: "Codex tasks, accounts, settings, browser cookies, and downloaded files.", note: "Quit Codex first. Browser content may load more slowly once while the cache rebuilds.")),
             app("Bambu Studio Web Cache", "cube.fill", "\(home)/Library/Caches/com.bambulab.bambu-studio/WebKit/NetworkCache", "Creative Apps", "Bambu Studio's embedded web cache; projects and printer settings are not targeted.", electronImpact),
-            app("Blender Cache", "cube.transparent.fill", "\(home)/Library/Caches/Blender", "Creative Apps", "Blender's macOS cache container; blend files and preferences are not targeted.", nativeAppImpact, riskLevel: "caution")
+            app("Blender Cache", "cube.transparent.fill", "\(home)/Library/Caches/Blender", "Creative Apps", "Blender's macOS cache container; blend files and preferences are not targeted.", nativeAppImpact, riskLevel: "caution"),
+            app("Asset Manager Thumbnails", "photo.on.rectangle.angled", "\(home)/Library/Caches/Asset Manager/Asset Thumbnails", "Creative Apps", "Generated previews for assets; original asset files are not targeted.", CacheSafetyDetails(removes: "Generated asset preview images.", keeps: "Original assets, projects, imported files, and app settings.", note: "The app may regenerate thumbnails the next time those assets are viewed.")),
+            app("Asset Manager Model Thumbnails", "cube.transparent", "\(home)/Library/Caches/Asset Manager/Model Thumbnails", "Creative Apps", "Generated model preview images; source models are not targeted.", CacheSafetyDetails(removes: "Generated model preview images.", keeps: "Original models, textures, projects, and app settings.", note: "The app may regenerate model thumbnails on demand.")),
+            app("Asset Manager Adapted Models", "cube.fill", "\(home)/Library/Caches/Asset Manager/Adapted Models", "Creative Apps", "Generated model variants used for faster previews or compatibility.", CacheSafetyDetails(removes: "Derived model copies and their generated textures.", keeps: "Original imported models, projects, and app settings.", note: "Review first: rebuilding adapted models may take time."), riskLevel: "caution")
         ]
     }
 
@@ -170,6 +182,36 @@ enum AppCacheCatalog {
             guard fm.fileExists(atPath: path), !isCovered(path, by: excludingPaths) else { return nil }
             let appName = appNames[root.lastPathComponent] ?? readableBundleName(root.lastPathComponent)
             return app("\(appName) Update Download", "arrow.down.app.fill", path, "App Updates", "Downloaded Sparkle update payloads and installer staging files.", CacheSafetyDetails(removes: "A downloaded or partially staged app update.", keeps: "The installed app, its settings, accounts, and documents.", note: "Review first: the app may need to download the update again."), riskLevel: "caution")
+        }
+    }
+
+    /// Squirrel.Mac stores downloaded and staged updates beside logs and ShipIt state in
+    /// ~/Library/Caches/<bundle-id>.ShipIt. They are recoverable downloads, but removing an active
+    /// staging directory can interrupt an update, so every match remains review-only.
+    private static func shipItUpdateDefinitions(home: String, excludingPaths: Set<String>, appNames: [String: String]) -> [CachePathDefinition] {
+        let cacheRoot = URL(fileURLWithPath: home).appendingPathComponent("Library/Caches", isDirectory: true)
+        let fm = FileManager.default
+        guard let roots = try? fm.contentsOfDirectory(at: cacheRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { return [] }
+
+        return roots.compactMap { root in
+            let folderName = root.lastPathComponent
+            guard folderName.hasSuffix(".ShipIt"), !isCovered(root.path, by: excludingPaths) else { return nil }
+
+            let bundleID = String(folderName.dropLast(".ShipIt".count))
+            let appName = appNames[bundleID] ?? readableBundleName(bundleID)
+            return app(
+                "\(appName) Update Staging",
+                "arrow.down.app.fill",
+                root.path,
+                "App Updates",
+                "Downloaded or staged Squirrel updater files.",
+                CacheSafetyDetails(
+                    removes: "The downloaded update payload, staging copy, updater state, and updater logs.",
+                    keeps: "The currently installed app, its settings, accounts, and documents.",
+                    note: "Quit the app first. Do not clean while an update is installing; the update may need to download again."
+                ),
+                riskLevel: "caution"
+            )
         }
     }
 
