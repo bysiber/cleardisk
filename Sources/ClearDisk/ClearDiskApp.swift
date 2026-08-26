@@ -2,6 +2,7 @@ import Cocoa
 import SwiftUI
 import UserNotifications
 import Combine
+import Sparkle
 
 // MARK: - App Entry Point
 @main
@@ -57,6 +58,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var diskSpaceWindowController: DiskSpaceWindowController!
     var eventMonitor: Any?
     var cancellables = Set<AnyCancellable>()
+
+    /// Sparkle owns the complete update UI and installation flow. Keep the controller alive for
+    /// the process lifetime; a local `swift run` build has no app Info.plist, so updater startup is
+    /// intentionally skipped there while packaged ClearDisk.app builds use the configured feed.
+    private lazy var updaterController: SPUStandardUpdaterController? = {
+        guard Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") != nil else { return nil }
+        return SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
@@ -90,9 +103,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.contentViewController = NSHostingController(
             rootView: MainView(
                 diskMonitor: diskMonitor,
-                diskSpaceStore: diskSpaceStore
+                diskSpaceStore: diskSpaceStore,
+                checkForUpdates: { [weak self] in
+                    self?.checkForUpdates()
+                }
             )
         )
+
+        // Initialize after the app bundle and delegate are fully ready. Sparkle schedules future
+        // checks from SUEnableAutomaticChecks and SUScheduledCheckInterval in Info.plist.
+        _ = updaterController
         
         // Start monitoring
         diskMonitor.scan()
@@ -214,6 +234,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.diskSpaceWindowController.show()
         }
+    }
+
+    private func checkForUpdates() {
+        closePopover()
+        NSApp.activate(ignoringOtherApps: true)
+        updaterController?.checkForUpdates(nil)
     }
 
     /// Covers every way the popover can go away, including the transient auto-close on focus loss.

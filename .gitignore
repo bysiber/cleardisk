@@ -6,6 +6,7 @@
 xcuserdata/
 DerivedData/
 Package.resolved
+!Package.resolved
 
 # App bundle (built artifact)
 ClearDisk.app/

@@ -22,6 +22,7 @@ private enum ActiveProjectSheet: Int, Identifiable {
 struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     @ObservedObject var diskSpaceStore: DiskSpaceStore
+    let checkForUpdates: () -> Void
     @State private var selectedTab: Tab = .diskSpace
     @State private var showCleanConfirm = false
     @State private var showCleanSafeConfirm = false
@@ -1661,19 +1662,18 @@ struct MainView: View {
         
         return VStack(spacing: 0) {
             HStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(accent.opacity(0.7))
-                        .frame(width: 10)
+                HStack(spacing: 8) {
                     Image(systemName: groupIcon(groupName))
                         .font(.system(size: 14))
-                        .frame(width: 22)
+                        .frame(width: 28)
                         .foregroundColor(accent)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(groupName)
                                 .font(.system(size: 12, weight: .semibold))
+                            Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(accent.opacity(0.7))
                             Text("\(caches.count)")
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(accent)
@@ -2401,15 +2401,13 @@ struct MainView: View {
                                 .foregroundColor(.secondary)
                             Spacer()
                             Button("Check for Updates") {
-                                if let url = URL(string: "https://github.com/bysiber/cleardisk/releases/latest") {
-                                    NSWorkspace.shared.open(url)
-                                }
+                                checkForUpdates()
                             }
                             .font(.system(size: 11))
                             .controlSize(.small)
                         }
                         
-                        Text("Opens GitHub releases page. No network requests from ClearDisk.")
+                        Text("Securely checks GitHub Releases and installs signed updates with Sparkle.")
                             .font(.system(size: 9))
                             .foregroundColor(.secondary.opacity(0.7))
                     }

@@ -2,6 +2,25 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.0.0] - 2026-08-26
+### Added
+- **Full disk space scanner** with startup-disk, Home, Desktop, Downloads, Documents, Applications, temporary-files and safe system-area entry points.
+- **Interactive treemap and directory browser** with cancellable background scanning, live progress, folder navigation, tooltips and persistent small-item grouping controls.
+- **Application cache discovery** alongside developer caches, including expanded AI-tool, browser, updater and package-manager coverage.
+- **Signed in-app updates with Sparkle 2.** GitHub releases now publish a Developer ID signed, notarized universal DMG and an EdDSA-signed appcast automatically.
+
+### Changed
+- ClearDisk opens on Disk Space and keeps the existing cache cleaner as a dedicated workspace.
+- Disk scans run outside the UI thread and publish incremental progress, preventing the popover from freezing during large scans.
+- Temporary Files combines the current user's temporary directory, `/private/tmp` and `/private/var/tmp` without exposing the whole `/private` hierarchy or double-counting it.
+- Cache summaries use the simpler Safe, Caution and Risky breakdown while preserving detailed cache groups below.
+- Background full scans run every 30 minutes while lightweight free-space updates continue every 5 minutes.
+
+### Fixed
+- Large scans no longer stall near 99%, lock the interface or retain completed scan state unnecessarily.
+- Disk categories no longer expose unsafe broad system roots or count `/var` and `/private/var` aliases twice.
+- Group disclosure indicators now keep cache names aligned instead of shifting nested rows.
+
 ## [1.9.0] - 2026-08-06
 ### Added
 - **Go build cache** (`~/Library/Caches/go-build`). This is `GOCACHE`, and it is usually several times larger than the module download cache that was already listed. Cleared by `go clean -cache`; the next build is slower, then it is fast again.

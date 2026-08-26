@@ -14,6 +14,9 @@ ARCHES=(${ARCHES:-arm64 x86_64})
 APP_BUNDLE="$ROOT_DIR/$APP_NAME.app"
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 BINARY_OUT="$MACOS_DIR/$APP_NAME"
+FRAMEWORKS_DIR="$APP_BUNDLE/Contents/Frameworks"
+SPARKLE_FRAMEWORK="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+SPARKLE_PUBLIC_KEY="l98DVS+1hODBo7XylBUsfUr+gCN/+40tuPcXjVsqlGc="
 
 triple_for_arch() {
     printf '%s-apple-macosx' "$1"
@@ -42,6 +45,8 @@ require_cmd swift
 require_cmd lipo
 require_cmd codesign
 require_cmd file
+require_cmd ditto
+require_cmd install_name_tool
 
 echo "Building $APP_NAME (${ARCHES[*]})..."
 cd "$ROOT_DIR"
@@ -63,6 +68,7 @@ echo "Creating app bundle..."
 rm -rf "$APP_BUNDLE"
 mkdir -p "$MACOS_DIR"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$FRAMEWORKS_DIR"
 
 if [ "${#BUILT_BINS[@]}" -eq 1 ]; then
     cp "${BUILT_BINS[0]}" "$BINARY_OUT"
@@ -72,6 +78,16 @@ else
 fi
 
 file "$BINARY_OUT"
+
+# SwiftPM links Sparkle through @rpath but its command-line build output assumes the framework is
+# beside the executable. A real app bundle keeps frameworks in Contents/Frameworks, so add that
+# standard runtime search path and preserve Sparkle's symlinks while embedding it.
+[ -d "$SPARKLE_FRAMEWORK" ] || {
+    echo "error: Sparkle.framework missing after Swift build: $SPARKLE_FRAMEWORK" >&2
+    exit 1
+}
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$BINARY_OUT"
+ditto "$SPARKLE_FRAMEWORK" "$FRAMEWORKS_DIR/Sparkle.framework"
 
 # Copy app icon
 if [ -f "Resources/AppIcon.icns" ]; then
@@ -83,6 +99,7 @@ fi
 THIRD_PARTY_DIR="$APP_BUNDLE/Contents/Resources/ThirdPartyLicenses"
 mkdir -p "$THIRD_PARTY_DIR"
 cp "Vendor/DiskScanBackend/LICENSE.txt" "$THIRD_PARTY_DIR/DiskScannerMIT.txt"
+cp ".build/artifacts/sparkle/Sparkle/LICENSE" "$THIRD_PARTY_DIR/SparkleLicense.txt"
 
 # Create Info.plist (unquoted heredoc so $VERSION / $BUILD_NUMBER expand)
 cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
@@ -112,6 +129,16 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>SUFeedURL</key>
+    <string>https://github.com/bysiber/cleardisk/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>${SPARKLE_PUBLIC_KEY}</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUAutomaticallyUpdate</key>
+    <false/>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
