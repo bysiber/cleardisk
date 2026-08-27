@@ -80,6 +80,12 @@ public struct DiskVolumeCapacity: Sendable {
     }
 }
 
+public enum DiskScanTrashSafety {
+    public static func protectedRootPath(for url: URL) -> String? {
+        ScanBackendTrashSafety.protectedRootPath(for: url)
+    }
+}
+
 public struct DiskScanCompositeSource: Sendable {
     public let name: String
     public let snapshot: DiskScanSnapshot
@@ -178,6 +184,39 @@ public struct DiskScanSnapshot: Sendable {
             }
             return []
         }
+    }
+
+    /// Removes a subtree from an immutable scan result after the corresponding filesystem item
+    /// has successfully moved to Trash. Composite scans fall back to a rescan at the UI layer.
+    public func removingNode(id: String) -> DiskScanSnapshot? {
+        guard case .backend(let backendSnapshot) = storage,
+              let updated = backendSnapshot.removingNode(id: id) else { return nil }
+
+        return DiskScanSnapshot(
+            rootID: updated.rootID,
+            issues: updated.warnings.map {
+                DiskScanIssue(
+                    id: $0.id,
+                    path: $0.path,
+                    message: $0.message,
+                    kind: $0.kind == .permissionDenied ? .permissionDenied : .fileSystem
+                )
+            },
+            statistics: DiskScanStatistics(
+                allocatedBytes: updated.statistics.allocatedBytes,
+                logicalBytes: updated.statistics.logicalBytes,
+                fileCount: updated.statistics.fileCount,
+                directoryCount: updated.statistics.directoryCount,
+                accessibleItemCount: updated.statistics.accessibleItemCount,
+                inaccessibleItemCount: updated.statistics.inaccessibleItemCount
+            ),
+            capacity: updated.capacity.map {
+                DiskVolumeCapacity(totalBytes: $0.totalBytes, availableBytes: $0.availableBytes)
+            },
+            startedAt: updated.startedAt,
+            finishedAt: updated.finishedAt,
+            backendSnapshot: updated
+        )
     }
 
     fileprivate init(

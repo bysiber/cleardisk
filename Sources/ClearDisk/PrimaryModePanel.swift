@@ -3,8 +3,8 @@ import SwiftUI
 
 enum PrimaryMode: String, CaseIterable {
     case cleaner
-    case review
     case diskSpace
+    case review
 
     var title: String {
         switch self {

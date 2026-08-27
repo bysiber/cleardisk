@@ -31,6 +31,20 @@ private enum DiskSpaceScanError: LocalizedError {
     }
 }
 
+enum DiskSpaceTrashAlert: Identifiable {
+    case confirmation(nodeID: String, name: String, size: Int64, path: String)
+    case failure(id: UUID, message: String)
+
+    var id: String {
+        switch self {
+        case .confirmation(let nodeID, _, _, _):
+            return "confirmation:\(nodeID)"
+        case .failure(let id, _):
+            return "failure:\(id.uuidString)"
+        }
+    }
+}
+
 @MainActor
 final class DiskSpaceStore: ObservableObject {
     private static let temporaryFilesLocationID = "cleardisk://temporary-files"
@@ -50,6 +64,8 @@ final class DiskSpaceStore: ObservableObject {
     @Published var selectedLocationID = "/"
     @Published private(set) var focusedNodeID: String?
     @Published private(set) var selectedNodeID: String?
+    @Published private(set) var deletingNodeIDs: Set<String> = []
+    @Published var trashAlert: DiskSpaceTrashAlert?
 
     private let scanner = DiskScanner()
     private var scanTask: Task<Void, Never>?
@@ -451,6 +467,151 @@ final class DiskSpaceStore: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
     }
 
+    func canMoveNodeToTrash(_ id: String) -> Bool {
+        guard phase != .scanning,
+              !deletingNodeIDs.contains(id),
+              let snapshot,
+              id != snapshot.rootID,
+              let node = snapshot.node(id: id),
+              !node.isSynthetic,
+              trashProtectionPath(for: node.url) == nil else {
+            return false
+        }
+
+        return FileManager.default.fileExists(atPath: node.url.path)
+    }
+
+    func requestMoveNodeToTrash(_ id: String) {
+        guard canMoveNodeToTrash(id), let node = snapshot?.node(id: id) else { return }
+        trashAlert = .confirmation(
+            nodeID: id,
+            name: node.name,
+            size: node.allocatedBytes,
+            path: abbreviatedPath(node.url.path)
+        )
+    }
+
+    func moveNodeToTrash(_ id: String) {
+        guard let snapshot,
+              id != snapshot.rootID,
+              let node = snapshot.node(id: id),
+              !node.isSynthetic else { return }
+
+        if let protectedPath = trashProtectionPath(for: node.url) {
+            trashAlert = .failure(
+                id: UUID(),
+                message: "\(protectedPath) is a protected macOS location and can’t be moved to Trash."
+            )
+            return
+        }
+
+        guard phase != .scanning, !deletingNodeIDs.contains(id) else { return }
+
+        deletingNodeIDs.insert(id)
+        let itemURL = node.url
+        let itemName = node.name
+
+        Task { [weak self] in
+            let failureMessage = await Task.detached(priority: .userInitiated) { () -> String? in
+                do {
+                    try FileManager.default.trashItem(at: itemURL, resultingItemURL: nil)
+                    guard !FileManager.default.fileExists(atPath: itemURL.path) else {
+                        return "\(itemName) could not be verified in Trash."
+                    }
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }.value
+
+            guard let self else { return }
+            deletingNodeIDs.remove(id)
+
+            if let failureMessage {
+                trashAlert = .failure(id: UUID(), message: failureMessage)
+                return
+            }
+
+            if selectedNodeID == id {
+                selectedNodeID = nil
+            }
+
+            if let updatedSnapshot = self.snapshot?.removingNode(id: id) {
+                self.snapshot = updatedSnapshot
+                issues = updatedSnapshot.issues
+            } else {
+                // Multi-location snapshots are assembled from several immutable trees.
+                // Re-scan only this virtual location after Trash succeeds.
+                startScan()
+            }
+        }
+    }
+
+    /// Disk Space may inspect the complete startup volume, but direct Trash actions are limited
+    /// to the current user's files, known temporary roots, and writable external volumes.
+    private func trashProtectionPath(for url: URL) -> String? {
+        if let protectedRoot = DiskScanTrashSafety.protectedRootPath(for: url) {
+            return protectedRoot
+        }
+
+        let fileManager = FileManager.default
+        let candidatePath = url.resolvingSymlinksInPath().standardizedFileURL.path
+        let homePath = fileManager.homeDirectoryForCurrentUser
+            .resolvingSymlinksInPath()
+            .standardizedFileURL.path
+
+        let protectedUserFolderNames = [
+            "Desktop", "Documents", "Downloads", "Library",
+            "Movies", "Music", "Pictures", "Public"
+        ]
+        let protectedUserFolderPaths = Set(
+            protectedUserFolderNames.map {
+                URL(fileURLWithPath: homePath, isDirectory: true)
+                    .appendingPathComponent($0, isDirectory: true)
+                    .standardizedFileURL.path
+            }
+        )
+        if protectedUserFolderPaths.contains(candidatePath) {
+            return candidatePath
+        }
+
+        if Self.path(candidatePath, isInside: homePath) {
+            return nil
+        }
+
+        let temporaryRoots = [
+            fileManager.temporaryDirectory,
+            URL(fileURLWithPath: "/private/tmp", isDirectory: true),
+            URL(fileURLWithPath: "/private/var/tmp", isDirectory: true)
+        ]
+        .map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
+
+        if temporaryRoots.contains(where: { Self.path(candidatePath, isInside: $0) }) {
+            return nil
+        }
+
+        let volumeKeys: Set<URLResourceKey> = [.volumeIsInternalKey]
+        let externalVolumes = fileManager.mountedVolumeURLs(
+            includingResourceValuesForKeys: Array(volumeKeys),
+            options: [.skipHiddenVolumes]
+        ) ?? []
+
+        for volumeURL in externalVolumes {
+            let values = try? volumeURL.resourceValues(forKeys: volumeKeys)
+            guard values?.volumeIsInternal == false else { continue }
+            let volumePath = volumeURL.resolvingSymlinksInPath().standardizedFileURL.path
+            if Self.path(candidatePath, isInside: volumePath) {
+                return nil
+            }
+        }
+
+        return candidatePath
+    }
+
+    private static func path(_ candidate: String, isInside root: String) -> Bool {
+        candidate != root && candidate.hasPrefix(root.hasSuffix("/") ? root : root + "/")
+    }
+
     private var locationRootNode: DiskFileNode? {
         guard let snapshot else { return nil }
         if selectedLocation.id == scannedRootPath {
@@ -568,6 +729,8 @@ struct DiskSpaceCompactView: View {
 
     @AppStorage("diskSpaceTreemapGroupingEnabled") private var groupingEnabled = false
     @AppStorage("diskSpaceTreemapGroupingThresholdMB") private var groupingThresholdMB = 10
+    @State private var isScanAllInProgress = false
+    @State private var scanAllDidStart = false
 
     private var groupingThresholdBytes: Int64? {
         guard groupingEnabled else { return nil }
@@ -593,6 +756,18 @@ struct DiskSpaceCompactView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .onChange(of: store.phase) { _, _ in
+            finishScanAllIfPossible()
+        }
+        .onChange(of: diskMonitor.isScanningCaches) { _, _ in
+            finishScanAllIfPossible()
+        }
+        .onChange(of: diskMonitor.isScanning) { _, _ in
+            finishScanAllIfPossible()
+        }
+        .alert(item: $store.trashAlert) { alert in
+            diskSpaceTrashAlert(alert, store: store)
+        }
     }
 
     private var compactLocations: some View {
@@ -606,7 +781,23 @@ struct DiskSpaceCompactView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if store.phase == .scanning || diskMonitor.isScanningCaches {
+                if isScanAllInProgress {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text("Scanning All…")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 11)
+                    .frame(height: 30)
+                    .background(Color.accentColor.opacity(0.10), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
+                    }
+                    .accessibilityLabel("Scanning all storage locations")
+                } else if store.phase == .scanning || diskMonitor.isScanningCaches || diskMonitor.isScanning {
                     Button {
                         if store.phase == .scanning {
                             page = .workspace
@@ -640,8 +831,10 @@ struct DiskSpaceCompactView: View {
                     location: startupDisk,
                     diskMonitor: diskMonitor,
                     scannedNode: store.node(forLocationID: startupDisk.id),
-                    isScanning: store.phase == .scanning &&
-                        store.selectedLocationID == startupDisk.id,
+                    isScanning: isScanAllInProgress || (
+                        store.phase == .scanning &&
+                        store.selectedLocationID == startupDisk.id
+                    ),
                     isDisabled: store.phase == .scanning &&
                         store.selectedLocationID != startupDisk.id,
                     action: {
@@ -652,6 +845,8 @@ struct DiskSpaceCompactView: View {
             }
 
             let favorites = store.locations.filter { $0.kind == .favorite }
+            let home = favorites.first { $0.name == "Home" }
+            let orderedFavorites = favorites.filter { $0.id != home?.id } + [home].compactMap { $0 }
             Text("QUICK LOCATIONS")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.tertiary)
@@ -664,12 +859,14 @@ struct DiskSpaceCompactView: View {
                 ],
                 spacing: 8
             ) {
-                ForEach(favorites) { location in
+                ForEach(orderedFavorites) { location in
                     DiskSpaceQuickLocationCard(
                         location: location,
                         scannedNode: store.node(forLocationID: location.id),
-                        isScanning: store.phase == .scanning &&
-                            store.selectedLocationID == location.id,
+                        isScanning: isScanAllInProgress || (
+                            store.phase == .scanning &&
+                            store.selectedLocationID == location.id
+                        ),
                         isDisabled: store.phase == .scanning &&
                             store.selectedLocationID != location.id,
                         action: { openLocation(location) }
@@ -678,7 +875,7 @@ struct DiskSpaceCompactView: View {
 
                 DiskSpaceCachesLocationCard(
                     hasScanned: diskMonitor.hasCompletedCacheScan,
-                    isScanning: diskMonitor.isScanningCaches || diskMonitor.isScanning,
+                    isScanning: isScanAllInProgress || diskMonitor.isScanningCaches || diskMonitor.isScanning,
                     totalSize: diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size },
                     action: onOpenCaches
                 )
@@ -793,9 +990,30 @@ struct DiskSpaceCompactView: View {
         guard store.phase != .scanning, !diskMonitor.isScanningCaches else { return }
         guard let startupDisk = store.locations.first(where: { $0.kind == .startupDisk }) else { return }
 
-        store.selectLocation(startupDisk.id)
-        store.startScan()
-        diskMonitor.scanCaches()
+        // Publish feedback before either scanner starts. Deferring the work by one main-queue
+        // turn gives SwiftUI a frame to replace the button with its progress state immediately.
+        isScanAllInProgress = true
+        scanAllDidStart = false
+
+        DispatchQueue.main.async {
+            store.selectLocation(startupDisk.id)
+            store.startScan()
+            diskMonitor.scanCaches()
+            scanAllDidStart = true
+            finishScanAllIfPossible()
+        }
+    }
+
+    private func finishScanAllIfPossible() {
+        guard isScanAllInProgress, scanAllDidStart else { return }
+        guard store.phase != .scanning,
+              !diskMonitor.isScanningCaches,
+              !diskMonitor.isScanning else { return }
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            isScanAllInProgress = false
+            scanAllDidStart = false
+        }
     }
 
     private var compactWorkspaceNavigation: some View {
@@ -973,6 +1191,22 @@ struct DiskSpaceCompactView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Show in Finder")
+
+                    if store.deletingNodeIDs.contains(selectedNode.id) {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(width: 18)
+                    } else {
+                        Button {
+                            store.requestMoveNodeToTrash(selectedNode.id)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.red)
+                        .disabled(!store.canMoveNodeToTrash(selectedNode.id))
+                        .help("Move to Trash")
+                    }
                 }
                 .padding(9)
                 .background(
@@ -998,7 +1232,10 @@ struct DiskSpaceCompactView: View {
                         isSelected: node.id == store.selectedNodeID,
                         select: { store.selectNode(node.id) },
                         open: { store.openNode(node.id) },
-                        reveal: { store.revealInFinder(node.id) }
+                        reveal: { store.revealInFinder(node.id) },
+                        canTrash: store.canMoveNodeToTrash(node.id),
+                        isDeleting: store.deletingNodeIDs.contains(node.id),
+                        trash: { store.requestMoveNodeToTrash(node.id) }
                     )
                 }
             }
@@ -1053,10 +1290,17 @@ private struct DiskSpaceMacLocationCard: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
 
-                    Text(scannedNode.map { "\(formatBytes($0.allocatedBytes)) indexed" } ?? "Analyze the complete startup disk")
+                    Text(
+                        isScanning
+                            ? "Scanning startup disk…"
+                            : scannedNode.map { "\(formatBytes($0.allocatedBytes)) indexed" }
+                                ?? "Analyze the complete startup disk"
+                    )
                         .font(.system(size: 9))
                         .foregroundStyle(
-                            scannedNode == nil
+                            isScanning
+                                ? Color.accentColor
+                                : scannedNode == nil
                                 ? Color.secondary.opacity(0.72)
                                 : Color.accentColor
                         )
@@ -1227,9 +1471,17 @@ private struct DiskSpaceQuickLocationCard: View {
                     Text(location.name)
                         .font(.system(size: 11, weight: .semibold))
                         .lineLimit(1)
-                    Text(scannedNode.map { formatBytes($0.allocatedBytes) } ?? "Not analyzed")
+                    Text(
+                        isScanning
+                            ? "Scanning…"
+                            : scannedNode.map { formatBytes($0.allocatedBytes) } ?? "Not analyzed"
+                    )
                         .font(.system(size: 9))
-                        .foregroundStyle(scannedNode == nil ? .tertiary : .secondary)
+                        .foregroundStyle(
+                            isScanning
+                                ? Color.accentColor
+                                : scannedNode == nil ? Color.secondary.opacity(0.55) : Color.secondary
+                        )
                         .lineLimit(1)
                 }
             }
@@ -1252,7 +1504,7 @@ private struct DiskSpaceQuickLocationCard: View {
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
-        .opacity(isDisabled ? 0.48 : 1)
+        .opacity(isDisabled && !isScanning ? 0.48 : 1)
         .onHover { isHovered = $0 }
     }
 }
@@ -1298,16 +1550,22 @@ private struct DiskSpaceCompactRow: View {
     let select: () -> Void
     let open: () -> Void
     let reveal: () -> Void
+    let canTrash: Bool
+    let isDeleting: Bool
+    let trash: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
             Button(action: select) {
-                HStack(spacing: 7) {
-                    Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
-                        .frame(width: 16)
+                Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
+                    .frame(width: 16, height: 22)
+            }
+            .buttonStyle(.plain)
 
+            Button(action: select) {
+                HStack(spacing: 7) {
                     Text(node.name)
                         .font(.system(size: 10))
                         .lineLimit(1)
@@ -1332,6 +1590,31 @@ private struct DiskSpaceCompactRow: View {
                 .buttonStyle(.plain)
                 .help("Open Folder")
             }
+
+            Button(action: reveal) {
+                Image(systemName: "finder")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.blue)
+                    .frame(width: 20, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help("Reveal in Finder")
+
+            if isDeleting {
+                ProgressView()
+                    .controlSize(.mini)
+                    .frame(width: 20, height: 22)
+            } else {
+                Button(action: trash) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundStyle(canTrash ? Color.red : Color.secondary.opacity(0.45))
+                        .frame(width: 20, height: 22)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canTrash)
+                .help(canTrash ? "Move to Trash" : "Protected location")
+            }
         }
         .padding(.horizontal, 7)
         .frame(height: 28)
@@ -1344,6 +1627,10 @@ private struct DiskSpaceCompactRow: View {
                 Button("Open Folder", action: open)
             }
             Button("Show in Finder", action: reveal)
+            if canTrash {
+                Divider()
+                Button("Move to Trash", role: .destructive, action: trash)
+            }
         }
     }
 }
@@ -1395,6 +1682,9 @@ private struct DiskSpaceWorkspaceView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .alert(item: $store.trashAlert) { alert in
+            diskSpaceTrashAlert(alert, store: store)
+        }
     }
 }
 
@@ -1991,6 +2281,7 @@ private struct DiskSpaceFileTable: View {
                     Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
                         .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
                         .frame(width: 18)
+
                     Text(node.name)
                         .lineLimit(1)
                 }
@@ -2023,6 +2314,44 @@ private struct DiskSpaceFileTable: View {
                 }
             }
             .width(min: 105, ideal: 130)
+
+            TableColumn("") { node in
+                HStack(spacing: 10) {
+                    Button {
+                        store.revealInFinder(node.id)
+                    } label: {
+                        Image(systemName: "finder")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.blue)
+                    .help("Reveal in Finder")
+
+                    if store.deletingNodeIDs.contains(node.id) {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(width: 16)
+                    } else {
+                        Button {
+                            store.requestMoveNodeToTrash(node.id)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(
+                            store.canMoveNodeToTrash(node.id)
+                                ? Color.red
+                                : Color.secondary.opacity(0.4)
+                        )
+                        .disabled(!store.canMoveNodeToTrash(node.id))
+                        .help(
+                            store.canMoveNodeToTrash(node.id)
+                                ? "Move to Trash"
+                                : "Protected location"
+                        )
+                    }
+                }
+            }
+            .width(min: 58, ideal: 64, max: 70)
         }
         .tableStyle(.inset)
         .alternatingRowBackgrounds(.enabled)
@@ -2033,6 +2362,12 @@ private struct DiskSpaceFileTable: View {
                     Button("Open Folder") { store.openNode(nodeID) }
                 }
                 Button("Show in Finder") { store.revealInFinder(nodeID) }
+                if store.canMoveNodeToTrash(nodeID) {
+                    Divider()
+                    Button("Move to Trash", role: .destructive) {
+                        store.requestMoveNodeToTrash(nodeID)
+                    }
+                }
             }
         } primaryAction: { selectedIDs in
             if let nodeID = selectedIDs.first {
@@ -2058,6 +2393,32 @@ private struct DiskSpaceMetric: View {
                 .foregroundStyle(warning ? Color.orange : .primary)
         }
         .frame(minWidth: 66, alignment: .leading)
+    }
+}
+
+@MainActor
+private func diskSpaceTrashAlert(
+    _ alert: DiskSpaceTrashAlert,
+    store: DiskSpaceStore
+) -> Alert {
+    switch alert {
+    case .confirmation(let nodeID, let name, let size, let path):
+        return Alert(
+            title: Text("Move “\(name)” to Trash?"),
+            message: Text(
+                "This item will be moved to the macOS Trash.\n\nSize: \(formatBytes(size))\nLocation: \(path)\n\nYou can recover it until Trash is emptied."
+            ),
+            primaryButton: .cancel(Text("Cancel")),
+            secondaryButton: .destructive(Text("Move to Trash")) {
+                store.moveNodeToTrash(nodeID)
+            }
+        )
+    case .failure(_, let message):
+        return Alert(
+            title: Text("Couldn’t Move to Trash"),
+            message: Text(message),
+            dismissButton: .default(Text("OK"))
+        )
     }
 }
 

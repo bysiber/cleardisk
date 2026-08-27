@@ -23,7 +23,7 @@ struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     @ObservedObject var diskSpaceStore: DiskSpaceStore
     let checkForUpdates: () -> Void
-    @State private var selectedTab: Tab = .diskSpace
+    @State private var selectedTab: Tab = .developer
     @State private var hoveredTab: Tab?
     @State private var showCleanConfirm = false
     @State private var showCleanSafeConfirm = false
@@ -54,9 +54,9 @@ struct MainView: View {
     @AppStorage("cacheSafetyBannerDismissed") private var cacheSafetyBannerDismissed = false
     
     enum Tab: String, CaseIterable {
-        case diskSpace = "Disk Space"
         case developer = "Caches"
         case projects = "Projects"
+        case diskSpace = "Disk Space"
         case overview = "Overview"
         case largeFiles = "Large Files"
     }
@@ -165,7 +165,7 @@ struct MainView: View {
                 let impact = cache.safetyDetails.map {
                     "\n\nRemoves: \($0.removes)\nKeeps: \($0.keeps)\n\($0.note)"
                 } ?? ""
-                Text("Delete all contents of \(cache.name)?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(impact)\(xcodeWarning)")
+                Text("Delete all contents of \(cacheDisplayName(cache))?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(impact)\(xcodeWarning)")
             }
         }
         .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
@@ -928,7 +928,7 @@ struct MainView: View {
                 Spacer()
             }
             
-            Text("potentially reclaimable space found")
+            Text("reclaimable space found")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1539,9 +1539,9 @@ struct MainView: View {
                 .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Your personal data stays untouched")
+                Text("Safe cleanup protects personal data")
                     .font(.system(size: 11, weight: .semibold))
-                Text("ClearDisk targets disposable cache locations—not personal content. Accounts, projects, documents, settings, saved sessions, and other user-created data stay outside cleanup.")
+                Text("Safe cleanup targets rebuildable caches only. Caution and Risky items may include app state or local data, are never selected automatically, and require your review.")
                     .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1660,10 +1660,11 @@ struct MainView: View {
     private func cacheStatusIndicator(count: Int, symbol: String, color: Color, help: String) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(color.opacity(0.85))
+                .frame(width: 13, height: 13)
             Text("\(count)")
-                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
         }
         .help(help)
@@ -1687,6 +1688,15 @@ struct MainView: View {
         case "risky": return "hand.raised.circle.fill"
         default: return "circle.fill"
         }
+    }
+
+    private func cacheDisplayName(_ cache: DevCache) -> String {
+        guard cache.section == .app else { return cache.name }
+        let lowercasedName = cache.name.lowercased()
+        if lowercasedName.contains("cache") || lowercasedName.contains("update") {
+            return cache.name
+        }
+        return "\(cache.name) Caches"
     }
 
     private func strongestRiskLevel(in caches: [DevCache]) -> String {
@@ -1725,7 +1735,11 @@ struct MainView: View {
         let isGroupExpanded = expandedGroups.contains(expansionKey)
         let groupRiskLevel = strongestRiskLevel(in: caches)
         let sortedCaches = caches.sorted { $0.size > $1.size }
-        let topNames = sortedCaches.prefix(3).map { $0.name.replacingOccurrences(of: "\(groupName) ", with: "").replacingOccurrences(of: "Xcode ", with: "") }
+        let topNames = sortedCaches.prefix(3).map {
+            cacheDisplayName($0)
+                .replacingOccurrences(of: "\(groupName) ", with: "")
+                .replacingOccurrences(of: "Xcode ", with: "")
+        }
         let preview = topNames.joined(separator: ", ")
         
         return VStack(spacing: 0) {
@@ -1762,8 +1776,9 @@ struct MainView: View {
                 
                 HStack(spacing: 4) {
                     Image(systemName: cacheRiskSymbol(groupRiskLevel))
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(cacheRiskColor(groupRiskLevel).opacity(0.78))
+                        .frame(width: 13, height: 13)
                     Text(formatBytes(totalSize))
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundColor(.primary.opacity(0.75))
@@ -1844,7 +1859,7 @@ struct MainView: View {
                     .background(accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 7))
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(cache.name)
+                        Text(cacheDisplayName(cache))
                             .font(.system(size: 11.5, weight: .medium))
                         if let days = cache.daysSinceAccess {
                             Text("\(days)d ago")
@@ -1868,8 +1883,9 @@ struct MainView: View {
                 Spacer()
                 HStack(spacing: 4) {
                     Image(systemName: cacheRiskSymbol(cache.riskLevel))
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(cacheRiskColor(cache.riskLevel).opacity(0.78))
+                        .frame(width: 13, height: 13)
                     Text(formatBytes(cache.size))
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 }
@@ -1890,7 +1906,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean \(cache.name)")
+                .help("Clean \(cacheDisplayName(cache))")
                 
                 Button(action: {
                     diskMonitor.revealInFinder(cache.path)
@@ -2536,7 +2552,7 @@ struct MainView: View {
         case .safe:
             cachesToShow = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }
         case .moderate:
-            cachesToShow = diskMonitor.devCaches.filter { $0.riskLevel != "risky" }
+            cachesToShow = diskMonitor.devCaches.filter { $0.riskLevel == "caution" }
         case .everything:
             cachesToShow = diskMonitor.devCaches
         }
@@ -2577,7 +2593,7 @@ struct MainView: View {
                     cacheCleanMode = .safe
                     selectedCacheIDs = []
                 }) {
-                    Text("Verified")
+                    Text("Safe")
                         .font(.system(size: 10, weight: cacheCleanMode == .safe ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .safe ? .green : .secondary)
                         .padding(.horizontal, 8)
@@ -2592,7 +2608,7 @@ struct MainView: View {
                     cacheCleanMode = .moderate
                     selectedCacheIDs = []
                 }) {
-                    Text("No Risky")
+                    Text("Moderate")
                         .font(.system(size: 10, weight: cacheCleanMode == .moderate ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .moderate ? .orange : .secondary)
                         .padding(.horizontal, 8)
@@ -2607,7 +2623,7 @@ struct MainView: View {
                     cacheCleanMode = .everything
                     selectedCacheIDs = []
                 }) {
-                    Text("All")
+                    Text("All / Risky")
                         .font(.system(size: 10, weight: cacheCleanMode == .everything ? .semibold : .regular))
                         .foregroundColor(cacheCleanMode == .everything ? .red : .secondary)
                         .padding(.horizontal, 8)

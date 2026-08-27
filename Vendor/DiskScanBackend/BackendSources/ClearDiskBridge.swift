@@ -115,6 +115,14 @@ public nonisolated struct ScanBackendCapacity: Sendable {
     }
 }
 
+/// Product-facing access to the backend's root protection policy. Callers may offer Trash
+/// actions for ordinary scan results without duplicating macOS firmlink and volume safeguards.
+public nonisolated enum ScanBackendTrashSafety {
+    public static func protectedRootPath(for url: URL) -> String? {
+        TrashSafetyPolicy.blockReason(for: url)?.path
+    }
+}
+
 public nonisolated struct ScanBackendSnapshot: Sendable {
     public let rootID: String
     public let warnings: [ScanBackendWarning]
@@ -142,6 +150,39 @@ public nonisolated struct ScanBackendSnapshot: Sendable {
         storage.treeStore.children(of: nodeID).map {
             Self.export($0, from: storage.treeStore)
         }
+    }
+
+    /// Returns an updated immutable snapshot after a successfully trashed subtree.
+    public func removingNode(id: String) -> ScanBackendSnapshot? {
+        guard let updated = storage.removingNode(id: id) else { return nil }
+        let stats = updated.aggregateStats
+        let updatedCapacity = updated.volumeCapacity.map {
+            ScanBackendCapacity(
+                totalBytes: $0.totalCapacity,
+                availableBytes: $0.availableCapacity
+            )
+        }
+
+        return ScanBackendSnapshot(
+            storage: updated,
+            warnings: updated.scanWarnings.map { warning in
+                ScanBackendWarning(
+                    id: warning.id,
+                    path: warning.path,
+                    message: warning.message,
+                    kind: warning.category == .permissionDenied ? .permissionDenied : .fileSystem
+                )
+            },
+            statistics: ScanBackendStatistics(
+                allocatedBytes: stats.totalAllocatedSize,
+                logicalBytes: stats.totalLogicalSize,
+                fileCount: stats.fileCount,
+                directoryCount: stats.directoryCount,
+                accessibleItemCount: stats.accessibleItemCount,
+                inaccessibleItemCount: stats.inaccessibleItemCount
+            ),
+            capacity: updatedCapacity
+        )
     }
 
     fileprivate init(
