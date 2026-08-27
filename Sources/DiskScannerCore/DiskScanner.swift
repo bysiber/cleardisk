@@ -6,17 +6,20 @@ public struct DiskScanRequest: Sendable {
     public let includesHiddenItems: Bool
     public let expandsPackages: Bool
     public let exclusionPatterns: [String]
+    public let preservedDirectoryURLs: [URL]
 
     public init(
         rootURL: URL,
         includesHiddenItems: Bool = false,
         expandsPackages: Bool = false,
-        exclusionPatterns: [String] = []
+        exclusionPatterns: [String] = [],
+        preservedDirectoryURLs: [URL] = []
     ) {
         self.rootURL = rootURL
         self.includesHiddenItems = includesHiddenItems
         self.expandsPackages = expandsPackages
         self.exclusionPatterns = exclusionPatterns
+        self.preservedDirectoryURLs = preservedDirectoryURLs
     }
 }
 
@@ -446,7 +449,8 @@ public final class DiskScanner {
                 rootURL: request.rootURL,
                 includeHiddenItems: request.includesHiddenItems,
                 expandPackages: request.expandsPackages,
-                exclusionPatterns: request.exclusionPatterns
+                exclusionPatterns: request.exclusionPatterns,
+                preservedDirectoryURLs: request.preservedDirectoryURLs
             )
         )
 

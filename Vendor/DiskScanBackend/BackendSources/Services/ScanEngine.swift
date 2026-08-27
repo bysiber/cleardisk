@@ -744,21 +744,38 @@ actor ScanEngine {
             let mountPath = cString(from: entry.f_mntonname)
             guard !mountPath.isEmpty else { return nil }
             let fileSystemType = cString(from: entry.f_fstypename)
+            let deviceName = cString(from: entry.f_mntfromname)
             let deviceID: UInt64?
             if fileSystemType == "apfs" {
-                var mountStatus = stat()
-                let statusResult = mountPath.withCString { path in
-                    lstat(path, &mountStatus)
+                // A firmlinked startup volume reports the synthetic Data-volume
+                // st_dev when lstat is performed on its mount path. Native bulk
+                // enumeration intentionally requests FSOPT_RETURN_REALDEV, so its
+                // entries carry the real APFS volume device instead. Read st_rdev
+                // from the mounted /dev node so the boundary policy compares the
+                // same identity domain and permits System/Data siblings belonging
+                // to the startup container.
+                var deviceStatus = stat()
+                let deviceStatusResult = deviceName.withCString { path in
+                    lstat(path, &deviceStatus)
                 }
-                deviceID = statusResult == 0
-                    ? UInt64(truncatingIfNeeded: mountStatus.st_dev)
-                    : nil
+                if deviceStatusResult == 0,
+                   deviceStatus.st_mode & mode_t(S_IFMT) == mode_t(S_IFBLK) {
+                    deviceID = UInt64(truncatingIfNeeded: deviceStatus.st_rdev)
+                } else {
+                    var mountStatus = stat()
+                    let mountStatusResult = mountPath.withCString { path in
+                        lstat(path, &mountStatus)
+                    }
+                    deviceID = mountStatusResult == 0
+                        ? UInt64(truncatingIfNeeded: mountStatus.st_dev)
+                        : nil
+                }
             } else {
                 deviceID = nil
             }
             return ScanMountedFileSystem(
                 mountPath: mountPath,
-                deviceName: cString(from: entry.f_mntfromname),
+                deviceName: deviceName,
                 fileSystemType: fileSystemType,
                 deviceID: deviceID
             )
@@ -1045,6 +1062,10 @@ actor ScanEngine {
         options: ScanOptions
     ) -> Bool {
         guard options.autoSummarizeDirectories,
+              !isAutoSummaryProtected(
+                directoryURL.path,
+                protectedPaths: options.autoSummaryProtectedPaths
+              ),
               let depth = relativeDepth(of: directoryURL, under: scanTarget.url) else {
             return false
         }
@@ -1091,6 +1112,14 @@ actor ScanEngine {
             return nil
         }
         return directoryComponents.count - rootComponents.count
+    }
+
+    private nonisolated static func isAutoSummaryProtected(
+        _ candidatePath: String,
+        protectedPaths: Set<String>?
+    ) -> Bool {
+        guard let protectedPaths else { return false }
+        return protectedPaths.contains(candidatePath)
     }
 
     private nonisolated static func canProbeForAutoSummary(
@@ -1546,7 +1575,10 @@ actor ScanEngine {
                                 }
                                 let isNodeDependencyLayout = AtomicDirectorySummarizer
                                     .isNodeDependencyLayoutDirectory(at: taskItem.url)
-                                let canProbeForAutoSummary = Self.canProbeForAutoSummary(
+                                let canProbeForAutoSummary = !Self.isAutoSummaryProtected(
+                                    taskItem.url.path,
+                                    protectedPaths: options.autoSummaryProtectedPaths
+                                ) && Self.canProbeForAutoSummary(
                                     at: taskItem.url,
                                     depth: taskItem.depth,
                                     minimumDepth: autoSummarizeMinDepth,

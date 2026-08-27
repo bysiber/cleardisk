@@ -1696,7 +1696,7 @@ struct MainView: View {
         if lowercasedName.contains("cache") || lowercasedName.contains("update") {
             return cache.name
         }
-        return "\(cache.name) Caches"
+        return "\(cache.name) Cache"
     }
 
     private func strongestRiskLevel(in caches: [DevCache]) -> String {

@@ -2,6 +2,21 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.0.2] - 2026-08-27
+### Added
+- Disk Space rows now provide dedicated **Reveal in Finder** and guarded **Move to Trash** actions, with confirmation and protected-location checks.
+- Project build artifacts are included in the total reclaimable-space estimate while remaining review-only and never automatically selected.
+
+### Changed
+- Folder rows open with one click, and larger button-style navigation controls make moving through scanned folders easier.
+- Opening the menu bar popover reuses fresh results instead of starting another expensive scan.
+- Application cache names use a clearer singular **Cache** suffix where one is needed.
+
+### Fixed
+- Full startup-disk scans now recognize macOS APFS System/Data volume boundaries correctly instead of finishing early with empty results.
+- **Scan All** preserves and publishes indexed totals for Desktop, Documents, Downloads, Applications, Library, Home and Temporary Files cards.
+- Background free-space refreshes no longer make the Disk Space scanner appear to be running.
+
 ## [2.0.1] - 2026-08-26
 ### Changed
 - App-cache rows now stay compact and omit implementation details intended for developer caches.

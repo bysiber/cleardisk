@@ -266,8 +266,11 @@ class DiskMonitor: ObservableObject {
         let cacheTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
         let safeCacheTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
         let riskyCacheTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let projectArtifactTotal = projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = trashSizeBytes
-        totalCleanable = cacheTotal + trashTotal
+        // Project artifacts are reclaimable candidates, but remain review-only:
+        // including them in the total must never make them an automatic safe selection.
+        totalCleanable = cacheTotal + projectArtifactTotal + trashTotal
         safeCleanable = safeCacheTotal + trashTotal
         riskyCleanable = riskyCacheTotal
     }

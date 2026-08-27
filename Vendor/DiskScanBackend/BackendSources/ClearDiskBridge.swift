@@ -5,17 +5,20 @@ public nonisolated struct ScanBackendScanOptions: Sendable {
     public let includeHiddenItems: Bool
     public let expandPackages: Bool
     public let exclusionPatterns: [String]
+    public let preservedDirectoryURLs: [URL]
 
     public init(
         rootURL: URL,
         includeHiddenItems: Bool = false,
         expandPackages: Bool = false,
-        exclusionPatterns: [String] = []
+        exclusionPatterns: [String] = [],
+        preservedDirectoryURLs: [URL] = []
     ) {
         self.rootURL = rootURL
         self.includeHiddenItems = includeHiddenItems
         self.expandPackages = expandPackages
         self.exclusionPatterns = exclusionPatterns
+        self.preservedDirectoryURLs = preservedDirectoryURLs
     }
 }
 
@@ -245,7 +248,11 @@ public final class FullDiskScannerBackend {
             includeHiddenFiles: options.includeHiddenItems,
             treatPackagesAsDirectories: options.expandPackages,
             exclusionPatterns: options.exclusionPatterns,
-            exclusionRootPath: target.url.path
+            exclusionRootPath: target.url.path,
+            autoSummaryProtectedPaths: Self.autoSummaryProtectedPaths(
+                preserving: options.preservedDirectoryURLs,
+                under: target.url.path
+            )
         )
         let source = engine.scan(target: target, options: scanOptions)
 
@@ -297,6 +304,35 @@ public final class FullDiskScannerBackend {
                 task.cancel()
             }
         }
+    }
+
+    private nonisolated static func autoSummaryProtectedPaths(
+        preserving urls: [URL],
+        under rootPath: String
+    ) -> Set<String>? {
+        guard !urls.isEmpty else { return nil }
+
+        let root = URL(fileURLWithPath: rootPath, isDirectory: true)
+            .standardizedFileURL.path
+        let rootPrefix = root == "/" ? "/" : root + "/"
+        var protectedPaths = Set<String>()
+
+        for url in urls {
+            var candidate = url.standardizedFileURL.path
+            guard candidate == root || candidate.hasPrefix(rootPrefix) else { continue }
+
+            while true {
+                protectedPaths.insert(candidate)
+                guard candidate != root else { break }
+                let parent = URL(fileURLWithPath: candidate, isDirectory: true)
+                    .deletingLastPathComponent().standardizedFileURL.path
+                guard parent != candidate,
+                      parent == root || parent.hasPrefix(rootPrefix) else { break }
+                candidate = parent
+            }
+        }
+
+        return protectedPaths.isEmpty ? nil : protectedPaths
     }
 
     private nonisolated static func makeProgress(_ metrics: ScanMetrics) -> ScanBackendProgress {

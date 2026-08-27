@@ -123,6 +123,10 @@ nonisolated struct ScanOptions: Hashable, Codable, Sendable {
     /// Override for the minimum depth at which auto-summarization applies.
     /// When nil, the ScanEngine default (2) is used.
     var autoSummarizeMinDepthForSummarization: Int?
+    /// Directory paths that must remain addressable in the finished tree. The
+    /// scanner may still summarize descendants that are not ancestors of one
+    /// of these paths.
+    var autoSummaryProtectedPaths: Set<String>?
     /// Override for bounded package/atomic summary parallelism.
     /// When nil, the ScanEngine chooses a hardware-aware default.
     var atomicSummaryWorkerLimit: Int?
@@ -150,6 +154,7 @@ nonisolated struct ScanOptions: Hashable, Codable, Sendable {
         autoSummarizeMinFileCount: Int? = nil,
         autoSummarizeMaxAverageFileSize: Int64? = nil,
         autoSummarizeMinDepthForSummarization: Int? = nil,
+        autoSummaryProtectedPaths: Set<String>? = nil,
         atomicSummaryWorkerLimit: Int? = nil,
         directoryClassificationWorkerLimit: Int? = nil,
         directoryTraversalWorkerLimit: Int? = nil
@@ -162,6 +167,7 @@ nonisolated struct ScanOptions: Hashable, Codable, Sendable {
         self.autoSummarizeMinFileCount = autoSummarizeMinFileCount
         self.autoSummarizeMaxAverageFileSize = autoSummarizeMaxAverageFileSize
         self.autoSummarizeMinDepthForSummarization = autoSummarizeMinDepthForSummarization
+        self.autoSummaryProtectedPaths = autoSummaryProtectedPaths
         self.atomicSummaryWorkerLimit = atomicSummaryWorkerLimit
         self.directoryClassificationWorkerLimit = directoryClassificationWorkerLimit
         self.directoryTraversalWorkerLimit = directoryTraversalWorkerLimit

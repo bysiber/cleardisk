@@ -187,7 +187,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             closePopover()
         } else {
             if let button = statusItem.button {
-                diskMonitor.scan()
+                diskMonitor.scanIfStale()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
 
                 // An .accessory app never becomes active on its own, so the popover opens as an

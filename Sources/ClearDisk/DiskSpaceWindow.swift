@@ -66,11 +66,13 @@ final class DiskSpaceStore: ObservableObject {
     @Published private(set) var selectedNodeID: String?
     @Published private(set) var deletingNodeIDs: Set<String> = []
     @Published var trashAlert: DiskSpaceTrashAlert?
+    @Published private(set) var analyzedLocationBytes: [String: Int64] = [:]
 
     private let scanner = DiskScanner()
     private var scanTask: Task<Void, Never>?
     private var activeScanID: UUID?
     private var scannedRootPath: String?
+    private var lastListActivationAt = Date.distantPast
 
     init() {
         reloadLocations()
@@ -267,7 +269,8 @@ final class DiskSpaceStore: ObservableObject {
         let request = DiskScanRequest(
             rootURL: location.url,
             includesHiddenItems: true,
-            expandsPackages: false
+            expandsPackages: false,
+            preservedDirectoryURLs: preservedDirectoryURLs(for: location)
         )
 
         for try await event in scanner.events(for: request) {
@@ -397,6 +400,7 @@ final class DiskSpaceStore: ObservableObject {
         selectedNodeID = nil
         progress = nil
         phase = .finished
+        recordAnalyzedLocations(in: completedSnapshot, scannedRootPath: scannedRootPath)
     }
 
     private func uniqueIssues(_ values: [DiskScanIssue]) -> [DiskScanIssue] {
@@ -431,7 +435,11 @@ final class DiskSpaceStore: ObservableObject {
         if path == scannedRootPath {
             return snapshot.root
         }
-        return snapshot.node(id: path)
+        return node(in: snapshot, matchingPath: path)
+    }
+
+    func analyzedBytes(forLocationID id: String) -> Int64? {
+        node(forLocationID: id)?.allocatedBytes ?? analyzedLocationBytes[id]
     }
 
     func selectNode(_ id: String?) {
@@ -446,6 +454,19 @@ final class DiskSpaceStore: ObservableObject {
             selectedNodeID = nil
         } else {
             NSWorkspace.shared.activateFileViewerSelecting([node.url])
+        }
+    }
+
+    func activateNodeFromList(_ id: String) {
+        let now = Date()
+        guard now.timeIntervalSince(lastListActivationAt) > 0.35,
+              let node = snapshot?.node(id: id) else { return }
+        lastListActivationAt = now
+
+        if node.isDirectory, !node.childIDs.isEmpty {
+            openNode(id)
+        } else {
+            selectNode(id)
         }
     }
 
@@ -539,6 +560,12 @@ final class DiskSpaceStore: ObservableObject {
             if let updatedSnapshot = self.snapshot?.removingNode(id: id) {
                 self.snapshot = updatedSnapshot
                 issues = updatedSnapshot.issues
+                if let scannedRootPath {
+                    recordAnalyzedLocations(
+                        in: updatedSnapshot,
+                        scannedRootPath: scannedRootPath
+                    )
+                }
             } else {
                 // Multi-location snapshots are assembled from several immutable trees.
                 // Re-scan only this virtual location after Trash succeeds.
@@ -621,7 +648,88 @@ final class DiskSpaceStore: ObservableObject {
         if selectedPath == scannedRootPath {
             return snapshot.root
         }
-        return snapshot.node(id: selectedPath)
+        return node(in: snapshot, matchingPath: selectedPath)
+    }
+
+    private func preservedDirectoryURLs(for location: DiskSpaceLocation) -> [URL] {
+        guard location.kind == .startupDisk else { return [] }
+
+        let regularLocations = locations
+            .filter { $0.kind == .favorite && $0.id != Self.temporaryFilesLocationID }
+            .map(\.url)
+        let temporarySources = TemporaryFilesScanPlan.make()
+            .flatMap(\.sources)
+            .map(\.url)
+        var seenPaths = Set<String>()
+        return (regularLocations + temporarySources).filter {
+            seenPaths.insert(normalizedPath($0.path)).inserted
+        }
+    }
+
+    private func recordAnalyzedLocations(
+        in snapshot: DiskScanSnapshot,
+        scannedRootPath: String
+    ) {
+        var next = analyzedLocationBytes
+        if let root = snapshot.root {
+            next[scannedRootPath] = root.allocatedBytes
+        }
+
+        if scannedRootPath == "/" {
+            for location in locations where location.id != Self.temporaryFilesLocationID {
+                if let node = node(in: snapshot, matchingPath: location.url.path) {
+                    next[location.id] = node.allocatedBytes
+                }
+            }
+
+            let temporaryPaths = Set(
+                TemporaryFilesScanPlan.make()
+                    .flatMap(\.sources)
+                    .map { normalizedPath($0.url.path) }
+            )
+            let temporaryNodes = temporaryPaths.compactMap {
+                node(in: snapshot, matchingPath: $0)
+            }
+            if !temporaryNodes.isEmpty {
+                next[Self.temporaryFilesLocationID] = temporaryNodes.reduce(Int64(0)) {
+                    $0 + $1.allocatedBytes
+                }
+            }
+        }
+
+        analyzedLocationBytes = next
+    }
+
+    private func node(
+        in snapshot: DiskScanSnapshot,
+        matchingPath path: String
+    ) -> DiskFileNode? {
+        for candidate in nodePathCandidates(for: path) {
+            if let node = snapshot.node(id: candidate) {
+                return node
+            }
+        }
+        return nil
+    }
+
+    private func nodePathCandidates(for path: String) -> [String] {
+        let normalized = normalizedPath(path)
+        let dataPrefix = "/System/Volumes/Data"
+        var candidates = [normalized]
+
+        let resolved = URL(fileURLWithPath: normalized, isDirectory: true)
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        candidates.append(resolved)
+
+        if normalized == dataPrefix || normalized.hasPrefix(dataPrefix + "/") {
+            let visible = String(normalized.dropFirst(dataPrefix.count))
+            candidates.append(visible.isEmpty ? "/" : visible)
+        } else if normalized != "/" {
+            candidates.append(dataPrefix + normalized)
+        }
+
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0).inserted }
     }
 
     private static func startupDiskLocation() -> DiskSpaceLocation {
@@ -719,6 +827,23 @@ enum DiskSpaceCompactPage {
     case workspace
 }
 
+private struct DiskSpaceNavigationButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(
+                Color.accentColor.opacity(configuration.isPressed ? 0.16 : 0.08),
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.14), lineWidth: 0.5)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
 struct DiskSpaceCompactView: View {
     @ObservedObject var store: DiskSpaceStore
     @ObservedObject var diskMonitor: DiskMonitor
@@ -797,7 +922,7 @@ struct DiskSpaceCompactView: View {
                             .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
                     }
                     .accessibilityLabel("Scanning all storage locations")
-                } else if store.phase == .scanning || diskMonitor.isScanningCaches || diskMonitor.isScanning {
+                } else if store.phase == .scanning || diskMonitor.isScanningCaches {
                     Button {
                         if store.phase == .scanning {
                             page = .workspace
@@ -830,7 +955,7 @@ struct DiskSpaceCompactView: View {
                 DiskSpaceMacLocationCard(
                     location: startupDisk,
                     diskMonitor: diskMonitor,
-                    scannedNode: store.node(forLocationID: startupDisk.id),
+                    analyzedBytes: store.analyzedBytes(forLocationID: startupDisk.id),
                     isScanning: isScanAllInProgress || (
                         store.phase == .scanning &&
                         store.selectedLocationID == startupDisk.id
@@ -862,7 +987,7 @@ struct DiskSpaceCompactView: View {
                 ForEach(orderedFavorites) { location in
                     DiskSpaceQuickLocationCard(
                         location: location,
-                        scannedNode: store.node(forLocationID: location.id),
+                        analyzedBytes: store.analyzedBytes(forLocationID: location.id),
                         isScanning: isScanAllInProgress || (
                             store.phase == .scanning &&
                             store.selectedLocationID == location.id
@@ -875,7 +1000,7 @@ struct DiskSpaceCompactView: View {
 
                 DiskSpaceCachesLocationCard(
                     hasScanned: diskMonitor.hasCompletedCacheScan,
-                    isScanning: isScanAllInProgress || diskMonitor.isScanningCaches || diskMonitor.isScanning,
+                    isScanning: isScanAllInProgress || diskMonitor.isScanningCaches,
                     totalSize: diskMonitor.devCaches.reduce(Int64(0)) { $0 + $1.size },
                     action: onOpenCaches
                 )
@@ -893,7 +1018,7 @@ struct DiskSpaceCompactView: View {
                     ForEach(externalVolumes) { location in
                         DiskSpaceExternalLocationRow(
                             location: location,
-                            scannedNode: store.node(forLocationID: location.id),
+                            analyzedBytes: store.analyzedBytes(forLocationID: location.id),
                             isDisabled: store.phase == .scanning &&
                                 store.selectedLocationID != location.id,
                             action: { openLocation(location) }
@@ -1024,7 +1149,7 @@ struct DiskSpaceCompactView: View {
                 Label("Locations", systemImage: "chevron.left")
                     .font(.system(size: 10, weight: .semibold))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(DiskSpaceNavigationButtonStyle())
             .foregroundStyle(Color.accentColor)
 
             Spacer()
@@ -1098,7 +1223,7 @@ struct DiskSpaceCompactView: View {
                     Label(store.canNavigateUp ? "Back" : "Locations", systemImage: "chevron.left")
                         .font(.system(size: 10, weight: .semibold))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(DiskSpaceNavigationButtonStyle())
                 .foregroundStyle(Color.accentColor)
 
                 Spacer()
@@ -1230,7 +1355,7 @@ struct DiskSpaceCompactView: View {
                     DiskSpaceCompactRow(
                         node: node,
                         isSelected: node.id == store.selectedNodeID,
-                        select: { store.selectNode(node.id) },
+                        activate: { store.activateNodeFromList(node.id) },
                         open: { store.openNode(node.id) },
                         reveal: { store.revealInFinder(node.id) },
                         canTrash: store.canMoveNodeToTrash(node.id),
@@ -1246,7 +1371,7 @@ struct DiskSpaceCompactView: View {
 private struct DiskSpaceMacLocationCard: View {
     let location: DiskSpaceLocation
     @ObservedObject var diskMonitor: DiskMonitor
-    let scannedNode: DiskFileNode?
+    let analyzedBytes: Int64?
     let isScanning: Bool
     let isDisabled: Bool
     let action: () -> Void
@@ -1293,14 +1418,14 @@ private struct DiskSpaceMacLocationCard: View {
                     Text(
                         isScanning
                             ? "Scanning startup disk…"
-                            : scannedNode.map { "\(formatBytes($0.allocatedBytes)) indexed" }
+                            : analyzedBytes.map { "\(formatBytes($0)) indexed" }
                                 ?? "Analyze the complete startup disk"
                     )
                         .font(.system(size: 9))
                         .foregroundStyle(
                             isScanning
                                 ? Color.accentColor
-                                : scannedNode == nil
+                                : analyzedBytes == nil
                                 ? Color.secondary.opacity(0.72)
                                 : Color.accentColor
                         )
@@ -1435,7 +1560,7 @@ private struct DiskSpaceCachesLocationCard: View {
 
 private struct DiskSpaceQuickLocationCard: View {
     let location: DiskSpaceLocation
-    let scannedNode: DiskFileNode?
+    let analyzedBytes: Int64?
     let isScanning: Bool
     let isDisabled: Bool
     let action: () -> Void
@@ -1474,13 +1599,13 @@ private struct DiskSpaceQuickLocationCard: View {
                     Text(
                         isScanning
                             ? "Scanning…"
-                            : scannedNode.map { formatBytes($0.allocatedBytes) } ?? "Not analyzed"
+                            : analyzedBytes.map(formatBytes) ?? "Not analyzed"
                     )
                         .font(.system(size: 9))
                         .foregroundStyle(
                             isScanning
                                 ? Color.accentColor
-                                : scannedNode == nil ? Color.secondary.opacity(0.55) : Color.secondary
+                                : analyzedBytes == nil ? Color.secondary.opacity(0.55) : Color.secondary
                         )
                         .lineLimit(1)
                 }
@@ -1511,7 +1636,7 @@ private struct DiskSpaceQuickLocationCard: View {
 
 private struct DiskSpaceExternalLocationRow: View {
     let location: DiskSpaceLocation
-    let scannedNode: DiskFileNode?
+    let analyzedBytes: Int64?
     let isDisabled: Bool
     let action: () -> Void
 
@@ -1525,7 +1650,7 @@ private struct DiskSpaceExternalLocationRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(location.name)
                         .font(.system(size: 10, weight: .medium))
-                    Text(scannedNode.map { formatBytes($0.allocatedBytes) } ?? location.subtitle)
+                    Text(analyzedBytes.map(formatBytes) ?? location.subtitle)
                         .font(.system(size: 8))
                         .foregroundStyle(.secondary)
                 }
@@ -1547,7 +1672,7 @@ private struct DiskSpaceExternalLocationRow: View {
 private struct DiskSpaceCompactRow: View {
     let node: DiskFileNode
     let isSelected: Bool
-    let select: () -> Void
+    let activate: () -> Void
     let open: () -> Void
     let reveal: () -> Void
     let canTrash: Bool
@@ -1556,7 +1681,7 @@ private struct DiskSpaceCompactRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Button(action: select) {
+            Button(action: activate) {
                 Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
                     .font(.system(size: 11))
                     .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
@@ -1564,7 +1689,7 @@ private struct DiskSpaceCompactRow: View {
             }
             .buttonStyle(.plain)
 
-            Button(action: select) {
+            Button(action: activate) {
                 HStack(spacing: 7) {
                     Text(node.name)
                         .font(.system(size: 10))
@@ -2225,9 +2350,18 @@ private struct DiskSpaceBreadcrumb: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 22, height: 22)
+                    .frame(width: 30, height: 28)
+                    .background(
+                        Color.primary.opacity(0.055),
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.09), lineWidth: 0.5)
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .disabled(!store.canNavigateUp)
             .help("Up One Level")
 
@@ -2277,14 +2411,24 @@ private struct DiskSpaceFileTable: View {
     var body: some View {
         Table(store.displayedChildren, selection: selection) {
             TableColumn("Name") { node in
-                HStack(spacing: 8) {
-                    Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
-                        .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
-                        .frame(width: 18)
+                Button {
+                    store.activateNodeFromList(node.id)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: node.isDirectory ? "folder.fill" : "doc.fill")
+                            .foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
+                            .frame(width: 18)
 
-                    Text(node.name)
-                        .lineLimit(1)
+                        Text(node.name)
+                            .lineLimit(1)
+
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help(node.isDirectory ? "Open Folder" : "Select File")
             }
             .width(min: 240, ideal: 360)
 
@@ -2368,10 +2512,6 @@ private struct DiskSpaceFileTable: View {
                         store.requestMoveNodeToTrash(nodeID)
                     }
                 }
-            }
-        } primaryAction: { selectedIDs in
-            if let nodeID = selectedIDs.first {
-                store.openNode(nodeID)
             }
         }
     }
