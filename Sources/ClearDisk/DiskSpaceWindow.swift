@@ -66,6 +66,11 @@ final class DiskSpaceStore: ObservableObject {
         case failed(String)
     }
 
+    enum ScanPresentation: Equatable {
+        case analysis
+        case navigation
+    }
+
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var progress: DiskScanProgress?
     @Published private(set) var snapshot: DiskScanSnapshot?
@@ -77,6 +82,7 @@ final class DiskSpaceStore: ObservableObject {
     @Published private(set) var deletingNodeIDs: Set<String> = []
     @Published var trashAlert: DiskSpaceTrashAlert?
     @Published private(set) var analyzedLocationBytes: [String: Int64] = [:]
+    @Published private(set) var scanPresentation: ScanPresentation = .analysis
 
     private let scanner = DiskScanner()
     private var scanTask: Task<Void, Never>?
@@ -160,6 +166,20 @@ final class DiskSpaceStore: ObservableObject {
             return !scanNavigationHistory.isEmpty
         }
         return displayedNode.id != snapshot.rootID || !scanNavigationHistory.isEmpty
+    }
+
+    var isLoadingNavigation: Bool {
+        phase == .scanning && scanPresentation == .navigation
+    }
+
+    var navigationLoadingTitle: String {
+        let name = activeScanRootURL?.lastPathComponent ?? ""
+        return name.isEmpty ? selectedLocation.name : name
+    }
+
+    var navigationLoadingPath: String? {
+        guard let path = activeScanRootURL?.path, !path.isEmpty else { return nil }
+        return abbreviatedPath(path)
     }
 
     func reloadLocations() {
@@ -262,7 +282,8 @@ final class DiskSpaceStore: ObservableObject {
     private func startScan(
         rootURL: URL,
         restoreFocusID: String?,
-        scansVirtualTemporaryLocation: Bool = false
+        scansVirtualTemporaryLocation: Bool = false,
+        presentation: ScanPresentation = .analysis
     ) {
         stopScan(resetToIdle: false)
 
@@ -280,6 +301,7 @@ final class DiskSpaceStore: ObservableObject {
         selectedNodeID = nil
         activeScanRootURL = rootURL
         activeScanIsVirtualTemporaryLocation = scansVirtualTemporaryLocation
+        scanPresentation = presentation
         pendingRestoreFocusID = restoreFocusID
 
         scanTask = Task { [weak self] in
@@ -549,7 +571,8 @@ final class DiskSpaceStore: ObservableObject {
         startScan(
             rootURL: previous.rootURL,
             restoreFocusID: previous.focusedNodeID,
-            scansVirtualTemporaryLocation: previous.scansVirtualTemporaryLocation
+            scansVirtualTemporaryLocation: previous.scansVirtualTemporaryLocation,
+            presentation: .navigation
         )
     }
 
@@ -565,7 +588,11 @@ final class DiskSpaceStore: ObservableObject {
                 scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation
             )
         )
-        startScan(rootURL: node.url, restoreFocusID: nil)
+        startScan(
+            rootURL: node.url,
+            restoreFocusID: nil,
+            presentation: .navigation
+        )
     }
 
     func revealInFinder(_ id: String) {
@@ -954,7 +981,11 @@ struct DiskSpaceCompactView: View {
             } else {
                 switch store.phase {
                 case .scanning:
-                    compactScanning
+                    if store.isLoadingNavigation {
+                        compactNavigationLoading
+                    } else {
+                        compactScanning
+                    }
                 case .finished where store.hasResultsForSelection:
                     compactResults
                 case .failed(let message):
@@ -1297,6 +1328,14 @@ struct DiskSpaceCompactView: View {
             Color.accentColor.opacity(0.055),
             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
+    }
+
+    private var compactNavigationLoading: some View {
+        VStack(spacing: 12) {
+            compactWorkspaceNavigation
+            DiskSpaceNavigationLoadingView(store: store, compact: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: isExpanded ? 420 : 300)
     }
 
     private var compactResults: some View {
@@ -1883,7 +1922,11 @@ private struct DiskSpaceWorkspaceView: View {
 
             switch store.phase {
             case .scanning:
-                DiskSpaceScanningView(store: store)
+                if store.isLoadingNavigation {
+                    DiskSpaceNavigationLoadingView(store: store, compact: false)
+                } else {
+                    DiskSpaceScanningView(store: store)
+                }
             case .finished where store.hasResultsForSelection:
                 DiskSpaceResultsView(store: store)
             case .failed(let message):
@@ -2233,6 +2276,44 @@ private struct DiskSpaceScanningView: View {
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct DiskSpaceNavigationLoadingView: View {
+    @ObservedObject var store: DiskSpaceStore
+    let compact: Bool
+
+    var body: some View {
+        VStack(spacing: compact ? 8 : 10) {
+            Spacer()
+
+            ProgressView()
+                .controlSize(compact ? .regular : .large)
+
+            VStack(spacing: compact ? 3 : 5) {
+                Text("Opening \(store.navigationLoadingTitle)")
+                    .font(compact ? .system(size: 13, weight: .semibold) : .headline)
+                    .lineLimit(1)
+                Text("Loading folder contents…")
+                    .font(compact ? .system(size: 10) : .subheadline)
+                    .foregroundStyle(.secondary)
+                if let path = store.navigationLoadingPath {
+                    Text(path)
+                        .font(compact ? .system(size: 9, design: .monospaced) : .caption.monospaced())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: compact ? 330 : 480)
+                        .padding(.top, compact ? 1 : 2)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(compact ? 20 : 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Opening \(store.navigationLoadingTitle)")
     }
 }
 
