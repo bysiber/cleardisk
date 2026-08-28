@@ -2,6 +2,14 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.0.25] - 2026-08-28
+### Changed
+- Full-disk results now keep a shallow, memory-bounded tree. Deeper folders retain accurate totals and are scanned on demand when opened.
+- Opening or returning from an on-demand folder uses a lightweight native loading state, while the detailed scanning view remains reserved for explicit Scan and Rescan actions.
+
+### Fixed
+- Full startup-disk scans no longer retain a node for every discovered file or accumulate previous snapshots across rescans, preventing memory usage from growing into multiple gigabytes.
+
 ## [2.0.2] - 2026-08-27
 ### Added
 - Disk Space rows now provide dedicated **Reveal in Finder** and guarded **Move to Trash** actions, with confirmation and protected-location checks.
