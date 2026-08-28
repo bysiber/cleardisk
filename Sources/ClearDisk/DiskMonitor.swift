@@ -1143,6 +1143,8 @@ class DiskMonitor: ObservableObject {
             "\(home)/src",
             "\(home)/workspace",
             "\(home)/Desktop",
+            "\(home)/Development",
+            "\(home)/dev",
         ]
     }
 
@@ -1150,7 +1152,7 @@ class DiskMonitor: ObservableObject {
     /// roots that are already scanned in full above. Without this they would be walked twice.
     private static let homeScanExclusions: Set<String> = [
         "Library", "Documents", "Desktop", "Downloads", "Movies", "Music", "Pictures",
-        "Public", "Applications", "Developer", "Projects", "Code", "repos", "src", "workspace",
+        "Public", "Applications", "Developer", "Projects", "Code", "repos", "src", "workspace", "Development", "dev",
     ]
 
     private func scanProjectArtifacts() {
