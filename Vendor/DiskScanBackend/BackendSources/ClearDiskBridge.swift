@@ -6,19 +6,22 @@ public nonisolated struct ScanBackendScanOptions: Sendable {
     public let expandPackages: Bool
     public let exclusionPatterns: [String]
     public let preservedDirectoryURLs: [URL]
+    public let maximumMaterializedDepth: Int?
 
     public init(
         rootURL: URL,
         includeHiddenItems: Bool = false,
         expandPackages: Bool = false,
         exclusionPatterns: [String] = [],
-        preservedDirectoryURLs: [URL] = []
+        preservedDirectoryURLs: [URL] = [],
+        maximumMaterializedDepth: Int? = nil
     ) {
         self.rootURL = rootURL
         self.includeHiddenItems = includeHiddenItems
         self.expandPackages = expandPackages
         self.exclusionPatterns = exclusionPatterns
         self.preservedDirectoryURLs = preservedDirectoryURLs
+        self.maximumMaterializedDepth = maximumMaterializedDepth
     }
 }
 
@@ -249,6 +252,7 @@ public final class FullDiskScannerBackend {
             treatPackagesAsDirectories: options.expandPackages,
             exclusionPatterns: options.exclusionPatterns,
             exclusionRootPath: target.url.path,
+            maximumMaterializedDepth: options.maximumMaterializedDepth,
             autoSummaryProtectedPaths: Self.autoSummaryProtectedPaths(
                 preserving: options.preservedDirectoryURLs,
                 under: target.url.path

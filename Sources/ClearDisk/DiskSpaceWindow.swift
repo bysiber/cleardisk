@@ -48,6 +48,16 @@ enum DiskSpaceTrashAlert: Identifiable {
 @MainActor
 final class DiskSpaceStore: ObservableObject {
     private static let temporaryFilesLocationID = "cleardisk://temporary-files"
+    /// Keep only a shallow, useful slice of each scan in memory. Directories
+    /// beyond this boundary remain accurate summary nodes and are scanned on
+    /// demand when opened.
+    private static let maximumMaterializedDepth = 2
+
+    private struct ScanNavigationEntry {
+        let rootURL: URL
+        let focusedNodeID: String
+        let scansVirtualTemporaryLocation: Bool
+    }
 
     enum Phase: Equatable {
         case idle
@@ -72,6 +82,10 @@ final class DiskSpaceStore: ObservableObject {
     private var scanTask: Task<Void, Never>?
     private var activeScanID: UUID?
     private var scannedRootPath: String?
+    private var activeScanRootURL: URL?
+    private var activeScanIsVirtualTemporaryLocation = false
+    private var scanNavigationHistory: [ScanNavigationEntry] = []
+    private var pendingRestoreFocusID: String?
     private var lastListActivationAt = Date.distantPast
 
     init() {
@@ -89,7 +103,11 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     var selectedLocationDetail: String {
-        selectedLocation.id == Self.temporaryFilesLocationID
+        if let activeScanRootURL,
+           scannedRootPath != Self.temporaryFilesLocationID {
+            return activeScanRootURL.path
+        }
+        return selectedLocation.id == Self.temporaryFilesLocationID
             ? selectedLocation.subtitle
             : selectedLocation.url.path
     }
@@ -115,7 +133,7 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     var hasResultsForSelection: Bool {
-        locationRootNode != nil && phase == .finished
+        snapshot != nil && phase == .finished
     }
 
     var selectedNode: DiskFileNode? {
@@ -124,11 +142,11 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     var breadcrumbNodes: [DiskFileNode] {
-        guard let snapshot, let displayedNode, let locationRootNode else { return [] }
+        guard let snapshot, let displayedNode, let navigationRoot = snapshot.root else { return [] }
 
         var result = [displayedNode]
         var currentID = displayedNode.id
-        while currentID != locationRootNode.id,
+        while currentID != navigationRoot.id,
               let parentID = snapshot.node(id: currentID)?.parentID,
               let parent = snapshot.node(id: parentID) {
             result.append(parent)
@@ -138,8 +156,10 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     var canNavigateUp: Bool {
-        guard let displayedNode, let locationRootNode else { return false }
-        return displayedNode.id != locationRootNode.id
+        guard let snapshot, let displayedNode else {
+            return !scanNavigationHistory.isEmpty
+        }
+        return displayedNode.id != snapshot.rootID || !scanNavigationHistory.isEmpty
     }
 
     func reloadLocations() {
@@ -223,6 +243,27 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     func startScan() {
+        scanNavigationHistory.removeAll(keepingCapacity: true)
+        startScan(
+            rootURL: selectedLocation.url,
+            restoreFocusID: nil,
+            scansVirtualTemporaryLocation: selectedLocation.id == Self.temporaryFilesLocationID
+        )
+    }
+
+    func rescanCurrentRoot() {
+        startScan(
+            rootURL: activeScanRootURL ?? selectedLocation.url,
+            restoreFocusID: focusedNodeID,
+            scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation
+        )
+    }
+
+    private func startScan(
+        rootURL: URL,
+        restoreFocusID: String?,
+        scansVirtualTemporaryLocation: Bool = false
+    ) {
         stopScan(resetToIdle: false)
 
         let location = selectedLocation
@@ -237,14 +278,21 @@ final class DiskSpaceStore: ObservableObject {
         scannedRootPath = nil
         focusedNodeID = nil
         selectedNodeID = nil
+        activeScanRootURL = rootURL
+        activeScanIsVirtualTemporaryLocation = scansVirtualTemporaryLocation
+        pendingRestoreFocusID = restoreFocusID
 
         scanTask = Task { [weak self] in
             guard let self else { return }
             do {
-                if location.id == Self.temporaryFilesLocationID {
+                if scansVirtualTemporaryLocation {
                     try await scanTemporaryFiles(location: location, scanID: scanID)
                 } else {
-                    try await scanSingleLocation(location, scanID: scanID)
+                    try await scanSingleLocation(
+                        location,
+                        rootURL: rootURL,
+                        scanID: scanID
+                    )
                 }
             } catch is CancellationError {
                 if activeScanID == scanID, phase == .scanning { phase = .idle }
@@ -263,14 +311,18 @@ final class DiskSpaceStore: ObservableObject {
 
     private func scanSingleLocation(
         _ location: DiskSpaceLocation,
+        rootURL: URL,
         scanID: UUID
     ) async throws {
         var collectedIssues: [DiskScanIssue] = []
         let request = DiskScanRequest(
-            rootURL: location.url,
+            rootURL: rootURL,
             includesHiddenItems: true,
             expandsPackages: false,
-            preservedDirectoryURLs: preservedDirectoryURLs(for: location)
+            preservedDirectoryURLs: normalizedPath(rootURL.path) == normalizedPath(location.url.path)
+                ? preservedDirectoryURLs(for: location)
+                : [],
+            maximumMaterializedDepth: Self.maximumMaterializedDepth
         )
 
         for try await event in scanner.events(for: request) {
@@ -288,7 +340,7 @@ final class DiskSpaceStore: ObservableObject {
                     issues: completedSnapshot.issues.isEmpty
                         ? collectedIssues
                         : completedSnapshot.issues,
-                    scannedRootPath: normalizedPath(location.url.path)
+                    scannedRootPath: normalizedPath(rootURL.path)
                 )
             }
         }
@@ -319,7 +371,8 @@ final class DiskSpaceStore: ObservableObject {
                 let request = DiskScanRequest(
                     rootURL: source.url,
                     includesHiddenItems: true,
-                    expandsPackages: false
+                    expandsPackages: false,
+                    maximumMaterializedDepth: Self.maximumMaterializedDepth
                 )
 
                 for try await event in scanner.events(for: request) {
@@ -396,7 +449,13 @@ final class DiskSpaceStore: ObservableObject {
         snapshot = completedSnapshot
         issues = completedIssues
         self.scannedRootPath = scannedRootPath
-        focusedNodeID = completedSnapshot.rootID
+        if let pendingRestoreFocusID,
+           completedSnapshot.node(id: pendingRestoreFocusID) != nil {
+            focusedNodeID = pendingRestoreFocusID
+        } else {
+            focusedNodeID = completedSnapshot.rootID
+        }
+        self.pendingRestoreFocusID = nil
         selectedNodeID = nil
         progress = nil
         phase = .finished
@@ -452,6 +511,8 @@ final class DiskSpaceStore: ObservableObject {
         if node.isDirectory, !node.childIDs.isEmpty {
             focusedNodeID = node.id
             selectedNodeID = nil
+        } else if node.isDirectory, node.wasSummarized {
+            drillIntoSummarizedDirectory(node)
         } else {
             NSWorkspace.shared.activateFileViewerSelecting([node.url])
         }
@@ -463,7 +524,7 @@ final class DiskSpaceStore: ObservableObject {
               let node = snapshot?.node(id: id) else { return }
         lastListActivationAt = now
 
-        if node.isDirectory, !node.childIDs.isEmpty {
+        if node.isDirectory {
             openNode(id)
         } else {
             selectNode(id)
@@ -477,10 +538,34 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     func navigateUp() {
-        guard canNavigateUp,
-              let focusedNodeID,
-              let parentID = snapshot?.node(id: focusedNodeID)?.parentID else { return }
-        focus(parentID)
+        guard canNavigateUp else { return }
+        if let focusedNodeID,
+           let parentID = snapshot?.node(id: focusedNodeID)?.parentID {
+            focus(parentID)
+            return
+        }
+
+        guard let previous = scanNavigationHistory.popLast() else { return }
+        startScan(
+            rootURL: previous.rootURL,
+            restoreFocusID: previous.focusedNodeID,
+            scansVirtualTemporaryLocation: previous.scansVirtualTemporaryLocation
+        )
+    }
+
+    private func drillIntoSummarizedDirectory(_ node: DiskFileNode) {
+        guard phase != .scanning,
+              let currentRootURL = activeScanRootURL ?? snapshot?.root?.url,
+              let currentFocusID = displayedNode?.id ?? snapshot?.rootID else { return }
+
+        scanNavigationHistory.append(
+            ScanNavigationEntry(
+                rootURL: currentRootURL,
+                focusedNodeID: currentFocusID,
+                scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation
+            )
+        )
+        startScan(rootURL: node.url, restoreFocusID: nil)
     }
 
     func revealInFinder(_ id: String) {
@@ -1071,7 +1156,11 @@ struct DiskSpaceCompactView: View {
                 }
 
                 Button {
-                    store.startScan()
+                    if errorMessage == nil {
+                        store.startScan()
+                    } else {
+                        store.rescanCurrentRoot()
+                    }
                 } label: {
                     Label(
                         errorMessage == nil ? "Analyze \(store.selectedLocation.name)" : "Try Again",
@@ -1246,7 +1335,7 @@ struct DiskSpaceCompactView: View {
                 )
 
                 Button {
-                    store.startScan()
+                    store.rescanCurrentRoot()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11))
@@ -1305,7 +1394,8 @@ struct DiskSpaceCompactView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    if selectedNode.isDirectory, !selectedNode.childIDs.isEmpty {
+                    if selectedNode.isDirectory,
+                       selectedNode.wasSummarized || !selectedNode.childIDs.isEmpty {
                         Button("Open") { store.openNode(selectedNode.id) }
                             .controlSize(.mini)
                     }
@@ -1705,7 +1795,7 @@ private struct DiskSpaceCompactRow: View {
             }
             .buttonStyle(.plain)
 
-            if node.isDirectory, !node.childIDs.isEmpty {
+            if node.isDirectory, node.wasSummarized || !node.childIDs.isEmpty {
                 Button(action: open) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
@@ -1748,7 +1838,7 @@ private struct DiskSpaceCompactRow: View {
             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
         .contextMenu {
-            if node.isDirectory, !node.childIDs.isEmpty {
+            if node.isDirectory, node.wasSummarized || !node.childIDs.isEmpty {
                 Button("Open Folder", action: open)
             }
             Button("Show in Finder", action: reveal)
@@ -1834,9 +1924,13 @@ private struct DiskSpaceToolbar: View {
                 Button("Stop", role: .cancel) { store.stopScan() }
             } else {
                 Button {
-                    store.startScan()
+                    if store.phase == .finished {
+                        store.rescanCurrentRoot()
+                    } else {
+                        store.startScan()
+                    }
                 } label: {
-                    Label(store.hasResultsForSelection ? "Rescan" : "Scan", systemImage: "arrow.clockwise")
+                    Label(store.phase == .finished ? "Rescan" : "Scan", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
             }
@@ -1882,7 +1976,11 @@ private struct DiskSpaceEmptyView: View {
                 }
 
                 Button {
-                    store.startScan()
+                    if errorMessage == nil {
+                        store.startScan()
+                    } else {
+                        store.rescanCurrentRoot()
+                    }
                 } label: {
                     Label(
                         isStartupDisk ? "Scan This Mac" : "Scan \(store.selectedLocation.name)",
@@ -2502,7 +2600,7 @@ private struct DiskSpaceFileTable: View {
         .contextMenu(forSelectionType: String.self) { selectedIDs in
             if let nodeID = selectedIDs.first,
                let node = store.snapshot?.node(id: nodeID) {
-                if node.isDirectory, !node.childIDs.isEmpty {
+                if node.isDirectory, node.wasSummarized || !node.childIDs.isEmpty {
                     Button("Open Folder") { store.openNode(nodeID) }
                 }
                 Button("Show in Finder") { store.revealInFinder(nodeID) }
