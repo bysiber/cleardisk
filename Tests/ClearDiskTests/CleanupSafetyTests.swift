@@ -40,7 +40,7 @@ final class CleanupSafetyTests: XCTestCase {
         }
     }
 
-    func testEveryCacheDefinitionHasADescription() {
+    func testEveryDeveloperCacheDefinitionHasADescription() {
         // MainView renders `DiskMonitor.cacheDescriptions[entry.name] ?? ""` — a name added to
         // allCachePaths() without a matching key here silently shows a blank description instead
         // of failing to build.
