@@ -141,6 +141,16 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
     <false/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>ClearDisk scans the Desktop only when analyzing storage or reviewing files you choose to remove.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>ClearDisk scans Documents only when analyzing storage and project build caches.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>ClearDisk scans Downloads only when analyzing storage and large files.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>ClearDisk accesses an external drive only after you choose that drive for analysis.</string>
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>ClearDisk accesses a network drive only after you choose that drive for analysis.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright 2026. All rights reserved.</string>
 </dict>

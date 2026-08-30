@@ -167,9 +167,9 @@ private struct PrimaryModePanelView: View {
             }
             onHoverChanged(isHovered)
         }
-        .disabled(diskMonitor.isFirstLaunch && !diskMonitor.hasCompletedFirstScan)
+        .disabled(diskMonitor.fullDiskAccess != .granted || !diskMonitor.hasCompletedFirstScan)
         .opacity(
-            diskMonitor.isFirstLaunch && !diskMonitor.hasCompletedFirstScan
+            diskMonitor.fullDiskAccess != .granted || !diskMonitor.hasCompletedFirstScan
                 ? 0.5
                 : 1
         )

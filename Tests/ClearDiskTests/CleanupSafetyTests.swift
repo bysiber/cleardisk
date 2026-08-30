@@ -23,6 +23,19 @@ final class CleanupSafetyTests: XCTestCase {
         XCTAssertFalse(DiskMonitor.isEligibleForSafeBulkClean(cache(name: "Risky", risk: "risky")))
     }
 
+    func testRecursiveScansStayBlockedWithoutFullDiskAccess() {
+        let monitor = DiskMonitor()
+        monitor.fullDiskAccess = .denied
+
+        monitor.scan()
+        monitor.scanCaches()
+
+        XCTAssertFalse(monitor.isScanning)
+        XCTAssertFalse(monitor.isScanningCaches)
+        XCTAssertFalse(monitor.hasCompletedFirstScan)
+        XCTAssertFalse(monitor.hasCompletedCacheScan)
+    }
+
     func testRiskySelectionRequiresAcknowledgement() {
         XCTAssertFalse(DiskMonitor.requiresDataLossAcknowledgement(for: [cache(name: "Safe", risk: "safe")]))
         XCTAssertTrue(DiskMonitor.requiresDataLossAcknowledgement(for: [

@@ -49,7 +49,7 @@ struct MainView: View {
     @State private var fileToDelete: LargeFile?
     @State private var showDeleteFileConfirm = false
     @State private var expandedLargeFileFolder: String? = nil
-    @AppStorage("launchAtLogin") private var launchAtLogin = true
+    @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     @AppStorage("cacheSafetyBannerDismissed") private var cacheSafetyBannerDismissed = false
@@ -128,6 +128,10 @@ struct MainView: View {
         // and the UI comes back unclickable. Whatever was open dies with the popover.
         .onReceive(NotificationCenter.default.publisher(for: .clearDiskPopoverDidClose)) { _ in
             dismissAllPresentations()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard diskMonitor.fullDiskAccess != .granted else { return }
+            verifyFullDiskAccessAndStartScan()
         }
         .onReceive(NotificationCenter.default.publisher(for: .clearDiskPrimaryModeRequested)) { notification in
             guard
@@ -901,8 +905,9 @@ struct MainView: View {
                 ))
             }
             
-            // Onboarding overlay (first launch)
-            if diskMonitor.isFirstLaunch && !diskMonitor.hasCompletedFirstScan {
+            // Never let a recursive scan race ahead of consent. Existing users see this again if
+            // Full Disk Access is later revoked or no longer matches the installed code signature.
+            if diskMonitor.fullDiskAccess != .granted || !diskMonitor.hasCompletedFirstScan {
                 onboardingView
             }
         }
@@ -2239,66 +2244,117 @@ struct MainView: View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
             
-            VStack(spacing: 16) {
+            VStack(spacing: 15) {
                 Spacer()
                 
-                Image(systemName: "externaldrive.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(.accentColor)
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.12))
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "externaldrive.fill.badge.checkmark")
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundColor(.accentColor)
+                }
                 
                 Text("Welcome to ClearDisk")
                     .font(.system(size: 20, weight: .bold))
                 
-                Text("Your macOS disk analyzer for developers")
+                Text("One permission for complete, accurate storage analysis")
                     .font(.system(size: 13))
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
                 
                 VStack(alignment: .leading, spacing: 10) {
-                    onboardingFeature(icon: "magnifyingglass", text: "Scans developer caches (Xcode, npm, pip, etc.)")
-                    onboardingFeature(icon: "trash", text: "Moves files to Trash before permanent deletion")
-                    onboardingFeature(icon: "bell", text: "Alerts when disk space is running low")
-                    onboardingFeature(icon: "chart.line.uptrend.xyaxis", text: "Forecasts when your disk will be full")
+                    onboardingFeature(icon: "square.grid.2x2", text: "Maps your disk and finds large files")
+                    onboardingFeature(icon: "hammer", text: "Reviews app, developer, and project caches")
+                    onboardingFeature(icon: "trash", text: "Moves reviewed items to Trash so they remain recoverable")
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
                 
-                // Permission status
-                VStack(spacing: 6) {
-                    HStack(spacing: 6) {
-                        Image(systemName: diskMonitor.notificationPermission == .granted ? "checkmark.circle.fill" : diskMonitor.notificationPermission == .denied ? "xmark.circle.fill" : "circle")
-                            .foregroundColor(diskMonitor.notificationPermission == .granted ? .green : diskMonitor.notificationPermission == .denied ? .red : .secondary)
-                            .font(.system(size: 12))
-                        Text("Notifications: \(permissionLabel(diskMonitor.notificationPermission))")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Spacer()
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: diskMonitor.fullDiskAccess == .granted
+                              ? "checkmark.shield.fill"
+                              : "lock.shield.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(diskMonitor.fullDiskAccess == .granted ? .green : .orange)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Full Disk Access")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(permissionLabel(diskMonitor.fullDiskAccess))
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
                     }
+
+                    Text("macOS requires this for disk maps and cache locations. ClearDisk waits here instead of asking for Desktop, Documents, Downloads, Photos, and app data separately.")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, 32)
+                .padding(12)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                }
+                .padding(.horizontal, 24)
                 
                 Spacer()
                 
-                if diskMonitor.isScanning {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                        Text("Scanning your disk...")
-                            .font(.system(size: 12))
+                if diskMonitor.fullDiskAccess == .granted && diskMonitor.isScanning {
+                    VStack(spacing: 9) {
+                        ProgressView(value: diskMonitor.scanProgress, total: 1)
+                            .progressViewStyle(.linear)
+                            .frame(width: 230)
+
+                        Text(diskMonitor.scanStatusText)
+                            .font(.system(size: 12, weight: .medium))
+
+                        Text("Your first analysis can take a minute. ClearDisk will open when the results are ready.")
+                            .font(.system(size: 10))
                             .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(width: 250)
                     }
                 } else {
                     Button(action: {
-                        diskMonitor.markOnboardingComplete()
+                        if diskMonitor.fullDiskAccess == .granted {
+                            diskMonitor.markOnboardingComplete()
+                            diskMonitor.scan()
+                        } else {
+                            diskMonitor.openFullDiskAccessSettings()
+                        }
                     }) {
-                        Text("Get Started")
+                        Text(diskMonitor.fullDiskAccess == .granted
+                             ? "Start Scanning"
+                             : "Open Full Disk Access")
                             .font(.system(size: 14, weight: .semibold))
                             .frame(width: 200, height: 32)
                     }
                     .buttonStyle(.borderedProminent)
+
+                    if diskMonitor.fullDiskAccess != .granted {
+                        Button("Check Again") {
+                            verifyFullDiskAccessAndStartScan()
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .buttonStyle(.plain)
+                        .foregroundColor(.accentColor)
+                    }
                 }
                 
                 Spacer()
             }
+        }
+    }
+
+    private func verifyFullDiskAccessAndStartScan() {
+        diskMonitor.checkFullDiskAccess { granted in
+            guard granted else { return }
+            diskMonitor.markOnboardingComplete()
+            diskMonitor.scan()
         }
     }
     
@@ -2317,7 +2373,7 @@ struct MainView: View {
     func permissionLabel(_ state: PermissionState) -> String {
         switch state {
         case .granted: return "Enabled"
-        case .denied: return "Denied"
+        case .denied: return "Not enabled yet"
         case .unknown: return "Checking..."
         }
     }
@@ -2536,10 +2592,6 @@ struct MainView: View {
         }
         .onAppear {
             diskMonitor.checkNotificationStatus()
-            // Register login item if enabled (handles first launch)
-            if launchAtLogin {
-                try? SMAppService.mainApp.register()
-            }
         }
     }
     

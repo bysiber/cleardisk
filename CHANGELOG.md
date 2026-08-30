@@ -2,6 +2,21 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.0.26] - 2026-08-30
+### Added
+- Appearance controls let ClearDisk follow the system theme or use Light or Dark across the menu-bar popover, navigation panel, and Disk Space window.
+- Project discovery now includes the common `~/Development` and `~/dev` roots.
+- The global NuGet package cache (`~/.nuget/packages`) is available as a reviewed, rebuildable .NET cache.
+
+### Changed
+- First launch now asks for Full Disk Access through one focused onboarding flow instead of triggering separate Desktop, Documents, Downloads, Photos, Media, and app-data prompts.
+- Notifications are requested only when the user enables disk alerts, and Launch at Login defaults to off for new installations.
+- Protected recursive scans remain blocked until Full Disk Access is confirmed, while the menu-bar free-space indicator continues to use a lightweight capacity check.
+
+### Fixed
+- After Full Disk Access is granted, the onboarding screen remains visible until the initial analysis has actually completed instead of revealing empty cache and disk views.
+- Initial analysis now reports its current phase and progress while storage categories, caches, large files, project artifacts, and Trash are inspected.
+
 ## [2.0.25] - 2026-08-28
 ### Changed
 - Full-disk results now keep a shallow, memory-bounded tree. Deeper folders retain accurate totals and are scanned on demand when opened.

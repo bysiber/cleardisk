@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             diskMonitor: diskMonitor,
             store: diskSpaceStore
         )
-        diskMonitor.setupNotifications()
+        diskMonitor.checkNotificationStatus()
         diskMonitor.loadCleanupTotals()
         
         // Create status bar item
@@ -114,8 +114,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // checks from SUEnableAutomaticChecks and SUScheduledCheckInterval in Info.plist.
         _ = updaterController
         
-        // Start monitoring
-        diskMonitor.scan()
+        // Capacity is safe to read without touching protected folders. A recursive scan starts
+        // only after the installed app identity has Full Disk Access, avoiding a cascade of
+        // Desktop, Documents, Downloads, Photos, Media and App Data permission dialogs.
+        diskMonitor.refreshDiskSpaceOnly()
+        diskMonitor.checkFullDiskAccess { [weak self] granted in
+            guard let self, granted else { return }
+            self.diskMonitor.markOnboardingComplete()
+            self.diskMonitor.scan()
+        }
         
         // Auto-update menu bar when disk data changes
         diskMonitor.objectWillChange
@@ -132,7 +139,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .filter { $0 == .diskSpace }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.openDiskSpaceWindow()
+                guard let self, self.diskMonitor.fullDiskAccess == .granted else { return }
+                self.openDiskSpaceWindow()
             }
             .store(in: &cancellables)
         
@@ -144,7 +152,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             refreshTick += 1
             if refreshTick == 6 {
                 refreshTick = 0
-                self?.diskMonitor.scan()
+                if self?.diskMonitor.fullDiskAccess == .granted {
+                    self?.diskMonitor.scan()
+                } else {
+                    self?.diskMonitor.refreshDiskSpaceOnly()
+                }
             } else {
                 self?.diskMonitor.refreshDiskSpaceOnly()
             }
@@ -187,8 +199,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             closePopover()
         } else {
             if let button = statusItem.button {
-                diskMonitor.scanIfStale()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+                diskMonitor.checkFullDiskAccess { [weak self] granted in
+                    guard let self else { return }
+                    if granted {
+                        self.diskMonitor.markOnboardingComplete()
+                        self.diskMonitor.scanIfStale()
+                    } else {
+                        self.diskMonitor.refreshDiskSpaceOnly()
+                    }
+                }
 
                 // An .accessory app never becomes active on its own, so the popover opens as an
                 // INACTIVE window — macOS then renders its vibrancy washed out and the text is hard
