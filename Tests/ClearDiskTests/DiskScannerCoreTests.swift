@@ -68,4 +68,66 @@ final class DiskScannerCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.statistics.fileCount, 1)
         XCTAssertGreaterThanOrEqual(snapshot.statistics.logicalBytes, 4_096)
     }
+
+    @MainActor
+    func testCompositeSnapshotRemovesNodeWithoutRescanningSources() async throws {
+        let base = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClearDiskCompositeTests-\(UUID().uuidString)", isDirectory: true)
+        let firstRoot = base.appendingPathComponent("First", isDirectory: true)
+        let secondRoot = base.appendingPathComponent("Second", isDirectory: true)
+        try FileManager.default.createDirectory(at: firstRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        try Data(repeating: 1, count: 4_096).write(to: firstRoot.appendingPathComponent("remove.bin"))
+        try Data(repeating: 2, count: 2_048).write(to: secondRoot.appendingPathComponent("keep.bin"))
+
+        let scanner = DiskScanner()
+        let firstSnapshot = try await completedSnapshot(scanner: scanner, rootURL: firstRoot)
+        let secondSnapshot = try await completedSnapshot(scanner: scanner, rootURL: secondRoot)
+        let removedNode = try XCTUnwrap(firstSnapshot.children(of: firstSnapshot.rootID).first)
+        let retainedNode = try XCTUnwrap(secondSnapshot.children(of: secondSnapshot.rootID).first)
+
+        let composite = try XCTUnwrap(
+            DiskScanSnapshot.composite(
+                id: "cleardisk://test-composite",
+                name: "Temporary Files",
+                url: base,
+                groups: [
+                    DiskScanCompositeGroup(
+                        name: "Sources",
+                        url: base,
+                        sources: [
+                            DiskScanCompositeSource(name: "First", snapshot: firstSnapshot),
+                            DiskScanCompositeSource(name: "Second", snapshot: secondSnapshot)
+                        ]
+                    )
+                ]
+            )
+        )
+
+        let updated = try XCTUnwrap(composite.removingNode(id: removedNode.id))
+        XCTAssertNotNil(composite.node(id: removedNode.id))
+        XCTAssertNil(updated.node(id: removedNode.id))
+        XCTAssertNotNil(updated.node(id: retainedNode.id))
+        XCTAssertLessThan(updated.statistics.allocatedBytes, composite.statistics.allocatedBytes)
+        XCTAssertLessThan(
+            try XCTUnwrap(updated.root).allocatedBytes,
+            try XCTUnwrap(composite.root).allocatedBytes
+        )
+    }
+
+    @MainActor
+    private func completedSnapshot(
+        scanner: DiskScanner,
+        rootURL: URL
+    ) async throws -> DiskScanSnapshot {
+        var completedSnapshot: DiskScanSnapshot?
+        for try await event in scanner.events(for: DiskScanRequest(rootURL: rootURL)) {
+            if case .completed(let snapshot) = event {
+                completedSnapshot = snapshot
+            }
+        }
+        return try XCTUnwrap(completedSnapshot)
+    }
 }

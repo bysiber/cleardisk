@@ -52,10 +52,27 @@ final class DiskSpaceStore: ObservableObject {
     /// beyond this boundary remain accurate summary nodes and are scanned on
     /// demand when opened.
     private static let maximumMaterializedDepth = 2
+    /// Retain only the two expensive, shallow ancestor scans. Deeper navigation results are
+    /// discarded when left, keeping memory bounded while Back remains instant near the top.
+    private static let maximumCachedNavigationSnapshots = 2
+    /// Switching cards should not repeatedly scan the same large location. Two shallow inactive
+    /// results are enough for fast back-and-forth without returning to unbounded snapshot growth.
+    private static let maximumCachedLocationSnapshots = 2
 
     private struct ScanNavigationEntry {
         let rootURL: URL
         let focusedNodeID: String
+        let scansVirtualTemporaryLocation: Bool
+        let snapshot: DiskScanSnapshot?
+        let issues: [DiskScanIssue]
+        let scannedRootPath: String
+    }
+
+    private struct CachedLocationScan {
+        let snapshot: DiskScanSnapshot
+        let issues: [DiskScanIssue]
+        let scannedRootPath: String
+        let rootURL: URL
         let scansVirtualTemporaryLocation: Bool
     }
 
@@ -93,6 +110,8 @@ final class DiskSpaceStore: ObservableObject {
     private var scanNavigationHistory: [ScanNavigationEntry] = []
     private var pendingRestoreFocusID: String?
     private var lastListActivationAt = Date.distantPast
+    private var cachedLocationScans: [String: CachedLocationScan] = [:]
+    private var cachedLocationOrder: [String] = []
 
     init() {
         reloadLocations()
@@ -139,7 +158,8 @@ final class DiskSpaceStore: ObservableObject {
     }
 
     var hasResultsForSelection: Bool {
-        snapshot != nil && phase == .finished
+        guard snapshot != nil, phase == .finished else { return false }
+        return !scanNavigationHistory.isEmpty || locationRootNode != nil
     }
 
     var selectedNode: DiskFileNode? {
@@ -264,6 +284,8 @@ final class DiskSpaceStore: ObservableObject {
 
     func startScan() {
         scanNavigationHistory.removeAll(keepingCapacity: true)
+        cachedLocationScans.removeValue(forKey: selectedLocation.id)
+        cachedLocationOrder.removeAll { $0 == selectedLocation.id }
         startScan(
             rootURL: selectedLocation.url,
             restoreFocusID: nil,
@@ -500,10 +522,88 @@ final class DiskSpaceStore: ObservableObject {
 
     func selectLocation(_ id: String?) {
         guard let id, locations.contains(where: { $0.id == id }) else { return }
+        if id != selectedLocationID {
+            cacheCurrentTopLevelLocationScan()
+        }
         selectedLocationID = id
-        focusedNodeID = node(forLocationID: id)?.id
+
+        if restoreCachedLocationScan(for: id) {
+            return
+        }
+
+        if let locationNode = node(forLocationID: id) {
+            focusedNodeID = locationNode.id
+        } else {
+            scanNavigationHistory.removeAll(keepingCapacity: true)
+            snapshot = nil
+            issues = []
+            scannedRootPath = nil
+            activeScanRootURL = nil
+            activeScanIsVirtualTemporaryLocation = false
+            focusedNodeID = nil
+            progress = nil
+            phase = .idle
+        }
         selectedNodeID = nil
         if case .failed = phase { phase = .idle }
+    }
+
+    private func cacheCurrentTopLevelLocationScan() {
+        guard phase == .finished,
+              scanNavigationHistory.isEmpty,
+              let snapshot,
+              let scannedRootPath,
+              let activeScanRootURL,
+              let locationID = locationID(forScannedRootPath: scannedRootPath) else { return }
+
+        cachedLocationScans[locationID] = CachedLocationScan(
+            snapshot: snapshot,
+            issues: issues,
+            scannedRootPath: scannedRootPath,
+            rootURL: activeScanRootURL,
+            scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation
+        )
+        cachedLocationOrder.removeAll { $0 == locationID }
+        cachedLocationOrder.append(locationID)
+
+        while cachedLocationOrder.count > Self.maximumCachedLocationSnapshots {
+            let evictedID = cachedLocationOrder.removeFirst()
+            cachedLocationScans.removeValue(forKey: evictedID)
+        }
+    }
+
+    private func restoreCachedLocationScan(for locationID: String) -> Bool {
+        guard let cached = cachedLocationScans.removeValue(forKey: locationID) else {
+            return false
+        }
+        cachedLocationOrder.removeAll { $0 == locationID }
+        stopScan(resetToIdle: false)
+        scanNavigationHistory.removeAll(keepingCapacity: true)
+        snapshot = cached.snapshot
+        issues = cached.issues
+        scannedRootPath = cached.scannedRootPath
+        activeScanRootURL = cached.rootURL
+        activeScanIsVirtualTemporaryLocation = cached.scansVirtualTemporaryLocation
+        focusedNodeID = cached.snapshot.rootID
+        selectedNodeID = nil
+        pendingRestoreFocusID = nil
+        progress = nil
+        scanPresentation = .analysis
+        phase = .finished
+        recordAnalyzedLocations(
+            in: cached.snapshot,
+            scannedRootPath: cached.scannedRootPath
+        )
+        return true
+    }
+
+    private func locationID(forScannedRootPath path: String) -> String? {
+        if path == Self.temporaryFilesLocationID {
+            return Self.temporaryFilesLocationID
+        }
+        return locations.first {
+            normalizedPath($0.url.path) == normalizedPath(path)
+        }?.id
     }
 
     func node(forLocationID id: String) -> DiskFileNode? {
@@ -568,6 +668,10 @@ final class DiskSpaceStore: ObservableObject {
         }
 
         guard let previous = scanNavigationHistory.popLast() else { return }
+        if let cachedSnapshot = previous.snapshot {
+            restoreNavigationEntry(previous, snapshot: cachedSnapshot)
+            return
+        }
         startScan(
             rootURL: previous.rootURL,
             restoreFocusID: previous.focusedNodeID,
@@ -579,19 +683,54 @@ final class DiskSpaceStore: ObservableObject {
     private func drillIntoSummarizedDirectory(_ node: DiskFileNode) {
         guard phase != .scanning,
               let currentRootURL = activeScanRootURL ?? snapshot?.root?.url,
+              let currentSnapshot = snapshot,
+              let currentScannedRootPath = scannedRootPath,
               let currentFocusID = displayedNode?.id ?? snapshot?.rootID else { return }
+
+        let cachedSnapshotCount = scanNavigationHistory.reduce(0) {
+            $0 + ($1.snapshot == nil ? 0 : 1)
+        }
 
         scanNavigationHistory.append(
             ScanNavigationEntry(
                 rootURL: currentRootURL,
                 focusedNodeID: currentFocusID,
-                scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation
+                scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation,
+                snapshot: cachedSnapshotCount < Self.maximumCachedNavigationSnapshots
+                    ? currentSnapshot
+                    : nil,
+                issues: issues,
+                scannedRootPath: currentScannedRootPath
             )
         )
         startScan(
             rootURL: node.url,
             restoreFocusID: nil,
             presentation: .navigation
+        )
+    }
+
+    private func restoreNavigationEntry(
+        _ entry: ScanNavigationEntry,
+        snapshot cachedSnapshot: DiskScanSnapshot
+    ) {
+        stopScan(resetToIdle: false)
+        snapshot = cachedSnapshot
+        issues = entry.issues
+        scannedRootPath = entry.scannedRootPath
+        activeScanRootURL = entry.rootURL
+        activeScanIsVirtualTemporaryLocation = entry.scansVirtualTemporaryLocation
+        focusedNodeID = cachedSnapshot.node(id: entry.focusedNodeID) != nil
+            ? entry.focusedNodeID
+            : cachedSnapshot.rootID
+        selectedNodeID = nil
+        pendingRestoreFocusID = nil
+        progress = nil
+        scanPresentation = .navigation
+        phase = .finished
+        recordAnalyzedLocations(
+            in: cachedSnapshot,
+            scannedRootPath: entry.scannedRootPath
         )
     }
 
@@ -672,6 +811,7 @@ final class DiskSpaceStore: ObservableObject {
             if let updatedSnapshot = self.snapshot?.removingNode(id: id) {
                 self.snapshot = updatedSnapshot
                 issues = updatedSnapshot.issues
+                reconcileCachedSnapshotsAfterRemovingNode(id)
                 if let scannedRootPath {
                     recordAnalyzedLocations(
                         in: updatedSnapshot,
@@ -679,10 +819,46 @@ final class DiskSpaceStore: ObservableObject {
                     )
                 }
             } else {
-                // Multi-location snapshots are assembled from several immutable trees.
-                // Re-scan only this virtual location after Trash succeeds.
-                startScan()
+                // A successful Trash action must never launch an unexpected multi-minute scan.
+                // This is only an internal snapshot inconsistency; leave refresh under user control.
+                phase = .failed("The item was moved to Trash, but this view could not update. Choose Rescan to refresh it.")
             }
+        }
+    }
+
+    private func reconcileCachedSnapshotsAfterRemovingNode(_ id: String) {
+        for locationID in Array(cachedLocationScans.keys) {
+            guard let cached = cachedLocationScans[locationID],
+                  cached.snapshot.node(id: id) != nil,
+                  id != cached.snapshot.rootID else { continue }
+
+            guard let updatedSnapshot = cached.snapshot.removingNode(id: id) else {
+                cachedLocationScans.removeValue(forKey: locationID)
+                cachedLocationOrder.removeAll { $0 == locationID }
+                continue
+            }
+            cachedLocationScans[locationID] = CachedLocationScan(
+                snapshot: updatedSnapshot,
+                issues: updatedSnapshot.issues,
+                scannedRootPath: cached.scannedRootPath,
+                rootURL: cached.rootURL,
+                scansVirtualTemporaryLocation: cached.scansVirtualTemporaryLocation
+            )
+        }
+
+        scanNavigationHistory = scanNavigationHistory.map { entry in
+            guard let cachedSnapshot = entry.snapshot,
+                  cachedSnapshot.node(id: id) != nil,
+                  id != cachedSnapshot.rootID else { return entry }
+            let updatedSnapshot = cachedSnapshot.removingNode(id: id)
+            return ScanNavigationEntry(
+                rootURL: entry.rootURL,
+                focusedNodeID: entry.focusedNodeID,
+                scansVirtualTemporaryLocation: entry.scansVirtualTemporaryLocation,
+                snapshot: updatedSnapshot,
+                issues: updatedSnapshot?.issues ?? entry.issues,
+                scannedRootPath: entry.scannedRootPath
+            )
         }
     }
 
@@ -1224,9 +1400,9 @@ struct DiskSpaceCompactView: View {
             return
         }
 
+        store.selectLocation(location.id)
         let hasExistingResults = store.phase == .finished &&
             store.node(forLocationID: location.id) != nil
-        store.selectLocation(location.id)
         page = .workspace
         if !hasExistingResults {
             store.startScan()

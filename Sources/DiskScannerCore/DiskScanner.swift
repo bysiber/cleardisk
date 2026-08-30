@@ -127,6 +127,7 @@ public struct DiskScanSnapshot: Sendable {
         let syntheticNodes: [String: DiskFileNode]
         let presentedRootNodes: [String: DiskFileNode]
         let backendSnapshots: [ScanBackendSnapshot]
+        let groups: [DiskScanCompositeGroup]
         let nodeCount: Int
     }
 
@@ -193,11 +194,62 @@ public struct DiskScanSnapshot: Sendable {
     }
 
     /// Removes a subtree from an immutable scan result after the corresponding filesystem item
-    /// has successfully moved to Trash. Composite scans fall back to a rescan at the UI layer.
+    /// has successfully moved to Trash. Composite scans rebuild only their inexpensive synthetic
+    /// wrapper from the already-scanned source snapshots; they never touch the filesystem again.
     public func removingNode(id: String) -> DiskScanSnapshot? {
-        guard case .backend(let backendSnapshot) = storage,
-              let updated = backendSnapshot.removingNode(id: id) else { return nil }
+        switch storage {
+        case .backend(let backendSnapshot):
+            guard let updated = backendSnapshot.removingNode(id: id) else { return nil }
+            return Self.snapshot(from: updated)
 
+        case .composite(let composite):
+            var foundTarget = false
+            var updatedGroups: [DiskScanCompositeGroup] = []
+            updatedGroups.reserveCapacity(composite.groups.count)
+
+            for group in composite.groups {
+                var updatedSources: [DiskScanCompositeSource] = []
+                updatedSources.reserveCapacity(group.sources.count)
+
+                for source in group.sources {
+                    guard source.snapshot.node(id: id) != nil else {
+                        updatedSources.append(source)
+                        continue
+                    }
+
+                    foundTarget = true
+                    // Removing a source root removes that source from the virtual view. Ordinary
+                    // descendants use the backend's immutable subtree update.
+                    if id != source.snapshot.rootID,
+                       let updatedSnapshot = source.snapshot.removingNode(id: id) {
+                        updatedSources.append(
+                            DiskScanCompositeSource(name: source.name, snapshot: updatedSnapshot)
+                        )
+                    }
+                }
+
+                if !updatedSources.isEmpty {
+                    updatedGroups.append(
+                        DiskScanCompositeGroup(
+                            name: group.name,
+                            url: group.url,
+                            sources: updatedSources
+                        )
+                    )
+                }
+            }
+
+            guard foundTarget else { return nil }
+            return Self.composite(
+                id: rootID,
+                name: composite.root.name,
+                url: composite.root.url,
+                groups: updatedGroups
+            )
+        }
+    }
+
+    private static func snapshot(from updated: ScanBackendSnapshot) -> DiskScanSnapshot {
         return DiskScanSnapshot(
             rootID: updated.rootID,
             issues: updated.warnings.map {
@@ -334,6 +386,7 @@ public struct DiskScanSnapshot: Sendable {
             syntheticNodes: syntheticNodes,
             presentedRootNodes: presentedRootNodes,
             backendSnapshots: backendSnapshots,
+            groups: groups,
             nodeCount: syntheticNodes.count + backendSnapshots.reduce(0) { $0 + $1.nodeCount }
         )
 

@@ -47,6 +47,7 @@ private struct PrimaryModePanelView: View {
     @State private var hoveredMode: PrimaryMode?
 
     let onHoverChanged: (Bool) -> Void
+    let onOpenDiskSpace: () -> Void
 
     private var hasReviewItems: Bool {
         !diskMonitor.devCaches.isEmpty
@@ -62,13 +63,15 @@ private struct PrimaryModePanelView: View {
                     // Disk Space is a full workspace window, not another 380-point popover page.
                     // Keep the tray's last compact mode selected so reopening ClearDisk never
                     // lands on a stale placeholder after the workspace window is closed.
-                    if mode != .diskSpace {
+                    if mode == .diskSpace {
+                        onOpenDiskSpace()
+                    } else {
                         primaryMode = mode
+                        NotificationCenter.default.post(
+                            name: .clearDiskPrimaryModeRequested,
+                            object: mode.rawValue
+                        )
                     }
-                    NotificationCenter.default.post(
-                        name: .clearDiskPrimaryModeRequested,
-                        object: mode.rawValue
-                    )
                 } label: {
                     HStack(spacing: 3) {
                         ZStack(alignment: .topTrailing) {
@@ -201,7 +204,7 @@ final class PrimaryModePanelController {
     private weak var parentWindow: NSWindow?
     private var pendingCollapse: DispatchWorkItem?
 
-    init(diskMonitor: DiskMonitor) {
+    init(diskMonitor: DiskMonitor, onOpenDiskSpace: @escaping () -> Void) {
         panel = NSPanel(
             contentRect: NSRect(
                 x: 0,
@@ -229,7 +232,8 @@ final class PrimaryModePanelController {
                 panelState: panelState,
                 onHoverChanged: { [weak self] isHovered in
                     self?.handleHoverChanged(isHovered)
-                }
+                },
+                onOpenDiskSpace: onOpenDiskSpace
             )
         )
     }

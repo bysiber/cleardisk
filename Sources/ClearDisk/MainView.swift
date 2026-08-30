@@ -23,6 +23,7 @@ struct MainView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     @ObservedObject var diskSpaceStore: DiskSpaceStore
     let checkForUpdates: () -> Void
+    let showDiskSpaceWindow: () -> Void
     @State private var selectedTab: Tab = .developer
     @State private var hoveredTab: Tab?
     @State private var showCleanConfirm = false
@@ -444,10 +445,7 @@ struct MainView: View {
     }
 
     private func openDiskSpaceWindow() {
-        NotificationCenter.default.post(
-            name: .clearDiskPrimaryModeRequested,
-            object: PrimaryMode.diskSpace.rawValue
-        )
+        showDiskSpaceWindow()
     }
 
     private func openCacheReview(mode: CacheCleanMode) {

@@ -74,7 +74,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
         diskSpaceStore = DiskSpaceStore()
-        primaryModePanelController = PrimaryModePanelController(diskMonitor: diskMonitor)
+        primaryModePanelController = PrimaryModePanelController(
+            diskMonitor: diskMonitor,
+            onOpenDiskSpace: { [weak self] in
+                self?.openDiskSpaceWindow()
+            }
+        )
         diskSpaceWindowController = DiskSpaceWindowController(
             diskMonitor: diskMonitor,
             store: diskSpaceStore
@@ -106,6 +111,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 diskSpaceStore: diskSpaceStore,
                 checkForUpdates: { [weak self] in
                     self?.checkForUpdates()
+                },
+                showDiskSpaceWindow: { [weak self] in
+                    self?.openDiskSpaceWindow()
                 }
             )
         )
@@ -132,18 +140,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
-        NotificationCenter.default.publisher(for: .clearDiskPrimaryModeRequested)
-            .compactMap { notification in
-                (notification.object as? String).flatMap(PrimaryMode.init(rawValue:))
-            }
-            .filter { $0 == .diskSpace }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self, self.diskMonitor.fullDiskAccess == .granted else { return }
-                self.openDiskSpaceWindow()
-            }
-            .store(in: &cancellables)
-        
         // One timer avoids a light refresh and a full scan racing each other at the 30-minute mark.
         // Five ticks perform only a cheap APFS capacity lookup; every sixth tick refreshes all
         // results. The full scan also refreshes capacity, so no separate lookup is needed then.
@@ -250,7 +246,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.close()
     }
 
+    @MainActor
     private func openDiskSpaceWindow() {
+        guard diskMonitor.fullDiskAccess == .granted,
+              diskSpaceStore.trashAlert == nil,
+              diskSpaceStore.deletingNodeIDs.isEmpty else {
+            return
+        }
         closePopover()
         DispatchQueue.main.async { [weak self] in
             self?.diskSpaceWindowController.show()
