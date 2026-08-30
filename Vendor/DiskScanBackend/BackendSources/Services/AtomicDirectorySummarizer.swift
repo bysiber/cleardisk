@@ -128,6 +128,96 @@ nonisolated struct AtomicDirectorySummarizer: Sendable {
         ).summary
     }
 
+    /// Produces a summary without applying the density heuristic. Used by
+    /// memory-bounded scans once their materialized depth limit is reached.
+    /// The already-enumerated immediate children are reused so enforcing the
+    /// memory boundary does not add another flat-directory pass.
+    func forcedSummaryDecision(
+        url: URL,
+        childEntries: [DirectoryEntry],
+        metadata: NodeMetadata,
+        expectedRootIdentity: FileIdentity?,
+        includeHiddenFiles: Bool,
+        treatPackagesAsDirectories: Bool,
+        workerLimit: Int,
+        progressWeight: Double,
+        exclusionMatcher: ScanExclusionMatcher,
+        cancellationCheck: @escaping CancellationCheck,
+        metrics: inout ScanMetrics,
+        continuation: AsyncThrowingStream<ScanProgressEvent, Error>.Continuation,
+        emissionState: inout ScanEmissionState
+    ) async throws -> AtomicDirectorySummaryDecision {
+        try cancellationCheck()
+        guard !childEntries.isEmpty else {
+            return AtomicDirectorySummaryDecision(
+                summary: nil,
+                reusableDirectoryListings: [:],
+                descendantProbeFullyExhausted: false
+            )
+        }
+
+        let summary: AtomicDirectorySummary?
+        if summaryPool != nil {
+            var partial = AtomicDirectorySummaryPartial()
+            partial.updateAccessibility(metadata.isReadable)
+            let resumeState = AtomicDirectoryProbeResumeState(
+                partial: partial,
+                workItems: [AtomicSummaryWorkItem(
+                    url: url,
+                    treatPackagesAsDirectories: treatPackagesAsDirectories,
+                    ownerNodeID: url.path,
+                    expectedIdentity: expectedRootIdentity,
+                    volumeBoundaryPolicy: volumeBoundaryPolicy,
+                    bufferedEntries: childEntries,
+                    needsCursor: false,
+                    reloadsMissingBufferedMetadata: true
+                )],
+                visitedItemCount: 0
+            )
+            summary = try await summarize(
+                at: url,
+                includeHiddenFiles: includeHiddenFiles,
+                treatPackagesAsDirectories: treatPackagesAsDirectories,
+                workerLimit: workerLimit,
+                progressWeight: progressWeight,
+                progressKind: .autoSummary,
+                representedItemCount: childEntries.count,
+                ownerNodeID: url.path,
+                expectedRootIdentity: expectedRootIdentity,
+                exclusionMatcher: exclusionMatcher,
+                cancellationCheck: cancellationCheck,
+                metrics: &metrics,
+                continuation: continuation,
+                emissionState: &emissionState,
+                resumeState: resumeState
+            )
+        } else {
+            summary = try await summarizeReusingImmediateChildren(
+                at: url,
+                childEntries: childEntries,
+                rootMetadata: metadata,
+                includeHiddenFiles: includeHiddenFiles,
+                treatPackagesAsDirectories: treatPackagesAsDirectories,
+                workerLimit: workerLimit,
+                ownerNodeID: url.path,
+                exclusionMatcher: exclusionMatcher,
+                cancellationCheck: cancellationCheck,
+                metrics: &metrics,
+                continuation: continuation,
+                emissionState: &emissionState
+            )
+        }
+
+        #if DEBUG
+        reportCreatedSummary(summary)
+        #endif
+        return AtomicDirectorySummaryDecision(
+            summary: summary,
+            reusableDirectoryListings: [:],
+            descendantProbeFullyExhausted: false
+        )
+    }
+
     func summaryDecisionIfNeeded(
         url: URL,
         childEntries: [DirectoryEntry],

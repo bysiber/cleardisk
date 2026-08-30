@@ -123,6 +123,11 @@ nonisolated struct ScanOptions: Hashable, Codable, Sendable {
     /// Override for the minimum depth at which auto-summarization applies.
     /// When nil, the ScanEngine default (2) is used.
     var autoSummarizeMinDepthForSummarization: Int?
+    /// Hard depth boundary for the materialized result tree. Directories at or
+    /// below this depth are scanned for accurate totals but represented by one
+    /// summary node. This keeps full-volume snapshots memory bounded; callers
+    /// can scan a summarized directory separately when the user opens it.
+    var maximumMaterializedDepth: Int?
     /// Directory paths that must remain addressable in the finished tree. The
     /// scanner may still summarize descendants that are not ancestors of one
     /// of these paths.
@@ -154,6 +159,7 @@ nonisolated struct ScanOptions: Hashable, Codable, Sendable {
         autoSummarizeMinFileCount: Int? = nil,
         autoSummarizeMaxAverageFileSize: Int64? = nil,
         autoSummarizeMinDepthForSummarization: Int? = nil,
+        maximumMaterializedDepth: Int? = nil,
         autoSummaryProtectedPaths: Set<String>? = nil,
         atomicSummaryWorkerLimit: Int? = nil,
         directoryClassificationWorkerLimit: Int? = nil,
@@ -167,6 +173,7 @@ nonisolated struct ScanOptions: Hashable, Codable, Sendable {
         self.autoSummarizeMinFileCount = autoSummarizeMinFileCount
         self.autoSummarizeMaxAverageFileSize = autoSummarizeMaxAverageFileSize
         self.autoSummarizeMinDepthForSummarization = autoSummarizeMinDepthForSummarization
+        self.maximumMaterializedDepth = maximumMaterializedDepth
         self.autoSummaryProtectedPaths = autoSummaryProtectedPaths
         self.atomicSummaryWorkerLimit = atomicSummaryWorkerLimit
         self.directoryClassificationWorkerLimit = directoryClassificationWorkerLimit

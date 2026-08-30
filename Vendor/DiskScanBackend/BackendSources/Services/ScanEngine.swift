@@ -394,6 +394,7 @@ actor ScanEngine {
         let totalWeightUnits: Double
         let isNodeDependencyLayout: Bool
         let isAtomicSummaryCandidate: Bool
+        let requiresForcedSummary: Bool
     }
 
     private struct DirectoryTraversalFailure: Sendable {
@@ -488,6 +489,7 @@ actor ScanEngine {
         let childDirectoryCount: Int
         let totalWeightUnits: Double
         let isNodeDependencyLayout: Bool
+        let requiresForcedSummary: Bool
     }
 
     private struct AtomicDirectoryScanResult: Sendable {
@@ -1575,17 +1577,26 @@ actor ScanEngine {
                                 }
                                 let isNodeDependencyLayout = AtomicDirectorySummarizer
                                     .isNodeDependencyLayoutDirectory(at: taskItem.url)
-                                let canProbeForAutoSummary = !Self.isAutoSummaryProtected(
+                                let isProtectedFromSummary = Self.isAutoSummaryProtected(
                                     taskItem.url.path,
                                     protectedPaths: options.autoSummaryProtectedPaths
-                                ) && Self.canProbeForAutoSummary(
+                                )
+                                let requiresForcedSummary = !isProtectedFromSummary
+                                    && options.maximumMaterializedDepth.map {
+                                        taskItem.depth >= max($0, 0)
+                                    } == true
+                                    && !contents.entries.isEmpty
+                                let canProbeForAutoSummary = !isProtectedFromSummary
+                                    && Self.canProbeForAutoSummary(
                                     at: taskItem.url,
                                     depth: taskItem.depth,
                                     minimumDepth: autoSummarizeMinDepth,
                                     isNodeDependencyLayout: isNodeDependencyLayout
                                 )
                                 let isAtomicSummaryCandidate: Bool
-                                if options.autoSummarizeDirectories, canProbeForAutoSummary {
+                                if requiresForcedSummary {
+                                    isAtomicSummaryCandidate = true
+                                } else if options.autoSummarizeDirectories, canProbeForAutoSummary {
                                     isAtomicSummaryCandidate = try scanAtomicDirectorySummarizer.isAtomicSummaryCandidate(
                                         url: taskItem.url,
                                         childEntries: contents.entries,
@@ -1606,7 +1617,8 @@ actor ScanEngine {
                                     childDirectoryCount: childDirectoryCount,
                                     totalWeightUnits: totalWeightUnits,
                                     isNodeDependencyLayout: isNodeDependencyLayout,
-                                    isAtomicSummaryCandidate: isAtomicSummaryCandidate
+                                    isAtomicSummaryCandidate: isAtomicSummaryCandidate,
+                                    requiresForcedSummary: requiresForcedSummary
                                 )))
                             } catch is CancellationError {
                                 throw CancellationError()
@@ -1733,27 +1745,47 @@ actor ScanEngine {
                     group.addTask {
                         var localMetrics = taskMetrics
                         var localEmissionState = taskEmissionState
-                        let decision = try await scanAtomicDirectorySummarizer.summaryDecisionIfNeeded(
-                            url: candidate.item.url,
-                            childEntries: candidate.contents.entries,
-                            metadata: candidate.metadata,
-                            expectedRootIdentity: Self.verifiesDirectoryIdentity(
-                                at: candidate.item.url,
-                                behavior: behavior
-                            ) ? candidate.metadata.fileIdentity : nil,
-                            includeHiddenFiles: options.includeHiddenFiles,
-                            treatPackagesAsDirectories: options.treatPackagesAsDirectories,
-                            isNodeDependencyLayout: candidate.isNodeDependencyLayout,
-                            minFileCount: autoSummarizeMinFileCount,
-                            maxAverageFileSize: autoSummarizeMaxAverageFileSize,
-                            workerLimit: atomicSummaryWorkerLimit,
-                            progressWeight: candidate.item.weight,
-                            exclusionMatcher: exclusionMatcher,
-                            cancellationCheck: cancellationCheck,
-                            metrics: &localMetrics,
-                            continuation: continuation,
-                            emissionState: &localEmissionState
-                        )
+                        let expectedRootIdentity = Self.verifiesDirectoryIdentity(
+                            at: candidate.item.url,
+                            behavior: behavior
+                        ) ? candidate.metadata.fileIdentity : nil
+                        let decision: AtomicDirectorySummaryDecision
+                        if candidate.requiresForcedSummary {
+                            decision = try await scanAtomicDirectorySummarizer.forcedSummaryDecision(
+                                url: candidate.item.url,
+                                childEntries: candidate.contents.entries,
+                                metadata: candidate.metadata,
+                                expectedRootIdentity: expectedRootIdentity,
+                                includeHiddenFiles: options.includeHiddenFiles,
+                                treatPackagesAsDirectories: options.treatPackagesAsDirectories,
+                                workerLimit: atomicSummaryWorkerLimit,
+                                progressWeight: candidate.item.weight,
+                                exclusionMatcher: exclusionMatcher,
+                                cancellationCheck: cancellationCheck,
+                                metrics: &localMetrics,
+                                continuation: continuation,
+                                emissionState: &localEmissionState
+                            )
+                        } else {
+                            decision = try await scanAtomicDirectorySummarizer.summaryDecisionIfNeeded(
+                                url: candidate.item.url,
+                                childEntries: candidate.contents.entries,
+                                metadata: candidate.metadata,
+                                expectedRootIdentity: expectedRootIdentity,
+                                includeHiddenFiles: options.includeHiddenFiles,
+                                treatPackagesAsDirectories: options.treatPackagesAsDirectories,
+                                isNodeDependencyLayout: candidate.isNodeDependencyLayout,
+                                minFileCount: autoSummarizeMinFileCount,
+                                maxAverageFileSize: autoSummarizeMaxAverageFileSize,
+                                workerLimit: atomicSummaryWorkerLimit,
+                                progressWeight: candidate.item.weight,
+                                exclusionMatcher: exclusionMatcher,
+                                cancellationCheck: cancellationCheck,
+                                metrics: &localMetrics,
+                                continuation: continuation,
+                                emissionState: &localEmissionState
+                            )
+                        }
                         return .atomicDirectory(AtomicDirectoryScanResult(
                             candidate: candidate,
                             decision: decision
@@ -1821,7 +1853,8 @@ actor ScanEngine {
                         contents: contents,
                         childDirectoryCount: childDirectoryCount,
                         totalWeightUnits: totalWeightUnits,
-                        isNodeDependencyLayout: success.isNodeDependencyLayout
+                        isNodeDependencyLayout: success.isNodeDependencyLayout,
+                        requiresForcedSummary: success.requiresForcedSummary
                     )
                     if success.isAtomicSummaryCandidate {
                         metrics.pendingAutoSummaryRepresentedItemCount = ScanIntegerMath.addingClamped(
