@@ -40,6 +40,19 @@ final class CleanupSafetyTests: XCTestCase {
         }
     }
 
+    func testEveryDeveloperCacheDefinitionHasADescription() {
+        // MainView renders `DiskMonitor.cacheDescriptions[entry.name] ?? ""` — a name added to
+        // allCachePaths() without a matching key here silently shows a blank description instead
+        // of failing to build.
+        let names = DiskMonitor().allCachePaths().map(\.name)
+        for name in names {
+            XCTAssertNotNil(
+                DiskMonitor.cacheDescriptions[name],
+                "\(name) is missing an entry in cacheDescriptions"
+            )
+        }
+    }
+
     func testCacheDefinitionsNeverTargetBroadUserDirectories() {
         let paths = DiskMonitor().allKnownCacheDefinitions().map(\.path)
         let forbiddenSuffixes = ["/Library", "/Library/Application Support", "/Documents", "/Desktop", "/Downloads"]

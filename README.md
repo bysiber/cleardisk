@@ -31,11 +31,11 @@ Your Mac's SSD is full of developer caches you forgot about. Xcode DerivedData a
 - **CleanMyMac** ($40/yr) — bloated, expensive, trust issues
 - **SquirrelDisk** — dead (3 years, no updates)
 
-ClearDisk scans **74 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
+ClearDisk scans **79 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
 
 ## Features
 
-- **74 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm (store *and* cache), Bun, Deno, node-gyp, TypeScript, pip, UV, Conda, Poetry, pipenv, Gradle, Maven, SBT/Ivy, Gradle Wrapper, Docker, Terraform, Composer, Go (modules *and* build cache), Rust Cargo, Bazel, Flutter/Pub, JetBrains, Ruby (Gems, rbenv, mise, RVM, Bundler), Android (Emulators, System Images, NDK), Testing (Playwright, Puppeteer, Prisma), AI Tools (Claude Desktop, Claude Code, Ollama, HuggingFace, ChatGPT, Cursor, Windsurf), VS Code (Cache, CachedData, Extensions, Chromium Cache, Logs, Updater), Game Engines (Unity, Unity Hub, Godot), Version Managers (nvm, pyenv, mise, rustup), Cloud (AWS CLI)
+- **79 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm (store *and* cache), Bun, Deno, node-gyp, TypeScript, pip, UV, Conda, Poetry, pipenv, Gradle, Maven, SBT/Ivy, Gradle Wrapper, Docker, Terraform, Composer, .NET NuGet, Go (modules *and* build cache), Rust Cargo, Bazel, Flutter/Pub, JetBrains, Ruby (Gems, rbenv, mise, RVM, Bundler), Android (Emulators, System Images, NDK), Testing (Playwright, Puppeteer, Prisma), AI Tools (Claude Desktop, Claude Code, Ollama, HuggingFace, ChatGPT, Cursor, Windsurf), VS Code (Cache, CachedData, Extensions, Chromium Cache, Logs, Updater), Game Engines (Unity, Unity Hub, Godot), Version Managers (nvm, pyenv, mise, rustup), Cloud (AWS CLI)
 - **Project Artifact Scanner** — Finds stale per-project caches in your project folders, including repositories kept directly in your home directory. Detects **23 project types**: Node.js / JS (incl. `.next`, `.nuxt`, `.svelte-kit`, `.angular`, `.turbo`, `.vite`, `.parcel-cache`, `.yarn/cache`, `dist`, `build`), **Python (`.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `*.egg-info`)**, Rust, Swift PM, **CocoaPods (`Pods/`)**, **Carthage**, **Xcode (in-project `build/`, `DerivedData/`)**, Go, Gradle (Java + Kotlin), Maven, PHP/Composer, Ruby, Flutter/Dart, CMake, Terraform, **.NET / C# (`bin/`, `obj/`)**, **Godot (`.godot/`, `.import/`)**, **Unity (`Library/`, `Temp/`, `Logs/`)**, **Unreal (`Binaries/`, `Intermediate/`, `DerivedDataCache/`)**, Haskell, Elixir, Zig, Crystal. Each project can expose multiple artifacts (e.g. a Next.js project shows `node_modules` *and* `.next` *and* `dist` separately).
 - **Cache Descriptions** — Every cache shows a human-readable explanation ("Downloaded Swift packages. Re-downloads on next build.") so you know exactly what you're deleting
 - **DerivedData Project Breakdown** — Shows which projects live inside DerivedData (e.g. "MyApp: 2.3 GB, OtherApp: 1.1 GB") by reading `info.plist`
@@ -65,7 +65,7 @@ ClearDisk scans **74 developer cache paths** in one tool. Lives in your menu bar
 | Cache descriptions | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Storage forecast | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Safe delete (Trash) | ✅ | ❌ `removeItem` | ❌ `rm -rf` | ❌ `rm -rf` | ❌ `rm -rf` | N/A | ❌ |
-| Total cache paths | 74 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
+| Total cache paths | 79 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
 | Price | Free | Free | Free | Free | Free | $10 | $40/yr |
 | Open source | ✅ MIT | ✅ GPL-3 | ✅ MIT | ✅ MIT | ✅ Apache-2 | ❌ | ❌ |
 

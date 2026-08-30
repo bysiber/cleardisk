@@ -497,6 +497,7 @@ class DiskMonitor: ObservableObject {
         "Docker (Data)": "Docker images, containers, and volumes. May lose running containers and uncommitted data!",
         "Terraform Plugins": "Terraform/OpenTofu CLI plugins and provider cache. Re-downloads on terraform init.",
         "Composer Cache": "Cached PHP packages. Re-downloads on composer install.",
+        ".NET NuGet": "Restored NuGet packages for .NET projects, one copy per package version. Re-downloads on dotnet restore.",
         "Go Modules": "Go module download cache. Re-downloads on go mod download.",
         "Go Build Cache": "Compiled package objects that make rebuilds fast (GOCACHE). Rebuilds itself — the first build after clearing is slower. Equivalent to go clean -cache.",
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
@@ -652,6 +653,11 @@ class DiskMonitor: ObservableObject {
             ("Terraform Plugins", "server.rack", "\(home)/.terraform.d", "caution", nil),
             // PHP
             ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe", nil),
+            // .NET
+            // ~/.nuget/packages is the global-packages folder, not ~/.nuget itself (which also holds
+            // NuGet.Config). Unlike Go's module cache, NuGet does not check the extracted packages out
+            // read-only, so there is no Trash-move restriction here.
+            (".NET NuGet", "square.grid.2x2.fill", "\(home)/.nuget/packages", "safe", nil),
             // Go/Rust
             // Deliberately the download cache and not all of ~/go/pkg/mod. The extracted modules beside it
             // are checked out read-only (0555 dirs), and macOS refuses to move a directory it cannot write
