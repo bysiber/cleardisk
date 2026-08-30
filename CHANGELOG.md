@@ -2,6 +2,58 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.0.25] - 2026-08-28
+### Changed
+- Full-disk results now keep a shallow, memory-bounded tree. Deeper folders retain accurate totals and are scanned on demand when opened.
+- Opening or returning from an on-demand folder uses a lightweight native loading state, while the detailed scanning view remains reserved for explicit Scan and Rescan actions.
+
+### Fixed
+- Full startup-disk scans no longer retain a node for every discovered file or accumulate previous snapshots across rescans, preventing memory usage from growing into multiple gigabytes.
+
+## [2.0.2] - 2026-08-27
+### Added
+- Disk Space rows now provide dedicated **Reveal in Finder** and guarded **Move to Trash** actions, with confirmation and protected-location checks.
+- Project build artifacts are included in the total reclaimable-space estimate while remaining review-only and never automatically selected.
+
+### Changed
+- Folder rows open with one click, and larger button-style navigation controls make moving through scanned folders easier.
+- Opening the menu bar popover reuses fresh results instead of starting another expensive scan.
+- Application cache names use a clearer singular **Cache** suffix where one is needed.
+
+### Fixed
+- Full startup-disk scans now recognize macOS APFS System/Data volume boundaries correctly instead of finishing early with empty results.
+- **Scan All** preserves and publishes indexed totals for Desktop, Documents, Downloads, Applications, Library, Home and Temporary Files cards.
+- Background free-space refreshes no longer make the Disk Space scanner appear to be running.
+
+## [2.0.1] - 2026-08-26
+### Changed
+- App-cache rows now stay compact and omit implementation details intended for developer caches.
+- Cleanup entry points use **Review Caches** and **Review Projects**, with calmer non-destructive styling before the user selects anything to clean.
+- The Review workspace includes an explicit Safe cache category alongside Caution and Risky findings.
+- Main workspace tabs are larger, individually separated, hover-responsive and anchored below the header so switching sections no longer moves the navigation vertically.
+
+### Fixed
+- Large Personal Files now uses a supported system icon instead of rendering with a missing symbol.
+
+## [2.0.0] - 2026-08-26
+### Added
+- **Full disk space scanner** with startup-disk, Home, Desktop, Downloads, Documents, Applications, temporary-files and safe system-area entry points.
+- **Interactive treemap and directory browser** with cancellable background scanning, live progress, folder navigation, tooltips and persistent small-item grouping controls.
+- **Application cache discovery** alongside developer caches, including expanded AI-tool, browser, updater and package-manager coverage.
+- **Signed in-app updates with Sparkle 2.** GitHub releases now publish a Developer ID signed, notarized universal DMG and an EdDSA-signed appcast automatically.
+
+### Changed
+- ClearDisk opens on Disk Space and keeps the existing cache cleaner as a dedicated workspace.
+- Disk scans run outside the UI thread and publish incremental progress, preventing the popover from freezing during large scans.
+- Temporary Files combines the current user's temporary directory, `/private/tmp` and `/private/var/tmp` without exposing the whole `/private` hierarchy or double-counting it.
+- Cache summaries use the simpler Safe, Caution and Risky breakdown while preserving detailed cache groups below.
+- Background full scans run every 30 minutes while lightweight free-space updates continue every 5 minutes.
+
+### Fixed
+- Large scans no longer stall near 99%, lock the interface or retain completed scan state unnecessarily.
+- Disk categories no longer expose unsafe broad system roots or count `/var` and `/private/var` aliases twice.
+- Group disclosure indicators now keep cache names aligned instead of shifting nested rows.
+
 ## [1.9.0] - 2026-08-06
 ### Added
 - **Go build cache** (`~/Library/Caches/go-build`). This is `GOCACHE`, and it is usually several times larger than the module download cache that was already listed. Cleared by `go clean -cache`; the next build is slower, then it is fast again.

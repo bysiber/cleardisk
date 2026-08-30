@@ -1,12 +1,12 @@
 #!/bin/bash
 # Shared helpers for the release scripts. Source this, don't run it.
 #
-#   do_dmg.sh       build the .app and package dist/ClearDisk-v<version>.dmg
-#   do_gh.sh        tag + publish the GitHub release with that DMG attached
-#   brew_update.sh  point the Homebrew cask at the published DMG
+#   do_dmg.sh       build an ad-hoc local DMG for inspection
+#   do_gh.sh        create and push the release tag
+#   brew_update.sh  point the Homebrew cask at a published DMG (normally run by CI)
 #
-# Run them in that order. The cask points at the release URL, so the DMG must be
-# uploaded before the cask is updated or `brew install` 404s.
+# Release tags trigger GitHub Actions, which performs Developer ID signing, notarization,
+# Sparkle appcast generation, GitHub Release publishing, and the Homebrew cask update.
 
 set -euo pipefail
 
@@ -38,6 +38,8 @@ project_version() {
     local v
     v=$(awk '/^## \[/{gsub(/[\[\]]/, "", $2); print $2; exit}' "$ROOT_DIR/CHANGELOG.md")
     [ -n "$v" ] || die "Could not read version from CHANGELOG.md"
+    [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+        || die "Invalid release version '$v' in CHANGELOG.md (expected X.Y.Z)."
     printf '%s' "$v"
 }
 
