@@ -50,6 +50,7 @@ struct MainView: View {
     @State private var showDeleteFileConfirm = false
     @State private var expandedLargeFileFolder: String? = nil
     @AppStorage("launchAtLogin") private var launchAtLogin = true
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     @AppStorage("cacheSafetyBannerDismissed") private var cacheSafetyBannerDismissed = false
     
@@ -242,6 +243,7 @@ struct MainView: View {
                  ? "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)\n\nClearDisk needs Full Disk Access to move files to the Trash. Grant it in System Settings → Privacy & Security → Full Disk Access, then quit and reopen ClearDisk."
                  : "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)")
         }
+        .preferredColorScheme(appearance.colorScheme)
     }
     
     /// The project sheets are drawn INSIDE the popover instead of with `.sheet`.
@@ -2448,6 +2450,29 @@ struct MainView: View {
                                 print("Failed to update login item: \(error)")
                             }
                         }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+
+                    // Appearance section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Appearance", systemImage: "circle.lefthalf.filled")
+                            .font(.system(size: 13, weight: .semibold))
+
+                        Text("Choose how ClearDisk windows and panels appear.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Appearance", selection: $appearance) {
+                            ForEach(AppAppearance.allCases) { option in
+                                Text(option.title).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .controlSize(.small)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)

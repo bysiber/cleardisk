@@ -898,6 +898,7 @@ final class DiskSpaceWindowController: NSObject, NSWindowDelegate {
 private struct DiskSpaceRootView: View {
     @ObservedObject var store: DiskSpaceStore
     @ObservedObject var diskMonitor: DiskMonitor
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
     private var selection: Binding<String?> {
         Binding(
@@ -931,6 +932,7 @@ private struct DiskSpaceRootView: View {
                 .navigationTitle("Disk Space")
         }
         .frame(minWidth: 820, minHeight: 560)
+        .preferredColorScheme(appearance.colorScheme)
     }
 }
 
