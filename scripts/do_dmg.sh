@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Build the release .app and package it as dist/ClearDisk-v<version>.dmg
+# Build an ad-hoc local .app and DMG for visual inspection before the CI release.
 #
 # Usage:
 #   ./scripts/do_dmg.sh                  # version comes from CHANGELOG.md
@@ -77,4 +77,4 @@ printf '%s' "$SHA" > "$DMG.sha256"
 ok "$(basename "$DMG")  ($(du -h "$DMG" | cut -f1))"
 echo "   sha256: $SHA"
 echo
-echo "Next:  ./scripts/do_gh.sh        # publish the release with this DMG"
+echo "Local preview only. Commit the final tree, then run ./scripts/do_gh.sh to trigger the signed CI release."

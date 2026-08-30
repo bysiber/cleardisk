@@ -10,6 +10,8 @@ class DiskMonitor: ObservableObject {
     @Published var usedPercentage: Int = 0
     @Published var categories: [DiskCategory] = []
     @Published var devCaches: [DevCache] = []
+    @Published var isScanningCaches: Bool = false
+    @Published var hasCompletedCacheScan: Bool = false
     @Published var largeFiles: [LargeFile] = []
     @Published var projectArtifacts: [ProjectArtifact] = [] // stale node_modules, target/, build/ etc.
     @Published var trashSizeBytes: Int64 = 0
@@ -164,9 +166,10 @@ class DiskMonitor: ObservableObject {
     }
     
     private var isScanInProgress = false
+    private var isCacheScanInProgress = false
     
     func scan() {
-        guard !isScanInProgress else { return } // Prevent concurrent scans
+        guard !isScanInProgress, !isCacheScanInProgress else { return } // Prevent concurrent scans
         isScanInProgress = true
         isScanning = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -175,14 +178,14 @@ class DiskMonitor: ObservableObject {
             
             self?.scanDiskCapacity()
             self?.scanDiskCategories()
-            self?.scanDevCaches()
+            self?.scanKnownCaches()
             self?.scanLargeFiles()
             self?.scanProjectArtifacts()
             let trashBytes = self?.trashSize() ?? 0
             
-            // Check which dev cache paths are inaccessible
-            let devPaths = self?.devCachePaths() ?? []
-            for (name, path) in devPaths {
+            // Check which known cache paths are inaccessible.
+            let cachePaths = self?.knownCachePaths() ?? []
+            for (name, path) in cachePaths {
                 let expanded = (path as NSString).expandingTildeInPath
                 let parent = (expanded as NSString).deletingLastPathComponent
                 if FileManager.default.fileExists(atPath: parent) && !(self?.canAccess(path: expanded) ?? true) {
@@ -195,6 +198,7 @@ class DiskMonitor: ObservableObject {
                 self?.isScanInProgress = false
                 self?.inaccessiblePaths = inaccessible
                 self?.hasCompletedFirstScan = true
+                self?.hasCompletedCacheScan = true
                 self?.lastFullScanAt = Date()
                 self?.trashSizeBytes = trashBytes
                 self?.calculateCleanable()
@@ -202,6 +206,27 @@ class DiskMonitor: ObservableObject {
                 self?.calculateForecast()
                 self?.checkThresholdNotification()
                 self?.checkNotificationStatus()
+            }
+        }
+    }
+
+    /// Refresh only the known cache locations shown in the Caches tab. This avoids making the
+    /// cache screen's "Scan All" button crawl projects and unrelated large-file locations.
+    func scanCaches() {
+        guard !isScanInProgress, !isCacheScanInProgress else { return }
+        isCacheScanInProgress = true
+        isScanningCaches = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.scanKnownCaches()
+
+            // scanKnownCaches enqueues its published result on the main queue. This completion is
+            // enqueued immediately after it, preserving the result-before-status ordering.
+            DispatchQueue.main.async { [weak self] in
+                self?.isCacheScanInProgress = false
+                self?.isScanningCaches = false
+                self?.hasCompletedCacheScan = true
+                self?.calculateCleanable()
             }
         }
     }
@@ -237,13 +262,17 @@ class DiskMonitor: ObservableObject {
     }
     
     private func calculateCleanable() {
-        let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
-        let safeDevTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
-        let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        // `devCaches` is the legacy published name; it now contains both app and developer caches.
+        let cacheTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
+        let safeCacheTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+        let riskyCacheTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let projectArtifactTotal = projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
         let trashTotal = trashSizeBytes
-        totalCleanable = devTotal + trashTotal
-        safeCleanable = safeDevTotal + trashTotal
-        riskyCleanable = riskyDevTotal
+        // Project artifacts are reclaimable candidates, but remain review-only:
+        // including them in the total must never make them an automatic safe selection.
+        totalCleanable = cacheTotal + projectArtifactTotal + trashTotal
+        safeCleanable = safeCacheTotal + trashTotal
+        riskyCleanable = riskyCacheTotal
     }
     
     // MARK: - Storage Forecast
@@ -474,6 +503,9 @@ class DiskMonitor: ObservableObject {
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
         "rustup Toolchains": "Installed Rust toolchains (stable, beta, nightly) — a full compiler and standard library each. Reinstall with rustup toolchain install.",
         "Playwright Browsers": "Downloaded browser binaries for Playwright testing. Re-downloads on npx playwright install.",
+        "Playwright Go Browsers": "Browser packages downloaded by Playwright for Go. Re-downloads when the matching Playwright Go version installs its driver.",
+        "DotSlash Artifacts": "Verified executables and archives downloaded by DotSlash. They are fetched again the next time a matching DotSlash launcher runs.",
+        "Puccinialin Rust Environment": "A self-contained Rust compiler, Cargo registry, and tools. Removing it does not delete source code, but the full toolchain must be installed again.",
         "Puppeteer Browsers": "Downloaded Chromium binaries for Puppeteer. Re-downloads on npx puppeteer install.",
         "Prisma Engines": "Prisma ORM query engine binaries. Re-downloads on npx prisma generate.",
         "Flutter/Pub Cache": "Cached Dart/Flutter packages. Re-downloads on flutter pub get.",
@@ -489,6 +521,8 @@ class DiskMonitor: ObservableObject {
         "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
         "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull — large models take a while.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
+        "GitHub Copilot CLI Runtime": "Downloaded Copilot CLI runtime versions and bundled dependencies. Local sessions, settings, plugins, and logs under ~/.copilot are not targeted.",
+        "GitHub Copilot CLI Locked Runtime": "A separate downloaded Copilot CLI runtime channel. Local sessions and configuration under ~/.copilot are not targeted.",
         "Cursor": "Cursor's whole application-support directory: workspace state, chat history, extensions and settings. Not a cache — deleting it is permanent.",
         "Windsurf": "Windsurf's whole application-support directory: workspace state, chat history and settings. Not a cache — deleting it is permanent.",
         // Game Engines
@@ -515,7 +549,6 @@ class DiskMonitor: ObservableObject {
         "VS Code Extensions Cache": "Downloaded extension VSIX packages. Safe to delete, re-downloads when needed.",
         "VS Code Chromium Cache": "Chromium disk cache used by VS Code. Safe to delete, rebuilds on launch.",
         "VS Code Logs": "Old session logs and telemetry data. Safe to delete anytime.",
-        "VS Code Updater": "Update packages downloaded by the Squirrel updater. Safe to delete while VS Code is not installing an update — it re-downloads the next one.",
     ]
     
     /// Resolve DerivedData subfolders to project names using info.plist → WorkspacePath
@@ -636,8 +669,13 @@ class DiskMonitor: ObservableObject {
             ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe", nil),
             // Testing
             ("Playwright Browsers", "theatermasks.fill", "\(home)/Library/Caches/ms-playwright", "safe", nil),
+            ("Playwright Go Browsers", "theatermasks.circle.fill", "\(home)/Library/Caches/ms-playwright-go", "safe", nil),
             ("Puppeteer Browsers", "theatermasks", "\(home)/.cache/puppeteer", "safe", nil),
             ("Prisma Engines", "cylinder.fill", "\(home)/.cache/prisma", "safe", nil),
+            // Downloaded developer-tool artifacts. These are recoverable, but can be expensive to
+            // fetch again; Puccinialin contains a complete Rust toolchain rather than ordinary cache.
+            ("DotSlash Artifacts", "arrow.down.circle.fill", "\(home)/Library/Caches/dotslash", "caution", "Developer Tools"),
+            ("Puccinialin Rust Environment", "wrench.and.screwdriver.fill", "\(home)/Library/Caches/puccinialin", "caution", "Developer Tools"),
             // Mobile
             ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe", nil),
             // IDEs
@@ -654,10 +692,11 @@ class DiskMonitor: ObservableObject {
             ("VS Code Extensions Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/CachedExtensionVSIXs", "safe", "VS Code"),
             ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
             ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
-            // A sibling of the "VS Code Cache" directory above, not the same one: Squirrel parks downloaded
-            // update payloads in ~/Library/Caches/com.microsoft.VSCode.ShipIt and never prunes them.
-            ("VS Code Updater", "arrow.down.app.fill", "\(home)/Library/Caches/com.microsoft.VSCode.ShipIt", "safe", "VS Code"),
             // AI Tools
+            // Only downloaded CLI runtimes are targeted. ~/.copilot contains sessions, settings,
+            // plugins, and logs and is deliberately outside every cleanup definition.
+            ("GitHub Copilot CLI Runtime", "sparkles", "\(home)/Library/Caches/copilot/pkg", "caution", "AI Tools"),
+            ("GitHub Copilot CLI Locked Runtime", "lock.fill", "\(home)/Library/Caches/copilot-locked-25/pkg", "caution", "AI Tools"),
             // Both Claude entries are "risky", not "caution". They were "caution" until #27, where a
             // user lost every Claude CoWork session with no way back. These are not caches: on a
             // normal machine over 99% of ~/.claude is session transcripts, job state, file history,
@@ -702,9 +741,33 @@ class DiskMonitor: ObservableObject {
         ]
     }
 
-    /// Returns list of (name, path) tuples for all known dev cache paths
-    func devCachePaths() -> [(String, String)] {
-        return allCachePaths().map { ($0.name, $0.path) }
+    func appCacheDefinitions() -> [CachePathDefinition] {
+        AppCacheCatalog.definitions(excludingPaths: Set(allCachePaths().map(\.path)))
+    }
+
+    func developerCacheDefinitions() -> [CachePathDefinition] {
+        allCachePaths().map { entry in
+            CachePathDefinition(
+                name: entry.name,
+                icon: entry.icon,
+                path: entry.path,
+                riskLevel: entry.riskLevel,
+                group: entry.group,
+                section: .developer,
+                description: DiskMonitor.cacheDescriptions[entry.name] ?? "",
+                safetyDetails: nil
+            )
+        }
+    }
+
+    func allKnownCacheDefinitions() -> [CachePathDefinition] {
+        let developerDefinitions = developerCacheDefinitions()
+        let appDefinitions = AppCacheCatalog.definitions(excludingPaths: Set(developerDefinitions.map(\.path)))
+        return appDefinitions + developerDefinitions
+    }
+
+    func knownCachePaths() -> [(String, String)] {
+        allKnownCacheDefinitions().map { ($0.name, $0.path) }
     }
 
     static func isEligibleForSafeBulkClean(_ cache: DevCache) -> Bool {
@@ -715,18 +778,16 @@ class DiskMonitor: ObservableObject {
         caches.contains { $0.riskLevel == "risky" }
     }
     
-    private func scanDevCaches() {
-        let devPaths = allCachePaths()
+    private func scanKnownCaches() {
+        let definitions = allKnownCacheDefinitions()
         
         var caches: [DevCache] = []
-        for entry in devPaths {
+        for entry in definitions {
             let size = directorySize(path: entry.path)
             if size > 1_048_576 { // Only show if > 1MB
                 let lastAccessed = lastModifiedDate(path: entry.path)
                 let daysSinceAccess = daysSince(lastAccessed)
                 let suggestion = generateSuggestion(name: entry.name, size: size, daysSinceAccess: daysSinceAccess)
-                let desc = DiskMonitor.cacheDescriptions[entry.name] ?? ""
-                
                 // Resolve DerivedData subfolders to project names
                 var detail: String? = nil
                 if entry.name == "Xcode DerivedData" {
@@ -742,8 +803,10 @@ class DiskMonitor: ObservableObject {
                     daysSinceAccess: daysSinceAccess,
                     suggestion: suggestion,
                     riskLevel: entry.riskLevel,
-                    cacheDescription: desc,
+                    cacheDescription: entry.description,
                     group: entry.group,
+                    section: entry.section,
+                    safetyDetails: entry.safetyDetails,
                     detail: detail
                 ))
             }
@@ -1357,7 +1420,39 @@ struct DevCache: Identifiable {
     let riskLevel: String // "safe" = 🟢, "caution" = 🟡, "risky" = 🔴
     let cacheDescription: String // human-readable "what is this?"
     let group: String? // grouping key: "Xcode", "VS Code", "AI Tools", "Ruby", or nil
-    var detail: String? = nil // optional extra detail (e.g. DerivedData project list)
+    let section: CacheSection
+    let safetyDetails: CacheSafetyDetails?
+    var detail: String? // optional extra detail (e.g. DerivedData project list)
+
+    init(
+        name: String,
+        icon: String,
+        path: String,
+        size: Int64,
+        lastAccessed: Date?,
+        daysSinceAccess: Int?,
+        suggestion: String?,
+        riskLevel: String,
+        cacheDescription: String,
+        group: String?,
+        section: CacheSection = .developer,
+        safetyDetails: CacheSafetyDetails? = nil,
+        detail: String? = nil
+    ) {
+        self.name = name
+        self.icon = icon
+        self.path = path
+        self.size = size
+        self.lastAccessed = lastAccessed
+        self.daysSinceAccess = daysSinceAccess
+        self.suggestion = suggestion
+        self.riskLevel = riskLevel
+        self.cacheDescription = cacheDescription
+        self.group = group
+        self.section = section
+        self.safetyDetails = safetyDetails
+        self.detail = detail
+    }
     
     var riskEmoji: String {
         switch riskLevel {
@@ -1370,6 +1465,8 @@ struct DevCache: Identifiable {
     
     var riskDescription: String {
         switch riskLevel {
+        case "safe" where section == .app: return "Verified cache-only path — profile and user data stay untouched"
+        case "caution" where section == .app: return "Review — may contain app-specific state or require a large re-download"
         case "safe": return "Safe — can be rebuilt with a command"
         case "caution": return "Caution — may need large re-download"
         case "risky": return "Risky — may contain irreplaceable data"

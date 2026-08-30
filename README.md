@@ -6,12 +6,11 @@
 
 **Your Mac is hiding 50–500 GB of developer caches. ClearDisk finds them in seconds.**
 
-A free, open-source macOS menu bar app that monitors and cleans developer caches, Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. 590 KB. Zero dependencies. No data collection. No analytics. No network access. Ever.
+A free, open-source macOS menu bar app that monitors and cleans developer caches, Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. No data collection. No analytics. Network access is limited to signed update checks.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
-![Size](https://img.shields.io/badge/Size-590%20KB-brightgreen)
 [![GitHub stars](https://img.shields.io/github/stars/bysiber/cleardisk?style=social)](https://github.com/bysiber/cleardisk/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/bysiber/cleardisk)](https://github.com/bysiber/cleardisk/releases/latest)
 [![Homebrew](https://img.shields.io/badge/Homebrew-tap-brown)](https://github.com/bysiber/homebrew-cleardisk)
@@ -50,7 +49,8 @@ ClearDisk scans **75 developer cache paths** in one tool. Lives in your menu bar
 - **Storage Forecast** — Predicts when your disk will be full based on usage trends (linear regression, 90-day history)
 - **Smart Suggestions** — Age-based recommendations ("Not used for 90 days — safe to clean")
 - **Smart Notifications** — Alerts at 80% and 90% disk usage, no spam
-- **100% Private** — No data collection. No analytics. No network access. Source code is open — verify yourself
+- **Signed Automatic Updates** — Checks GitHub Releases and installs Developer ID, notarized, EdDSA-verified updates through Sparkle
+- **100% Private** — No data collection or analytics. Network access is limited to signed update checks, and the source is open to inspection
 
 ## Comparison
 
@@ -89,10 +89,10 @@ That's it. Homebrew handles everything, including the quarantine flag.
 
 1. Download the latest DMG from [**Releases**](https://github.com/bysiber/cleardisk/releases/latest)
 2. Open the DMG and drag ClearDisk to Applications
-3. **First launch:** macOS will block it because it's not notarized. Choose one:
-   - **GUI:** Open the app once (it will be blocked), then go to **System Settings > Privacy & Security**, scroll down and click **"Open Anyway"**
-   - **Terminal (if GUI doesn't work):** `xattr -cr /Applications/ClearDisk.app`
-4. Open ClearDisk from Applications
+3. Open ClearDisk from Applications. Release builds are Developer ID signed and notarized by Apple.
+
+Once installed, ClearDisk checks for signed updates automatically and can install them directly
+from **Settings → Check for Updates**. Homebrew is not required for subsequent updates.
 
 ### Build from Source
 
@@ -107,7 +107,8 @@ open /Applications/ClearDisk.app
 
 That's it. Click the disk icon in your menu bar.
 
-> **Why the Gatekeeper warning?** ClearDisk is not notarized with Apple ($99/yr Developer fee). The app is fully open-source -- you can verify every line of code yourself.
+Source builds are ad-hoc signed, while downloadable releases are Developer ID signed and notarized.
+The app is fully open-source, so every part of the update and cleanup flow can be inspected.
 
 Requires macOS 14+ (Apple Silicon and Intel). Release builds are universal (`arm64` + `x86_64`). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
 
@@ -152,9 +153,9 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 
 ## Privacy & Trust
 
-- **Zero network access** — the app never connects to the internet
+- **Update-only network access** — ClearDisk contacts its public GitHub Releases feed only to check for signed updates
 - **Zero telemetry** — no analytics, no crash reports, no usage data
-- **Zero helper processes** — the menu-bar app checks capacity every 5 minutes and scans when the popover opens or every 30 minutes while running
+- **No persistent helper processes** — Sparkle helpers run only while installing an update
 - **Open source** — read every line of code yourself
 - **Safe delete** — everything goes to Trash first
 
@@ -163,7 +164,7 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 - Swift + SwiftUI
 - macOS
 - SPM (Swift Package Manager)
-- No external dependencies
+- Sparkle 2 for signed, native macOS updates
 - ~1,500 lines of code total
 
 ## Contributing
