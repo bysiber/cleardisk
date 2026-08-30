@@ -43,6 +43,7 @@ private struct PrimaryModePanelView: View {
     @ObservedObject var diskMonitor: DiskMonitor
     @ObservedObject var panelState: PrimaryModePanelState
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     @State private var hoveredMode: PrimaryMode?
 
     let onHoverChanged: (Bool) -> Void
@@ -180,6 +181,7 @@ private struct PrimaryModePanelView: View {
             height: PrimaryModePanelController.panelHeight,
             alignment: .trailing
         )
+        .preferredColorScheme(appearance.colorScheme)
     }
 }
 
