@@ -8,6 +8,9 @@ public struct DiskScanRequest: Sendable {
     public let exclusionPatterns: [String]
     public let preservedDirectoryURLs: [URL]
     public let maximumMaterializedDepth: Int?
+    public let atomicSummaryWorkerLimit: Int?
+    public let directoryClassificationWorkerLimit: Int?
+    public let directoryTraversalWorkerLimit: Int?
 
     public init(
         rootURL: URL,
@@ -15,7 +18,10 @@ public struct DiskScanRequest: Sendable {
         expandsPackages: Bool = false,
         exclusionPatterns: [String] = [],
         preservedDirectoryURLs: [URL] = [],
-        maximumMaterializedDepth: Int? = nil
+        maximumMaterializedDepth: Int? = nil,
+        atomicSummaryWorkerLimit: Int? = nil,
+        directoryClassificationWorkerLimit: Int? = nil,
+        directoryTraversalWorkerLimit: Int? = nil
     ) {
         self.rootURL = rootURL
         self.includesHiddenItems = includesHiddenItems
@@ -23,6 +29,9 @@ public struct DiskScanRequest: Sendable {
         self.exclusionPatterns = exclusionPatterns
         self.preservedDirectoryURLs = preservedDirectoryURLs
         self.maximumMaterializedDepth = maximumMaterializedDepth
+        self.atomicSummaryWorkerLimit = atomicSummaryWorkerLimit
+        self.directoryClassificationWorkerLimit = directoryClassificationWorkerLimit
+        self.directoryTraversalWorkerLimit = directoryTraversalWorkerLimit
     }
 }
 
@@ -507,12 +516,15 @@ public final class DiskScanner {
                 expandPackages: request.expandsPackages,
                 exclusionPatterns: request.exclusionPatterns,
                 preservedDirectoryURLs: request.preservedDirectoryURLs,
-                maximumMaterializedDepth: request.maximumMaterializedDepth
+                maximumMaterializedDepth: request.maximumMaterializedDepth,
+                atomicSummaryWorkerLimit: request.atomicSummaryWorkerLimit,
+                directoryClassificationWorkerLimit: request.directoryClassificationWorkerLimit,
+                directoryTraversalWorkerLimit: request.directoryTraversalWorkerLimit
             )
         )
 
         return AsyncThrowingStream { continuation in
-            let task = Task.detached(priority: .userInitiated) {
+            let task = Task.detached(priority: .utility) {
                 do {
                     for try await event in source {
                         if case .completed(let snapshot) = event {

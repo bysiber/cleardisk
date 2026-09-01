@@ -7,6 +7,9 @@ public nonisolated struct ScanBackendScanOptions: Sendable {
     public let exclusionPatterns: [String]
     public let preservedDirectoryURLs: [URL]
     public let maximumMaterializedDepth: Int?
+    public let atomicSummaryWorkerLimit: Int?
+    public let directoryClassificationWorkerLimit: Int?
+    public let directoryTraversalWorkerLimit: Int?
 
     public init(
         rootURL: URL,
@@ -14,7 +17,10 @@ public nonisolated struct ScanBackendScanOptions: Sendable {
         expandPackages: Bool = false,
         exclusionPatterns: [String] = [],
         preservedDirectoryURLs: [URL] = [],
-        maximumMaterializedDepth: Int? = nil
+        maximumMaterializedDepth: Int? = nil,
+        atomicSummaryWorkerLimit: Int? = nil,
+        directoryClassificationWorkerLimit: Int? = nil,
+        directoryTraversalWorkerLimit: Int? = nil
     ) {
         self.rootURL = rootURL
         self.includeHiddenItems = includeHiddenItems
@@ -22,6 +28,9 @@ public nonisolated struct ScanBackendScanOptions: Sendable {
         self.exclusionPatterns = exclusionPatterns
         self.preservedDirectoryURLs = preservedDirectoryURLs
         self.maximumMaterializedDepth = maximumMaterializedDepth
+        self.atomicSummaryWorkerLimit = atomicSummaryWorkerLimit
+        self.directoryClassificationWorkerLimit = directoryClassificationWorkerLimit
+        self.directoryTraversalWorkerLimit = directoryTraversalWorkerLimit
     }
 }
 
@@ -256,12 +265,15 @@ public final class FullDiskScannerBackend {
             autoSummaryProtectedPaths: Self.autoSummaryProtectedPaths(
                 preserving: options.preservedDirectoryURLs,
                 under: target.url.path
-            )
+            ),
+            atomicSummaryWorkerLimit: options.atomicSummaryWorkerLimit,
+            directoryClassificationWorkerLimit: options.directoryClassificationWorkerLimit,
+            directoryTraversalWorkerLimit: options.directoryTraversalWorkerLimit
         )
         let source = engine.scan(target: target, options: scanOptions)
 
         return AsyncThrowingStream { continuation in
-            let task = Task.detached(priority: .userInitiated) {
+            let task = Task.detached(priority: .utility) {
                 var latestProgress: ScanBackendProgress?
                 do {
                     for try await event in source {

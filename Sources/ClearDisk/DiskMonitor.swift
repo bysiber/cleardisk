@@ -213,7 +213,7 @@ class DiskMonitor: ObservableObject {
         isScanning = true
         scanProgress = 0.03
         scanStatusText = "Preparing storage analysis..."
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             // Reset scan status
             var inaccessible: [String] = []
             
@@ -270,7 +270,7 @@ class DiskMonitor: ObservableObject {
         isCacheScanInProgress = true
         isScanningCaches = true
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             self?.scanKnownCaches()
 
             // scanKnownCaches enqueues its published result on the main queue. This completion is

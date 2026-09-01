@@ -969,7 +969,7 @@ actor ScanEngine {
             // unstructured Task would inherit that actor, making the synchronous
             // bottom-up assembly phase freeze every window near 99%. Keep the full
             // pipeline on the cooperative worker pool instead.
-            let task = Task.detached(priority: .userInitiated) {
+            let task = Task.detached(priority: .utility) {
                 do {
                     let snapshot = try await self.performScan(
                         target: target,

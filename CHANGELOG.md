@@ -2,6 +2,16 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.3.0] - 2026-09-01
+### Changed
+- Full-volume disk scans now use a conservative background worker budget, while focused folder scans remain responsive without monopolizing the CPU.
+- Scan All runs disk mapping and cache classification sequentially instead of launching both filesystem workloads at once.
+
+### Fixed
+- Returning from an on-demand folder restores the previous directory instantly instead of unexpectedly rescanning the startup volume.
+- Disk scans no longer produce sustained 400–500% CPU spikes that can make the Mac and ClearDisk interface unresponsive.
+- Move to Trash confirmation is presented only by the surface where the action was requested, preventing duplicate dialogs and the separate Disk Space window from opening or stealing focus.
+
 ## [2.0.26] - 2026-08-30
 ### Added
 - Appearance controls let ClearDisk follow the system theme or use Light or Dark across the menu-bar popover, navigation panel, and Disk Space window.

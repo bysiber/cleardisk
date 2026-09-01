@@ -45,6 +45,11 @@ enum DiskSpaceTrashAlert: Identifiable {
     }
 }
 
+enum DiskSpacePresentationSurface {
+    case compact
+    case window
+}
+
 @MainActor
 final class DiskSpaceStore: ObservableObject {
     private static let temporaryFilesLocationID = "cleardisk://temporary-files"
@@ -52,9 +57,10 @@ final class DiskSpaceStore: ObservableObject {
     /// beyond this boundary remain accurate summary nodes and are scanned on
     /// demand when opened.
     private static let maximumMaterializedDepth = 2
-    /// Retain only the two expensive, shallow ancestor scans. Deeper navigation results are
-    /// discarded when left, keeping memory bounded while Back remains instant near the top.
-    private static let maximumCachedNavigationSnapshots = 2
+    /// Every Back destination must be restorable without touching the filesystem. Keep the
+    /// original location plus a short trail of recent shallow snapshots; if a user navigates
+    /// unusually deep, old intermediate levels are skipped instead of being rescanned.
+    private static let maximumNavigationHistoryDepth = 4
     /// Switching cards should not repeatedly scan the same large location. Two shallow inactive
     /// results are enough for fast back-and-forth without returning to unbounded snapshot growth.
     private static let maximumCachedLocationSnapshots = 2
@@ -63,7 +69,7 @@ final class DiskSpaceStore: ObservableObject {
         let rootURL: URL
         let focusedNodeID: String
         let scansVirtualTemporaryLocation: Bool
-        let snapshot: DiskScanSnapshot?
+        let snapshot: DiskScanSnapshot
         let issues: [DiskScanIssue]
         let scannedRootPath: String
     }
@@ -97,7 +103,8 @@ final class DiskSpaceStore: ObservableObject {
     @Published private(set) var focusedNodeID: String?
     @Published private(set) var selectedNodeID: String?
     @Published private(set) var deletingNodeIDs: Set<String> = []
-    @Published var trashAlert: DiskSpaceTrashAlert?
+    @Published private(set) var trashAlert: DiskSpaceTrashAlert?
+    @Published private(set) var trashAlertSurface: DiskSpacePresentationSurface?
     @Published private(set) var analyzedLocationBytes: [String: Int64] = [:]
     @Published private(set) var scanPresentation: ScanPresentation = .analysis
 
@@ -366,7 +373,10 @@ final class DiskSpaceStore: ObservableObject {
             preservedDirectoryURLs: normalizedPath(rootURL.path) == normalizedPath(location.url.path)
                 ? preservedDirectoryURLs(for: location)
                 : [],
-            maximumMaterializedDepth: Self.maximumMaterializedDepth
+            maximumMaterializedDepth: Self.maximumMaterializedDepth,
+            atomicSummaryWorkerLimit: Self.scanWorkerLimit(for: rootURL),
+            directoryClassificationWorkerLimit: Self.scanWorkerLimit(for: rootURL),
+            directoryTraversalWorkerLimit: Self.scanWorkerLimit(for: rootURL)
         )
 
         for try await event in scanner.events(for: request) {
@@ -416,7 +426,10 @@ final class DiskSpaceStore: ObservableObject {
                     rootURL: source.url,
                     includesHiddenItems: true,
                     expandsPackages: false,
-                    maximumMaterializedDepth: Self.maximumMaterializedDepth
+                    maximumMaterializedDepth: Self.maximumMaterializedDepth,
+                    atomicSummaryWorkerLimit: Self.scanWorkerLimit(for: source.url),
+                    directoryClassificationWorkerLimit: Self.scanWorkerLimit(for: source.url),
+                    directoryTraversalWorkerLimit: Self.scanWorkerLimit(for: source.url)
                 )
 
                 for try await event in scanner.events(for: request) {
@@ -668,16 +681,7 @@ final class DiskSpaceStore: ObservableObject {
         }
 
         guard let previous = scanNavigationHistory.popLast() else { return }
-        if let cachedSnapshot = previous.snapshot {
-            restoreNavigationEntry(previous, snapshot: cachedSnapshot)
-            return
-        }
-        startScan(
-            rootURL: previous.rootURL,
-            restoreFocusID: previous.focusedNodeID,
-            scansVirtualTemporaryLocation: previous.scansVirtualTemporaryLocation,
-            presentation: .navigation
-        )
+        restoreNavigationEntry(previous)
     }
 
     private func drillIntoSummarizedDirectory(_ node: DiskFileNode) {
@@ -687,22 +691,17 @@ final class DiskSpaceStore: ObservableObject {
               let currentScannedRootPath = scannedRootPath,
               let currentFocusID = displayedNode?.id ?? snapshot?.rootID else { return }
 
-        let cachedSnapshotCount = scanNavigationHistory.reduce(0) {
-            $0 + ($1.snapshot == nil ? 0 : 1)
-        }
-
         scanNavigationHistory.append(
             ScanNavigationEntry(
                 rootURL: currentRootURL,
                 focusedNodeID: currentFocusID,
                 scansVirtualTemporaryLocation: activeScanIsVirtualTemporaryLocation,
-                snapshot: cachedSnapshotCount < Self.maximumCachedNavigationSnapshots
-                    ? currentSnapshot
-                    : nil,
+                snapshot: currentSnapshot,
                 issues: issues,
                 scannedRootPath: currentScannedRootPath
             )
         )
+        trimNavigationHistoryIfNeeded()
         startScan(
             rootURL: node.url,
             restoreFocusID: nil,
@@ -710,28 +709,33 @@ final class DiskSpaceStore: ObservableObject {
         )
     }
 
-    private func restoreNavigationEntry(
-        _ entry: ScanNavigationEntry,
-        snapshot cachedSnapshot: DiskScanSnapshot
-    ) {
+    private func restoreNavigationEntry(_ entry: ScanNavigationEntry) {
         stopScan(resetToIdle: false)
-        snapshot = cachedSnapshot
+        snapshot = entry.snapshot
         issues = entry.issues
         scannedRootPath = entry.scannedRootPath
         activeScanRootURL = entry.rootURL
         activeScanIsVirtualTemporaryLocation = entry.scansVirtualTemporaryLocation
-        focusedNodeID = cachedSnapshot.node(id: entry.focusedNodeID) != nil
+        focusedNodeID = entry.snapshot.node(id: entry.focusedNodeID) != nil
             ? entry.focusedNodeID
-            : cachedSnapshot.rootID
+            : entry.snapshot.rootID
         selectedNodeID = nil
         pendingRestoreFocusID = nil
         progress = nil
         scanPresentation = .navigation
         phase = .finished
         recordAnalyzedLocations(
-            in: cachedSnapshot,
+            in: entry.snapshot,
             scannedRootPath: entry.scannedRootPath
         )
+    }
+
+    private func trimNavigationHistoryIfNeeded() {
+        while scanNavigationHistory.count > Self.maximumNavigationHistoryDepth {
+            // Preserve the original location so Back can always return to the card the user
+            // opened. Dropping a middle breadcrumb is preferable to silently rescanning `/`.
+            scanNavigationHistory.remove(at: scanNavigationHistory.count > 1 ? 1 : 0)
+        }
     }
 
     func revealInFinder(_ id: String) {
@@ -753,8 +757,9 @@ final class DiskSpaceStore: ObservableObject {
         return FileManager.default.fileExists(atPath: node.url.path)
     }
 
-    func requestMoveNodeToTrash(_ id: String) {
+    func requestMoveNodeToTrash(_ id: String, from surface: DiskSpacePresentationSurface) {
         guard canMoveNodeToTrash(id), let node = snapshot?.node(id: id) else { return }
+        trashAlertSurface = surface
         trashAlert = .confirmation(
             nodeID: id,
             name: node.name,
@@ -763,13 +768,14 @@ final class DiskSpaceStore: ObservableObject {
         )
     }
 
-    func moveNodeToTrash(_ id: String) {
+    func moveNodeToTrash(_ id: String, from surface: DiskSpacePresentationSurface) {
         guard let snapshot,
               id != snapshot.rootID,
               let node = snapshot.node(id: id),
               !node.isSynthetic else { return }
 
         if let protectedPath = trashProtectionPath(for: node.url) {
+            trashAlertSurface = surface
             trashAlert = .failure(
                 id: UUID(),
                 message: "\(protectedPath) is a protected macOS location and can’t be moved to Trash."
@@ -800,6 +806,7 @@ final class DiskSpaceStore: ObservableObject {
             deletingNodeIDs.remove(id)
 
             if let failureMessage {
+                trashAlertSurface = surface
                 trashAlert = .failure(id: UUID(), message: failureMessage)
                 return
             }
@@ -826,6 +833,16 @@ final class DiskSpaceStore: ObservableObject {
         }
     }
 
+    func trashAlert(for surface: DiskSpacePresentationSurface) -> DiskSpaceTrashAlert? {
+        trashAlertSurface == surface ? trashAlert : nil
+    }
+
+    func dismissTrashAlert(from surface: DiskSpacePresentationSurface) {
+        guard trashAlertSurface == surface else { return }
+        trashAlert = nil
+        trashAlertSurface = nil
+    }
+
     private func reconcileCachedSnapshotsAfterRemovingNode(_ id: String) {
         for locationID in Array(cachedLocationScans.keys) {
             guard let cached = cachedLocationScans[locationID],
@@ -847,16 +864,15 @@ final class DiskSpaceStore: ObservableObject {
         }
 
         scanNavigationHistory = scanNavigationHistory.map { entry in
-            guard let cachedSnapshot = entry.snapshot,
-                  cachedSnapshot.node(id: id) != nil,
-                  id != cachedSnapshot.rootID else { return entry }
-            let updatedSnapshot = cachedSnapshot.removingNode(id: id)
+            guard entry.snapshot.node(id: id) != nil,
+                  id != entry.snapshot.rootID,
+                  let updatedSnapshot = entry.snapshot.removingNode(id: id) else { return entry }
             return ScanNavigationEntry(
                 rootURL: entry.rootURL,
                 focusedNodeID: entry.focusedNodeID,
                 scansVirtualTemporaryLocation: entry.scansVirtualTemporaryLocation,
                 snapshot: updatedSnapshot,
-                issues: updatedSnapshot?.issues ?? entry.issues,
+                issues: updatedSnapshot.issues,
                 scannedRootPath: entry.scannedRootPath
             )
         }
@@ -925,6 +941,12 @@ final class DiskSpaceStore: ObservableObject {
 
     private static func path(_ candidate: String, isInside root: String) -> Bool {
         candidate != root && candidate.hasPrefix(root.hasSuffix("/") ? root : root + "/")
+    }
+
+    private static func scanWorkerLimit(for rootURL: URL) -> Int {
+        // A full-volume walk is long-running background work. One worker keeps the Mac usable;
+        // focused folder scans may use two workers without monopolizing the CPU.
+        normalizedPath(rootURL.path) == "/" ? 1 : 2
     }
 
     private var locationRootNode: DiskFileNode? {
@@ -1135,6 +1157,11 @@ private struct DiskSpaceNavigationButtonStyle: ButtonStyle {
 }
 
 struct DiskSpaceCompactView: View {
+    private enum ScanAllStage {
+        case diskSpace
+        case caches
+    }
+
     @ObservedObject var store: DiskSpaceStore
     @ObservedObject var diskMonitor: DiskMonitor
     let isExpanded: Bool
@@ -1144,8 +1171,11 @@ struct DiskSpaceCompactView: View {
 
     @AppStorage("diskSpaceTreemapGroupingEnabled") private var groupingEnabled = false
     @AppStorage("diskSpaceTreemapGroupingThresholdMB") private var groupingThresholdMB = 10
-    @State private var isScanAllInProgress = false
-    @State private var scanAllDidStart = false
+    @State private var scanAllStage: ScanAllStage?
+
+    private var isScanAllInProgress: Bool {
+        scanAllStage != nil
+    }
 
     private var groupingThresholdBytes: Int64? {
         guard groupingEnabled else { return nil }
@@ -1184,8 +1214,8 @@ struct DiskSpaceCompactView: View {
         .onChange(of: diskMonitor.isScanning) { _, _ in
             finishScanAllIfPossible()
         }
-        .alert(item: $store.trashAlert) { alert in
-            diskSpaceTrashAlert(alert, store: store)
+        .alert(item: diskSpaceTrashAlertBinding(store: store, surface: .compact)) { alert in
+            diskSpaceTrashAlert(alert, store: store, surface: .compact)
         }
     }
 
@@ -1410,32 +1440,39 @@ struct DiskSpaceCompactView: View {
     }
 
     private func scanAllLocations() {
-        guard store.phase != .scanning, !diskMonitor.isScanningCaches else { return }
+        guard store.phase != .scanning,
+              !diskMonitor.isScanningCaches,
+              !diskMonitor.isScanning else { return }
         guard let startupDisk = store.locations.first(where: { $0.kind == .startupDisk }) else { return }
 
-        // Publish feedback before either scanner starts. Deferring the work by one main-queue
-        // turn gives SwiftUI a frame to replace the button with its progress state immediately.
-        isScanAllInProgress = true
-        scanAllDidStart = false
+        // Disk mapping and cache classification both walk large directory trees. Run them in
+        // sequence so Scan All never combines their CPU and I/O load into one system-wide spike.
+        scanAllStage = .diskSpace
 
         DispatchQueue.main.async {
             store.selectLocation(startupDisk.id)
             store.startScan()
-            diskMonitor.scanCaches()
-            scanAllDidStart = true
-            finishScanAllIfPossible()
         }
     }
 
     private func finishScanAllIfPossible() {
-        guard isScanAllInProgress, scanAllDidStart else { return }
-        guard store.phase != .scanning,
-              !diskMonitor.isScanningCaches,
-              !diskMonitor.isScanning else { return }
+        guard let scanAllStage else { return }
 
-        withAnimation(.easeOut(duration: 0.18)) {
-            isScanAllInProgress = false
-            scanAllDidStart = false
+        switch scanAllStage {
+        case .diskSpace:
+            guard store.phase != .scanning else { return }
+            self.scanAllStage = .caches
+            diskMonitor.scanCaches()
+            // A denied-access path can complete synchronously without publishing a state change.
+            DispatchQueue.main.async {
+                finishScanAllIfPossible()
+            }
+
+        case .caches:
+            guard !diskMonitor.isScanningCaches, !diskMonitor.isScanning else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                self.scanAllStage = nil
+            }
         }
     }
 
@@ -1630,7 +1667,7 @@ struct DiskSpaceCompactView: View {
                             .frame(width: 18)
                     } else {
                         Button {
-                            store.requestMoveNodeToTrash(selectedNode.id)
+                            store.requestMoveNodeToTrash(selectedNode.id, from: .compact)
                         } label: {
                             Image(systemName: "trash")
                         }
@@ -1667,7 +1704,7 @@ struct DiskSpaceCompactView: View {
                         reveal: { store.revealInFinder(node.id) },
                         canTrash: store.canMoveNodeToTrash(node.id),
                         isDeleting: store.deletingNodeIDs.contains(node.id),
-                        trash: { store.requestMoveNodeToTrash(node.id) }
+                        trash: { store.requestMoveNodeToTrash(node.id, from: .compact) }
                     )
                 }
             }
@@ -2118,8 +2155,8 @@ private struct DiskSpaceWorkspaceView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .alert(item: $store.trashAlert) { alert in
-            diskSpaceTrashAlert(alert, store: store)
+        .alert(item: diskSpaceTrashAlertBinding(store: store, surface: .window)) { alert in
+            diskSpaceTrashAlert(alert, store: store, surface: .window)
         }
     }
 }
@@ -2833,7 +2870,7 @@ private struct DiskSpaceFileTable: View {
                             .frame(width: 16)
                     } else {
                         Button {
-                            store.requestMoveNodeToTrash(node.id)
+                            store.requestMoveNodeToTrash(node.id, from: .window)
                         } label: {
                             Image(systemName: "trash")
                         }
@@ -2866,7 +2903,7 @@ private struct DiskSpaceFileTable: View {
                 if store.canMoveNodeToTrash(nodeID) {
                     Divider()
                     Button("Move to Trash", role: .destructive) {
-                        store.requestMoveNodeToTrash(nodeID)
+                        store.requestMoveNodeToTrash(nodeID, from: .window)
                     }
                 }
             }
@@ -2894,9 +2931,25 @@ private struct DiskSpaceMetric: View {
 }
 
 @MainActor
+private func diskSpaceTrashAlertBinding(
+    store: DiskSpaceStore,
+    surface: DiskSpacePresentationSurface
+) -> Binding<DiskSpaceTrashAlert?> {
+    Binding(
+        get: { store.trashAlert(for: surface) },
+        set: { alert in
+            if alert == nil {
+                store.dismissTrashAlert(from: surface)
+            }
+        }
+    )
+}
+
+@MainActor
 private func diskSpaceTrashAlert(
     _ alert: DiskSpaceTrashAlert,
-    store: DiskSpaceStore
+    store: DiskSpaceStore,
+    surface: DiskSpacePresentationSurface
 ) -> Alert {
     switch alert {
     case .confirmation(let nodeID, let name, let size, let path):
@@ -2907,7 +2960,7 @@ private func diskSpaceTrashAlert(
             ),
             primaryButton: .cancel(Text("Cancel")),
             secondaryButton: .destructive(Text("Move to Trash")) {
-                store.moveNodeToTrash(nodeID)
+                store.moveNodeToTrash(nodeID, from: surface)
             }
         )
     case .failure(_, let message):
