@@ -217,7 +217,7 @@ private struct DiskSpaceTreemapTooltip: View {
                 Text(formatBytes(tile.allocatedBytes))
                     .monospacedDigit()
                 if let groupedItemCount = tile.groupedItemCount {
-                    Text("· \(groupedItemCount.formatted()) items")
+                    Text(String(format: L("· %@ items"), groupedItemCount.formatted()))
                 }
             }
             .font(.caption)

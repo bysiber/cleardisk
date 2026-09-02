@@ -166,12 +166,12 @@ struct MainView: View {
         } message: {
             if let cache = cacheToClean {
                 let xcodeWarning = (cache.rawName.hasPrefix("Xcode") || cache.rawName == "Swift PM Cache") && diskMonitor.isXcodeRunning()
-                    ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                    ? L("\n\n⚠️ Xcode is currently running! Close Xcode first for best results.")
                     : ""
                 let impact = cache.safetyDetails.map {
-                    "\n\nRemoves: \($0.removes)\nKeeps: \($0.keeps)\n\($0.note)"
+                    String(format: L("\n\nRemoves: %@\nKeeps: %@\n%@"), $0.removes, $0.keeps, $0.note)
                 } ?? ""
-                Text("Delete all contents of \(cacheDisplayName(cache))?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(impact)\(xcodeWarning)")
+                Text(String(format: L("Delete all contents of %@?\nThis will move %@ to Trash.\n\n%@ %@%@%@"), cacheDisplayName(cache), formatBytes(cache.size), cache.riskEmoji, cache.riskDescription, impact, xcodeWarning))
             }
         }
         .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
@@ -188,9 +188,9 @@ struct MainView: View {
             let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }
             let safeTotal = safeCaches.reduce(Int64(0)) { $0 + $1.size }
             let xcodeWarning = diskMonitor.isXcodeRunning()
-                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                ? L("\n\n⚠️ Xcode is currently running! Close Xcode first for best results.")
                 : ""
-            Text("Clean \(safeCaches.count) verified cache locations?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
+            Text(String(format: L("Clean %d verified cache locations?\nThis will move %@ to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.%@"), safeCaches.count, formatBytes(safeTotal), xcodeWarning))
         }
 
         let cleanupAlerts = cacheAlerts
@@ -202,9 +202,9 @@ struct MainView: View {
         } message: {
             let totalSize = pendingBulkCaches.reduce(Int64(0)) { $0 + $1.size }
             let xcodeWarning = diskMonitor.isXcodeRunning()
-                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                ? L("\n\n⚠️ Xcode is currently running! Close Xcode first for best results.")
                 : ""
-            Text("Clean \(pendingBulkCaches.count) selected cache(s)?\nThis will move \(formatBytes(totalSize)) to Trash. Disk space is reclaimed only after Trash is emptied.\(xcodeWarning)")
+            Text(String(format: L("Clean %d selected cache(s)?\nThis will move %@ to Trash. Disk space is reclaimed only after Trash is emptied.%@"), pendingBulkCaches.count, formatBytes(totalSize), xcodeWarning))
         }
         .alert("Permanently Empty Trash?", isPresented: $showEmptyTrashConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -212,7 +212,7 @@ struct MainView: View {
                 diskMonitor.emptyTrash()
             }
         } message: {
-            Text("This permanently deletes all \(formatBytes(diskMonitor.trashSizeBytes)) in your Mac's Trash — including items not moved there by ClearDisk. This cannot be undone.")
+            Text(String(format: L("This permanently deletes all %@ in your Mac's Trash — including items not moved there by ClearDisk. This cannot be undone."), formatBytes(diskMonitor.trashSizeBytes)))
         }
 
         return cleanupAlerts
@@ -226,7 +226,7 @@ struct MainView: View {
             }
         } message: {
             if let file = fileToDelete {
-                Text("Move \"\(file.name)\" to Trash?\n\nSize: \(formatBytes(file.size))\nPath: \(file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))\n\nYou can recover it from Trash.")
+                Text(String(format: L("Move \"%@\" to Trash?\n\nSize: %@\nPath: %@\n\nYou can recover it from Trash."), file.name, formatBytes(file.size), file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")))
             }
         }
         // A clean that frees nothing must say so. Previously the failure was only printed to
@@ -344,7 +344,7 @@ struct MainView: View {
                 }
                 .toggleStyle(.checkbox)
 
-                Text("\(pendingBulkCaches.count) items · \(formatBytes(totalSize)) will be moved to Trash. Space is not reclaimed until Trash is emptied.")
+                Text(String(format: L("%d items · %@ will be moved to Trash. Space is not reclaimed until Trash is emptied."), pendingBulkCaches.count, formatBytes(totalSize)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
@@ -969,7 +969,7 @@ struct MainView: View {
                 if safeTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.green).frame(width: 6, height: 6)
-                        Text("\(formatBytes(safeTotal)) safe")
+                        Text(String(format: L("%@ safe"), formatBytes(safeTotal)))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -977,7 +977,7 @@ struct MainView: View {
                 if moderateTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.orange).frame(width: 6, height: 6)
-                        Text("\(formatBytes(moderateTotal)) moderate")
+                        Text(String(format: L("%@ moderate"), formatBytes(moderateTotal)))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -985,7 +985,7 @@ struct MainView: View {
                 if riskyCacheTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.red.opacity(0.7)).frame(width: 6, height: 6)
-                        Text("\(formatBytes(riskyCacheTotal)) risky")
+                        Text(String(format: L("%@ risky"), formatBytes(riskyCacheTotal)))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -999,7 +999,7 @@ struct MainView: View {
                 let cacheTotal = safeCacheTotal + moderateTotal + riskyCacheTotal
                 if cacheTotal > 0 {
                     summaryReviewButton(
-                        title: "Review Caches",
+                        title: L("Review Caches"),
                         icon: "magnifyingglass",
                         tint: .blue
                     ) {
@@ -1008,7 +1008,7 @@ struct MainView: View {
                 }
                 if artifactTotal > 0 {
                     summaryReviewButton(
-                        title: "Review Projects",
+                        title: L("Review Projects"),
                         icon: "shippingbox.fill",
                         tint: .cyan
                     ) {
@@ -1090,11 +1090,11 @@ struct MainView: View {
             storageBar
 
             HStack {
-                Text("\(formatBytes(diskMonitor.usedSpace)) used")
+                Text(String(format: L("%@ used"), formatBytes(diskMonitor.usedSpace)))
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(formatBytes(diskMonitor.freeSpace)) free")
+                Text(String(format: L("%@ free"), formatBytes(diskMonitor.freeSpace)))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -1110,11 +1110,11 @@ struct MainView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.red)
                     } else if days <= 30 {
-                        Text("Disk full in ~\(days) days at current rate")
+                        Text(String(format: L("Disk full in ~%d days at current rate"), days))
                             .font(.system(size: 11))
                             .foregroundColor(.orange)
                     } else {
-                        Text("~\(days) days until full (\(formatBytes(diskMonitor.dailyGrowthRate))/day)")
+                        Text(String(format: L("~%d days until full (%@/day)"), days, formatBytes(diskMonitor.dailyGrowthRate)))
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
@@ -1125,7 +1125,10 @@ struct MainView: View {
                     Image(systemName: "clock")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
-                    Text("Forecast: collecting data... (\(diskMonitor.historyDataPointCount) snapshot\(diskMonitor.historyDataPointCount == 1 ? "" : "s"))")
+                    Text(String(format: diskMonitor.historyDataPointCount == 1
+                    ? L("Forecast: collecting data... (%d snapshot)")
+                    : L("Forecast: collecting data... (%d snapshots)"),
+                    diskMonitor.historyDataPointCount))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     Spacer()
@@ -1373,7 +1376,7 @@ struct MainView: View {
                 Text("Storage Trend")
                     .font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Text("\(diskMonitor.historySpanDays)d history")
+                Text(String(format: L("%dd history"), diskMonitor.historySpanDays))
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
             }
@@ -1447,7 +1450,7 @@ struct MainView: View {
                         .foregroundColor(.secondary)
                     if let days = diskMonitor.forecastDaysUntilFull {
                         Spacer()
-                        Text("~\(days)d until full")
+                        Text(String(format: L("~%dd until full"), days))
                             .font(.system(size: 10))
                             .foregroundColor(days <= 30 ? .red : .orange)
                     }
@@ -1630,7 +1633,7 @@ struct MainView: View {
                     Text(formatBytes(total))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(accent)
-                    Text("\(caches.count) locations")
+                    Text(String(format: L("%d locations"), caches.count))
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                 }
@@ -1801,7 +1804,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean all \(groupName) caches")
+                .help(String(format: L("Clean all %@ caches"), groupName))
                 
                 // Reveal first item in Finder
                 Button(action: {
@@ -1867,7 +1870,7 @@ struct MainView: View {
                         Text(cacheDisplayName(cache))
                             .font(.system(size: 11.5, weight: .medium))
                         if let days = cache.daysSinceAccess {
-                            Text("\(days)d ago")
+                            Text(String(format: L("%dd ago"), days))
                                 .font(.system(size: 9))
                                 .foregroundColor(days > 60 ? .orange : .secondary)
                                 .padding(.horizontal, 4)
@@ -1911,7 +1914,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean \(cacheDisplayName(cache))")
+                .help(String(format: L("Clean %@"), cacheDisplayName(cache)))
                 
                 Button(action: {
                     diskMonitor.revealInFinder(cache.path)
@@ -2026,7 +2029,7 @@ struct MainView: View {
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
                             }
-                            Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
+                            Text(String(format: L("%d found · %d stale (>30 days)"), diskMonitor.projectArtifacts.count, staleCount))
                                 .font(.system(size: 9))
                                 .foregroundColor(.secondary)
                         }
@@ -2173,7 +2176,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean \(artifact.artifactName) cache only — your source code is kept")
+                .help(String(format: L("Clean %@ cache only — your source code is kept"), artifact.artifactName))
                 
                 Button(action: {
                     diskMonitor.revealInFinder(artifact.projectPath)
@@ -2187,7 +2190,7 @@ struct MainView: View {
             }
             
             if artifact.isStale {
-                Text("⚠️ Stale — not modified for \(artifact.daysSinceModified ?? 0) days")
+                Text(String(format: L("⚠️ Stale — not modified for %d days"), artifact.daysSinceModified ?? 0))
                     .font(.system(size: 9))
                     .foregroundColor(.orange)
                     .padding(.leading, 36)
@@ -2782,7 +2785,7 @@ struct MainView: View {
                                                 HStack(spacing: 3) {
                                                     Image(systemName: "checkmark.shield.fill")
                                                         .foregroundStyle(.green)
-                                                    Text("Keeps: \(impact.keeps)")
+                                                    Text(String(format: L("Keeps: %@"), impact.keeps))
                                                         .lineLimit(1)
                                                 }
                                                 .font(.system(size: 8.5))
@@ -2824,7 +2827,7 @@ struct MainView: View {
                                         Image(systemName: "exclamationmark.triangle.fill")
                                             .font(.system(size: 10))
                                             .foregroundColor(.red)
-                                        Text("\(riskySelected.count) risky cache(s) selected:")
+                                        Text(String(format: L("%d risky cache(s) selected:"), riskySelected.count))
                                             .font(.system(size: 10, weight: .semibold))
                                             .foregroundColor(.red)
                                         Spacer()
@@ -2855,7 +2858,7 @@ struct MainView: View {
             
             // Selection summary + action
             HStack {
-                Text("\(selectedCount) selected · \(formatBytes(selectedSize))")
+                Text(String(format: L("%d selected · %@"), selectedCount, formatBytes(selectedSize)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -3069,7 +3072,7 @@ struct MainView: View {
             
             // Selection summary + action
             HStack {
-                Text("\(selectedCount) selected · \(formatBytes(selectedSize))")
+                Text(String(format: L("%d selected · %@"), selectedCount, formatBytes(selectedSize)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -3136,7 +3139,7 @@ struct MainView: View {
                     Image(systemName: "trash.fill")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
-                    Text("Moved via ClearDisk: \(formatBytes(diskMonitor.totalMovedToTrash))")
+                    Text(String(format: L("Moved via ClearDisk: %@"), formatBytes(diskMonitor.totalMovedToTrash)))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -3303,7 +3306,7 @@ struct CleanCacheConfirmSheet: View {
             
             if let artifact = artifact {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Clean **\(artifact.artifactName)** cache from **\(artifact.projectName)**?")
+                    Text(String(format: L("Clean **%@** cache from **%@**?"), artifact.artifactName, artifact.projectName))
                         .font(.system(size: 12))
                     
                     HStack(spacing: 6) {

@@ -1527,9 +1527,9 @@ struct DiskSpaceCompactView: View {
                 }
 
                 HStack {
-                    Text("\(progress.filesVisited.formatted()) files")
+                    Text(String(format: L("%@ files"), progress.filesVisited.formatted()))
                     Spacer()
-                    Text("\(progress.directoriesVisited.formatted()) folders")
+                    Text(String(format: L("%@ folders"), progress.directoriesVisited.formatted()))
                     Spacer()
                     Text(formatBytes(progress.bytesDiscovered))
                 }
@@ -1614,7 +1614,7 @@ struct DiskSpaceCompactView: View {
                     VStack(alignment: .trailing, spacing: 1) {
                         Text(formatBytes(node.allocatedBytes))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        Text("\(node.descendantFileCount.formatted()) files")
+                        Text(String(format: L("%@ files"), node.descendantFileCount.formatted()))
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                     }
@@ -1688,7 +1688,7 @@ struct DiskSpaceCompactView: View {
                 Text("Contents")
                     .font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Text("\(store.displayedChildren.count.formatted()) items")
+                Text(String(format: L("%@ items"), store.displayedChildren.count.formatted()))
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
             }
@@ -1755,7 +1755,7 @@ private struct DiskSpaceMacLocationCard: View {
                             .lineLimit(1)
                     }
 
-                    Text("\(formatBytes(diskMonitor.freeSpace)) available")
+                    Text(String(format: L("%@ available"), formatBytes(diskMonitor.freeSpace)))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
 
@@ -2227,7 +2227,7 @@ private struct DiskSpaceEmptyView: View {
                 VStack(spacing: 7) {
                     Text("See what’s using your storage")
                         .font(.title2.weight(.semibold))
-                    Text("Scan \(store.selectedLocation.name) to find the folders and files taking the most space.")
+                    Text(String(format: L("Scan %@ to find the folders and files taking the most space."), store.selectedLocation.name))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 470)
@@ -2287,7 +2287,7 @@ private struct DiskCapacityCard: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("\(formatBytes(diskMonitor.freeSpace)) free")
+                Text(String(format: L("%@ free"), formatBytes(diskMonitor.freeSpace)))
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
             }
@@ -2303,9 +2303,9 @@ private struct DiskCapacityCard: View {
             .frame(height: 10)
 
             HStack {
-                Text("\(formatBytes(diskMonitor.usedSpace)) used")
+                Text(String(format: L("%@ used"), formatBytes(diskMonitor.usedSpace)))
                 Spacer()
-                Text("\(formatBytes(diskMonitor.totalSpace)) total")
+                Text(String(format: L("%@ total"), formatBytes(diskMonitor.totalSpace)))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -2448,7 +2448,7 @@ private struct DiskSpaceScanningView: View {
                 .frame(maxWidth: 430)
 
             VStack(spacing: 6) {
-                Text("Scanning \(store.selectedLocation.name)")
+                Text(String(format: L("Scanning %@"), store.selectedLocation.name))
                     .font(.title2.weight(.semibold))
                 Text("Larger disks can take a while. You can keep using your Mac.")
                     .foregroundStyle(.secondary)
@@ -2506,7 +2506,7 @@ private struct DiskSpaceNavigationLoadingView: View {
                 .controlSize(compact ? .regular : .large)
 
             VStack(spacing: compact ? 3 : 5) {
-                Text("Opening \(store.navigationLoadingTitle)")
+                Text(String(format: L("Opening %@"), store.navigationLoadingTitle))
                     .font(compact ? .system(size: 13, weight: .semibold) : .headline)
                     .lineLimit(1)
                 Text("Loading folder contents…")
@@ -2606,7 +2606,7 @@ private struct DiskSpaceTreemapOptionsButton: View {
             HStack(spacing: 5) {
                 Image(systemName: isEnabled ? "eye.fill" : "eye")
                 if isEnabled {
-                    Text("< \(thresholdMB) MB")
+                    Text(String(format: L("< %d MB"), thresholdMB))
                         .font(.caption.monospacedDigit())
                 }
             }
@@ -2954,7 +2954,7 @@ private func diskSpaceTrashAlert(
     switch alert {
     case .confirmation(let nodeID, let name, let size, let path):
         return Alert(
-            title: Text("Move “\(name)” to Trash?"),
+            title: Text(String(format: L("Move “%@” to Trash?"), name)),
             message: Text(
                 "This item will be moved to the macOS Trash.\n\nSize: \(formatBytes(size))\nLocation: \(path)\n\nYou can recover it until Trash is emptied."
             ),

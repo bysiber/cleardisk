@@ -2,6 +2,26 @@
    Keys are the English source strings, so an untranslated string falls back to English. */
 
 /* MARK: Interface */
+"\n\nRemoves: %@\nKeeps: %@\n%@" = "\n\nSiler: %@\nKorur: %@\n%@";
+"\n\n⚠️ Xcode is currently running! Close Xcode first for best results." = "\n\n⚠️ Xcode şu anda çalışıyor! En iyi sonuç için önce Xcode'u kapatın.";
+"%@ available" = "%@ kullanılabilir";
+"%@ files" = "%@ dosya";
+"%@ folders" = "%@ klasör";
+"%@ free" = "%@ boş";
+"%@ items" = "%@ öğe";
+"%@ moderate" = "%@ dikkat";
+"%@ risky" = "%@ riskli";
+"%@ safe" = "%@ güvenli";
+"%@ total" = "%@ toplam";
+"%@ used" = "%@ kullanılıyor";
+"%d found · %d stale (>30 days)" = "%d bulundu · %d bayat (>30 gün)";
+"%d items · %@ will be moved to Trash. Space is not reclaimed until Trash is emptied." = "%d öğe · %@ Çöp Kutusu'na taşınacak. Alan, Çöp Kutusu boşaltılana kadar geri kazanılmaz.";
+"%d locations" = "%d konum";
+"%d risky cache(s) selected:" = "%d riskli önbellek seçildi:";
+"%d selected · %@" = "%d seçili · %@";
+"%dd ago" = "%d gün önce";
+"%dd history" = "%d günlük geçmiş";
+"< %d MB" = "< %d MB";
 "About" = "Hakkında";
 "All" = "Tümü";
 "All / Risky" = "Tümü / Riskli";
@@ -24,10 +44,16 @@
 "Check for Updates" = "Güncellemeleri Denetle";
 "Choose how ClearDisk windows and panels appear." = "ClearDisk pencerelerinin ve panellerinin nasıl görüneceğini seçin.";
 "Choose where you want to look." = "Nereye bakmak istediğinizi seçin.";
+"Clean %@" = "%@ temizle";
+"Clean %@ cache only — your source code is kept" = "Yalnızca %@ önbelleğini temizle — kaynak kodunuz korunur";
+"Clean %d selected cache(s)?\nThis will move %@ to Trash. Disk space is reclaimed only after Trash is emptied.%@" = "Seçili %d önbellek temizlensin mi?\n%@ Çöp Kutusu'na taşınacak. Disk alanı ancak Çöp Kutusu boşaltıldıktan sonra geri kazanılır.%@";
+"Clean %d verified cache locations?\nThis will move %@ to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.%@" = "%d doğrulanmış önbellek konumu temizlensin mi?\n%@ Çöp Kutusu'na taşınacak.\n\nÖnce ilgili uygulamalardan çıkın. Uygulama profilleri, oturumlar, belgeler ve tüm İncele/Riskli öğeler hariç tutulur.\nDosyalar Çöp Kutusu'na gider — geri alabilirsiniz.%@";
+"Clean **%@** cache from **%@**?" = "**%2$@** projesindeki **%1$@** önbelleği temizlensin mi?";
 "Clean Cache" = "Önbelleği Temizle";
 "Clean Cache Only" = "Yalnızca Önbelleği Temizle";
 "Clean Safe Caches" = "Güvenli Önbellekleri Temizle";
 "Clean Selected Caches" = "Seçili Önbellekleri Temizle";
+"Clean all %@ caches" = "Tüm %@ önbelleklerini temizle";
 "Cleaned project caches will appear here." = "Temizlenen proje önbellekleri burada görünecek.";
 "Cleaner" = "Temizleyici";
 "Cleaning removes cache only — your source code stays intact" = "Temizlik yalnızca önbelleği siler — kaynak kodunuza dokunulmaz";
@@ -48,6 +74,7 @@
 "Date" = "Tarih";
 "Delete File" = "Dosyayı Sil";
 "Delete Permanently" = "Kalıcı Olarak Sil";
+"Delete all contents of %@?\nThis will move %@ to Trash.\n\n%@ %@%@%@" = "%@ içeriğinin tamamı silinsin mi?\n%@ Çöp Kutusu'na taşınacak.\n\n%@ %@%@%@";
 "Deselect All" = "Seçimi Kaldır";
 "Detected macOS cache container; its internal layout is not curated by ClearDisk." = "Algılanan macOS önbellek kapsayıcısı; iç yapısı ClearDisk tarafından derlenmemiştir.";
 "Developer Caches" = "Geliştirici Önbellekleri";
@@ -56,6 +83,7 @@
 "Disk Map" = "Disk Haritası";
 "Disk Space" = "Disk Alanı";
 "Disk Space Low" = "Disk Alanı Azaldı";
+"Disk full in ~%d days at current rate" = "Bu hızla disk ~%d gün içinde dolar";
 "Disk space overview" = "Disk alanına genel bakış";
 "Disk usage treemap" = "Disk kullanımı ağaç haritası";
 "Dismiss" = "Kapat";
@@ -70,6 +98,8 @@
 "External Volume" = "Harici Birim";
 "Favorites" = "Favoriler";
 "Finding large files..." = "Büyük dosyalar bulunuyor...";
+"Forecast: collecting data... (%d snapshot)" = "Tahmin: veri toplanıyor... (%d anlık görüntü)";
+"Forecast: collecting data... (%d snapshots)" = "Tahmin: veri toplanıyor... (%d anlık görüntü)";
 "Full Disk Access" = "Tam Disk Erişimi";
 "General" = "Genel";
 "Group items smaller than" = "Şundan küçük öğeleri grupla";
@@ -79,6 +109,7 @@
 "IDEs, package managers, build tools, and local models" = "Geliştirme ortamları, paket yöneticileri, derleme araçları ve yerel modeller";
 "Inspecting app and developer caches..." = "Uygulama ve geliştirici önbellekleri inceleniyor...";
 "Items below this size appear as one group in the map. They remain individually visible in the table." = "Bu boyutun altındaki öğeler haritada tek bir grup olarak görünür. Tabloda tek tek görünmeye devam eder.";
+"Keeps: %@" = "Korur: %@";
 "Known locations that apps can rebuild" = "Uygulamaların yeniden oluşturabildiği bilinen konumlar";
 "Large Files" = "Büyük Dosyalar";
 "Large personal files" = "Büyük kişisel dosyalar";
@@ -94,7 +125,10 @@
 "May require a large download or setup again" = "Büyük bir indirme veya yeniden kurulum gerektirebilir";
 "Measuring Trash and finalizing results..." = "Çöp Kutusu ölçülüyor ve sonuçlar tamamlanıyor...";
 "Moderate" = "Orta";
+"Move \"%@\" to Trash?\n\nSize: %@\nPath: %@\n\nYou can recover it from Trash." = "\"%@\" Çöp Kutusu'na taşınsın mı?\n\nBoyut: %@\nYol: %@\n\nÇöp Kutusu'ndan geri alabilirsiniz.";
 "Move to Trash" = "Çöp Kutusu'na Taşı";
+"Move “%@” to Trash?" = "“%@” Çöp Kutusu'na taşınsın mı?";
+"Moved via ClearDisk: %@" = "ClearDisk ile taşınan: %@";
 "Moves reviewed items to Trash so they remain recoverable" = "İncelenen öğeleri Çöp Kutusu'na taşır, böylece geri alınabilirler";
 "Name" = "Ad";
 "No artifacts match the filter" = "Filtreye uyan öğe yok";
@@ -121,6 +155,7 @@
 "Open Full Disk Access" = "Tam Disk Erişimini Aç";
 "Open Privacy Settings" = "Gizlilik Ayarlarını Aç";
 "Open Settings" = "Ayarları Aç";
+"Opening %@" = "%@ açılıyor";
 "Overview" = "Genel Bakış";
 "Per-Project Caches" = "Proje Bazlı Önbellekler";
 "Permanent deletion is required to reclaim space" = "Alanı geri kazanmak için kalıcı silme gerekir";
@@ -167,6 +202,7 @@
 "Safe — can be rebuilt with a command" = "Güvenli — bir komutla yeniden oluşturulabilir";
 "Sandboxed App Temporary Files" = "Korumalı Alan Uygulama Geçici Dosyaları";
 "Saved automatically" = "Otomatik kaydedildi";
+"Scan %@ to find the folders and files taking the most space." = "En çok yer kaplayan klasör ve dosyaları bulmak için %@ konumunu tarayın.";
 "Scan All" = "Tümünü Tara";
 "Scan This Mac" = "Bu Mac'i Tara";
 "Scan couldn’t finish" = "Tarama tamamlanamadı";
@@ -174,6 +210,7 @@
 "Scan this Mac, quick locations, and caches" = "Bu Mac'i, hızlı konumları ve önbellekleri tara";
 "Scanned: Downloads, Documents, Desktop, Movies, Music, Pictures" = "Taranan: İndirilenler, Belgeler, Masaüstü, Filmler, Müzik, Resimler";
 "Scanning" = "Taranıyor";
+"Scanning %@" = "%@ taranıyor";
 "Scanning All…" = "Tümü Taranıyor…";
 "Scanning all storage locations" = "Tüm depolama konumları taranıyor";
 "Scanning files…" = "Dosyalar taranıyor…";
@@ -210,6 +247,7 @@
 "The red items below may contain sessions, workspace state, containers, volumes, or other data that cannot be rebuilt." = "Aşağıdaki kırmızı öğeler oturumlar, çalışma alanı durumu, konteynerler, birimler veya yeniden oluşturulamayan başka veriler içerebilir.";
 "This Mac" = "Bu Mac";
 "This only removes the local history log. It does NOT restore any previously cleaned caches." = "Bu yalnızca yerel geçmiş kaydını siler. Daha önce temizlenmiş önbellekleri GERİ GETİRMEZ.";
+"This permanently deletes all %@ in your Mac's Trash — including items not moved there by ClearDisk. This cannot be undone." = "Bu işlem Mac'inizin Çöp Kutusu'ndaki %@ verinin tamamını kalıcı olarak siler — ClearDisk tarafından oraya taşınmayanlar dahil. Bu işlem geri alınamaz.";
 "To enable notifications, open System Settings > Notifications > ClearDisk and turn on \"Allow Notifications\"." = "Bildirimleri açmak için Sistem Ayarları > Bildirimler > ClearDisk yolunu izleyin ve \"Bildirimlere İzin Ver\" seçeneğini açın.";
 "Trash" = "Çöp Kutusu";
 "Treemap Display" = "Ağaç Haritası Görünümü";
@@ -228,8 +266,12 @@
 "Your first analysis can take a minute. ClearDisk will open when the results are ready." = "İlk analiz bir dakika sürebilir. Sonuçlar hazır olduğunda ClearDisk açılacak.";
 "macOS requires this for disk maps and cache locations. ClearDisk waits here instead of asking for Desktop, Documents, Downloads, Photos, and app data separately." = "macOS, disk haritaları ve önbellek konumları için bunu zorunlu kılar. ClearDisk; Masaüstü, Belgeler, İndirilenler, Fotoğraflar ve uygulama verilerini ayrı ayrı istemek yerine burada bekler.";
 "reclaimable space found" = "geri kazanılabilir alan bulundu";
+"~%d days until full (%@/day)" = "Dolmasına ~%d gün (%@/gün)";
+"~%dd until full" = "dolmasına ~%d gün";
+"· %@ items" = "· %@ öğe";
 "⚠️ Disk Almost Full!" = "⚠️ Disk Neredeyse Dolu!";
 "⚠️ Not used for %d days, %@ — safe to clean" = "⚠️ %d gündür kullanılmadı, %@ — temizlemek güvenli";
+"⚠️ Stale — not modified for %d days" = "⚠️ Bayat — %d gündür değiştirilmedi";
 "💡 %d days old, large at %@" = "💡 %d günlük, %@ ile büyük";
 "💡 Unused for %d days — consider cleaning" = "💡 %d gündür kullanılmıyor — temizlemeyi düşünün";
 
