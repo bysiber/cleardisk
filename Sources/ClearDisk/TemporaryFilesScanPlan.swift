@@ -24,19 +24,19 @@ enum TemporaryFilesScanPlan {
 
         var groups = [
             singleSourceGroup(
-                name: "User Temporary Files",
-                sourceName: "Current User",
+                name: L("User Temporary Files"),
+                sourceName: L("Current User"),
                 url: userTemporaryURL,
                 fileManager: fileManager
             ),
             singleSourceGroup(
-                name: "Shared Temporary Files",
+                name: L("Shared Temporary Files"),
                 sourceName: "Shared",
                 url: sharedTemporaryURL,
                 fileManager: fileManager
             ),
             singleSourceGroup(
-                name: "Persistent Temporary Files",
+                name: L("Persistent Temporary Files"),
                 sourceName: "Persistent",
                 url: persistentTemporaryURL,
                 fileManager: fileManager
@@ -47,7 +47,7 @@ enum TemporaryFilesScanPlan {
         if !sandboxSources.isEmpty {
             groups.append(
                 TemporaryFilesScanGroup(
-                    name: "Sandboxed App Temporary Files",
+                    name: L("Sandboxed App Temporary Files"),
                     url: fileManager.homeDirectoryForCurrentUser
                         .appendingPathComponent("Library/Containers", isDirectory: true),
                     sources: sandboxSources

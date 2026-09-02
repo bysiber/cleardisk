@@ -165,7 +165,7 @@ struct MainView: View {
             }
         } message: {
             if let cache = cacheToClean {
-                let xcodeWarning = (cache.name.hasPrefix("Xcode") || cache.name == "Swift PM Cache") && diskMonitor.isXcodeRunning()
+                let xcodeWarning = (cache.rawName.hasPrefix("Xcode") || cache.rawName == "Swift PM Cache") && diskMonitor.isXcodeRunning()
                     ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
                     : ""
                 let impact = cache.safetyDetails.map {
@@ -479,7 +479,7 @@ struct MainView: View {
 
             modeTitleBar(
                 title: "Review",
-                subtitle: "Safe cleanup and items that need your decision."
+                subtitle: L("Safe cleanup and items that need your decision.")
             )
 
             Divider()
@@ -489,19 +489,19 @@ struct MainView: View {
                     if !hasReviewItems {
                         emptyModeState(
                             icon: "checkmark.shield.fill",
-                            title: "Nothing needs attention",
-                            message: "ClearDisk will place new findings here after the next scan."
+                            title: L("Nothing needs attention"),
+                            message: L("ClearDisk will place new findings here after the next scan.")
                         )
                     } else {
                         if safeTotal > 0 || artifactTotal > 0 || diskMonitor.trashSizeBytes > 0 {
-                            reviewSectionHeader(title: "Safe cleanup", detail: "Rebuildable or already in Trash")
+                            reviewSectionHeader(title: L("Safe cleanup"), detail: L("Rebuildable or already in Trash"))
 
                             VStack(spacing: 0) {
                                 if safeTotal > 0 {
                                     reviewNavigationRow(
                                         icon: "checkmark.shield.fill",
                                         color: .green,
-                                        title: "Rebuildable caches",
+                                        title: L("Rebuildable caches"),
                                         subtitle: "\(safeCaches.count) known cache locations",
                                         size: safeTotal,
                                         actionTitle: "Review"
@@ -512,8 +512,8 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "shippingbox.fill",
                                         color: .cyan,
-                                        title: "Project artifacts",
-                                        subtitle: "Build output only — source code is kept",
+                                        title: L("Project artifacts"),
+                                        subtitle: L("Build output only — source code is kept"),
                                         size: artifactTotal,
                                         actionTitle: "Review"
                                     ) { openProjectReview() }
@@ -524,7 +524,7 @@ struct MainView: View {
                                         icon: "trash.fill",
                                         color: .orange,
                                         title: "Trash",
-                                        subtitle: "Permanent deletion is required to reclaim space",
+                                        subtitle: L("Permanent deletion is required to reclaim space"),
                                         size: diskMonitor.trashSizeBytes,
                                         actionTitle: "Empty"
                                     ) { showEmptyTrashConfirm = true }
@@ -535,15 +535,15 @@ struct MainView: View {
                         }
 
                         if safeTotal > 0 || cautionTotal > 0 || riskyTotal > 0 || largeFileTotal > 0 {
-                            reviewSectionHeader(title: "Review by safety", detail: "Nothing is selected automatically")
+                            reviewSectionHeader(title: L("Review by safety"), detail: L("Nothing is selected automatically"))
 
                             VStack(spacing: 0) {
                                 if safeTotal > 0 {
                                     reviewNavigationRow(
                                         icon: "checkmark.circle.fill",
                                         color: .green,
-                                        title: "Safe caches",
-                                        subtitle: "Known locations that apps can rebuild",
+                                        title: L("Safe caches"),
+                                        subtitle: L("Known locations that apps can rebuild"),
                                         size: safeTotal,
                                         actionTitle: "Review"
                                     ) { openCacheReview(mode: .safe) }
@@ -553,8 +553,8 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "exclamationmark.circle.fill",
                                         color: .orange,
-                                        title: "Caution caches",
-                                        subtitle: "May require a large download or setup again",
+                                        title: L("Caution caches"),
+                                        subtitle: L("May require a large download or setup again"),
                                         size: cautionTotal,
                                         actionTitle: "Inspect"
                                     ) { openCacheReview(mode: .moderate) }
@@ -564,8 +564,8 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "exclamationmark.triangle.fill",
                                         color: .red,
-                                        title: "Risky application data",
-                                        subtitle: "May contain containers, sessions or local data",
+                                        title: L("Risky application data"),
+                                        subtitle: L("May contain containers, sessions or local data"),
                                         size: riskyTotal,
                                         actionTitle: "Inspect"
                                     ) { openCacheReview(mode: .everything) }
@@ -575,7 +575,7 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "doc.on.doc.fill",
                                         color: .blue,
-                                        title: "Large personal files",
+                                        title: L("Large personal files"),
                                         subtitle: "\(diskMonitor.largeFiles.count) files over 100 MB",
                                         size: largeFileTotal,
                                         actionTitle: "View"
@@ -604,7 +604,7 @@ struct MainView: View {
 
             modeTitleBar(
                 title: "Disk Space",
-                subtitle: "Current storage categories and large files."
+                subtitle: L("Current storage categories and large files.")
             )
 
             Divider()
@@ -756,7 +756,7 @@ struct MainView: View {
                 VStack(spacing: 0) {
                     ZStack {
                         // Center title
-                        Text(selectedTab.rawValue)
+                        Text(L(selectedTab.rawValue))
                             .font(.system(size: 13, weight: .semibold))
                         
                         // Left: back button, Right: refresh
@@ -1166,7 +1166,7 @@ struct MainView: View {
         HStack(spacing: 5) {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button(action: { selectedTab = tab }) {
-                    Text(tab.rawValue)
+                    Text(L(tab.rawValue))
                         .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .medium))
                         .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
                         .lineLimit(1)
@@ -1940,7 +1940,7 @@ struct MainView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         cacheImpactLine(icon: "minus.circle.fill", color: .orange, title: "Removes", text: impact.removes)
                         cacheImpactLine(icon: "checkmark.shield.fill", color: .green, title: "Keeps", text: impact.keeps)
-                        cacheImpactLine(icon: "info.circle.fill", color: .blue, title: "Before cleaning", text: impact.note)
+                        cacheImpactLine(icon: "info.circle.fill", color: .blue, title: L("Before cleaning"), text: impact.note)
                     }
                     .padding(7)
                     .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
@@ -2064,7 +2064,7 @@ struct MainView: View {
                     HStack(spacing: 0) {
                         ForEach(ProjectSortMode.allCases, id: \.self) { mode in
                             Button(action: { projectSortMode = mode }) {
-                                Text(mode.rawValue)
+                                Text(L(mode.rawValue))
                                     .font(.system(size: 10, weight: projectSortMode == mode ? .semibold : .regular))
                                     .foregroundColor(projectSortMode == mode ? .accentColor : .secondary)
                                     .padding(.horizontal, 10)
@@ -2263,9 +2263,9 @@ struct MainView: View {
                     .multilineTextAlignment(.center)
                 
                 VStack(alignment: .leading, spacing: 10) {
-                    onboardingFeature(icon: "square.grid.2x2", text: "Maps your disk and finds large files")
-                    onboardingFeature(icon: "hammer", text: "Reviews app, developer, and project caches")
-                    onboardingFeature(icon: "trash", text: "Moves reviewed items to Trash so they remain recoverable")
+                    onboardingFeature(icon: "square.grid.2x2", text: L("Maps your disk and finds large files"))
+                    onboardingFeature(icon: "hammer", text: L("Reviews app, developer, and project caches"))
+                    onboardingFeature(icon: "trash", text: L("Moves reviewed items to Trash so they remain recoverable"))
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -2326,8 +2326,8 @@ struct MainView: View {
                         }
                     }) {
                         Text(diskMonitor.fullDiskAccess == .granted
-                             ? "Start Scanning"
-                             : "Open Full Disk Access")
+                             ? L("Start Scanning")
+                             : L("Open Full Disk Access"))
                             .font(.system(size: 14, weight: .semibold))
                             .frame(width: 200, height: 32)
                     }
@@ -2371,7 +2371,7 @@ struct MainView: View {
     func permissionLabel(_ state: PermissionState) -> String {
         switch state {
         case .granted: return "Enabled"
-        case .denied: return "Not enabled yet"
+        case .denied: return L("Not enabled yet")
         case .unknown: return "Checking..."
         }
     }
@@ -2719,7 +2719,7 @@ struct MainView: View {
                         selectedCacheIDs = Set(cachesToShow.map { $0.id })
                     }
                 }) {
-                    Text(selectedCacheIDs.count == cachesToShow.count && !cachesToShow.isEmpty ? "Deselect All" : "Select All")
+                    Text(selectedCacheIDs.count == cachesToShow.count && !cachesToShow.isEmpty ? L("Deselect All") : L("Select All"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.accentColor)
                 }
@@ -2959,7 +2959,7 @@ struct MainView: View {
                         projectFilterMode = mode
                         selectedArtifactIDs = []
                     }) {
-                        Text(mode.rawValue)
+                        Text(L(mode.rawValue))
                             .font(.system(size: 10, weight: projectFilterMode == mode ? .semibold : .regular))
                             .foregroundColor(projectFilterMode == mode ? .accentColor : .secondary)
                             .padding(.horizontal, 8)
@@ -2981,7 +2981,7 @@ struct MainView: View {
                         selectedArtifactIDs = Set(filtered.map { $0.id })
                     }
                 }) {
-                    Text(selectedArtifactIDs.count == filtered.count && !filtered.isEmpty ? "Deselect All" : "Select All")
+                    Text(selectedArtifactIDs.count == filtered.count && !filtered.isEmpty ? L("Deselect All") : L("Select All"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.accentColor)
                 }

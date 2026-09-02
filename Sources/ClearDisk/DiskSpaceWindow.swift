@@ -24,9 +24,9 @@ private enum DiskSpaceScanError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noTemporaryLocations:
-            return "No temporary locations are available on this Mac."
+            return L("No temporary locations are available on this Mac.")
         case .noTemporaryFiles:
-            return "Temporary locations could not be analyzed."
+            return L("Temporary locations could not be analyzed.")
         }
     }
 }
@@ -231,7 +231,7 @@ final class DiskSpaceStore: ObservableObject {
                     url: volume,
                     icon: "externaldrive.fill",
                     kind: .externalVolume,
-                    subtitle: "External Volume"
+                    subtitle: L("External Volume")
                 )
             )
         }
@@ -250,11 +250,11 @@ final class DiskSpaceStore: ObservableObject {
         values.append(
             DiskSpaceLocation(
                 id: Self.temporaryFilesLocationID,
-                name: "Temporary Files",
+                name: L("Temporary Files"),
                 url: fileManager.temporaryDirectory,
                 icon: "clock.arrow.circlepath",
                 kind: .favorite,
-                subtitle: "User, shared, persistent, and sandboxed app temporary files"
+                subtitle: L("User, shared, persistent, and sandboxed app temporary files")
             )
         )
 
@@ -828,7 +828,7 @@ final class DiskSpaceStore: ObservableObject {
             } else {
                 // A successful Trash action must never launch an unexpected multi-minute scan.
                 // This is only an internal snapshot inconsistency; leave refresh under user control.
-                phase = .failed("The item was moved to Trash, but this view could not update. Choose Rescan to refresh it.")
+                phase = .failed(L("The item was moved to Trash, but this view could not update. Choose Rescan to refresh it."))
             }
         }
     }
@@ -1052,7 +1052,7 @@ final class DiskSpaceStore: ObservableObject {
             url: root,
             icon: "internaldrive.fill",
             kind: .startupDisk,
-            subtitle: "Startup Disk"
+            subtitle: L("Startup Disk")
         )
     }
 }
@@ -1073,7 +1073,7 @@ final class DiskSpaceWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "ClearDisk — Disk Space"
+        window.title = L("ClearDisk — Disk Space")
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
@@ -1382,11 +1382,11 @@ struct DiskSpaceCompactView: View {
                 .frame(width: 54, height: 54)
 
                 VStack(spacing: 4) {
-                    Text(errorMessage == nil ? store.selectedLocation.name : "Scan couldn’t finish")
+                    Text(errorMessage == nil ? store.selectedLocation.name : L("Scan couldn’t finish"))
                         .font(.system(size: 14, weight: .semibold))
                     Text(
                         errorMessage
-                            ?? "Build a visual map of this location, then open folders to see what is using the most space."
+                            ?? L("Build a visual map of this location, then open folders to see what is using the most space.")
                     )
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
@@ -1402,7 +1402,7 @@ struct DiskSpaceCompactView: View {
                     }
                 } label: {
                     Label(
-                        errorMessage == nil ? "Analyze \(store.selectedLocation.name)" : "Try Again",
+                        errorMessage == nil ? "Analyze \(store.selectedLocation.name)" : L("Try Again"),
                         systemImage: "magnifyingglass"
                     )
                     .font(.system(size: 11, weight: .semibold))
@@ -1761,9 +1761,9 @@ private struct DiskSpaceMacLocationCard: View {
 
                     Text(
                         isScanning
-                            ? "Scanning startup disk…"
+                            ? L("Scanning startup disk…")
                             : analyzedBytes.map { "\(formatBytes($0)) indexed" }
-                                ?? "Analyze the complete startup disk"
+                                ?? L("Analyze the complete startup disk")
                     )
                         .font(.system(size: 9))
                         .foregroundStyle(
@@ -1896,7 +1896,7 @@ private struct DiskSpaceCachesLocationCard: View {
 
     private var statusText: String {
         if isScanning { return "Scanning…" }
-        if !hasScanned { return "Not scanned yet" }
+        if !hasScanned { return L("Not scanned yet") }
         if totalSize == 0 { return "No caches found" }
         return formatBytes(totalSize)
     }
@@ -1943,7 +1943,7 @@ private struct DiskSpaceQuickLocationCard: View {
                     Text(
                         isScanning
                             ? "Scanning…"
-                            : analyzedBytes.map(formatBytes) ?? "Not analyzed"
+                            : analyzedBytes.map(formatBytes) ?? L("Not analyzed")
                     )
                         .font(.system(size: 9))
                         .foregroundStyle(
@@ -2082,7 +2082,7 @@ private struct DiskSpaceCompactRow: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canTrash)
-                .help(canTrash ? "Move to Trash" : "Protected location")
+                .help(canTrash ? "Move to Trash" : L("Protected location"))
             }
         }
         .padding(.horizontal, 7)
@@ -2241,7 +2241,7 @@ private struct DiskSpaceEmptyView: View {
                     }
                 } label: {
                     Label(
-                        isStartupDisk ? "Scan This Mac" : "Scan \(store.selectedLocation.name)",
+                        isStartupDisk ? L("Scan This Mac") : "Scan \(store.selectedLocation.name)",
                         systemImage: "magnifyingglass"
                     )
                     .frame(minWidth: 150)
@@ -2456,7 +2456,7 @@ private struct DiskSpaceScanningView: View {
 
             VStack(spacing: 7) {
                 HStack {
-                    Text(store.progress.map(scanStageTitle(for:)) ?? "Starting scan…")
+                    Text(store.progress.map(scanStageTitle(for:)) ?? L("Starting scan…"))
                         .font(.caption.weight(.medium))
                     Spacer()
                     Text("\(Int(min(progressValue, 0.999) * 100))%")
@@ -2822,7 +2822,7 @@ private struct DiskSpaceFileTable: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(node.isDirectory ? "Open Folder" : "Select File")
+                .help(node.isDirectory ? "Open Folder" : L("Select File"))
             }
             .width(min: 240, ideal: 360)
 
@@ -2884,7 +2884,7 @@ private struct DiskSpaceFileTable: View {
                         .help(
                             store.canMoveNodeToTrash(node.id)
                                 ? "Move to Trash"
-                                : "Protected location"
+                                : L("Protected location")
                         )
                     }
                 }
@@ -2978,14 +2978,14 @@ private func normalizedPath(_ path: String) -> String {
 
 private func scanStageTitle(for progress: DiskScanProgress) -> String {
     switch progress.currentPath {
-    case "Summarizing results…":
-        return "Summarizing files…"
-    case "Preparing visualization…":
-        return "Preparing disk map…"
-    case "Building disk map…":
-        return "Building disk map…"
+    case L("Summarizing results…"):
+        return L("Summarizing files…")
+    case L("Preparing visualization…"):
+        return L("Preparing disk map…")
+    case L("Building disk map…"):
+        return L("Building disk map…")
     default:
-        return progress.visitedItemCount == 0 ? "Starting scan…" : "Scanning files…"
+        return progress.visitedItemCount == 0 ? L("Starting scan…") : L("Scanning files…")
     }
 }
 

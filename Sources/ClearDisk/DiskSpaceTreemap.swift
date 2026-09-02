@@ -93,7 +93,7 @@ struct DiskSpaceTreemapView: View {
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Disk usage treemap")
-            .accessibilityHint("Click a folder to open it, or click a file to select it.")
+            .accessibilityHint(L("Click a folder to open it, or click a file to select it."))
         }
     }
 
@@ -391,7 +391,7 @@ private enum DiskSpaceTreemapLayout {
                 Entry(
                     id: "cleardisk-smaller-items",
                     nodeID: nil,
-                    label: "Smaller Items",
+                    label: L("Smaller Items"),
                     allocatedBytes: groupedBytes,
                     groupedItemCount: groupedCount,
                     isDirectory: false,

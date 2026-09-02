@@ -8,9 +8,9 @@ enum PrimaryMode: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .cleaner: return "Cleaner"
-        case .review: return "Review"
-        case .diskSpace: return "Disk Space"
+        case .cleaner: return L("Cleaner")
+        case .review: return L("Review")
+        case .diskSpace: return L("Disk Space")
         }
     }
 
@@ -24,9 +24,9 @@ enum PrimaryMode: String, CaseIterable {
 
     var accessibilityLabel: String {
         switch self {
-        case .cleaner: return "Cleaner"
-        case .review: return "Review suggestions"
-        case .diskSpace: return "Disk space overview"
+        case .cleaner: return L("Cleaner")
+        case .review: return L("Review suggestions")
+        case .diskSpace: return L("Disk space overview")
         }
     }
 }
