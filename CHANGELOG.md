@@ -2,6 +2,15 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [2.3.1] - 2026-09-03
+### Added
+- Turkish localization across the cleaner, disk scanner, settings, alerts, and runtime status messages.
+- A language dropdown in Settings that defaults to English and remembers the user's selection.
+
+### Fixed
+- Changing the language now updates cache names and interface text immediately without requiring a disk rescan or app restart.
+- Localized display names remain separate from internal scanner identifiers, preserving cache classification and disk-location behavior.
+
 ## [2.3.0] - 2026-09-01
 ### Changed
 - Full-volume disk scans now use a conservative background worker budget, while focused folder scans remain responsive without monopolizing the CPU.
