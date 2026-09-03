@@ -52,6 +52,7 @@ struct MainView: View {
     @State private var expandedLargeFileFolder: String? = nil
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(AppLanguage.storageKey) private var appLanguage: AppLanguage = .english
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     @AppStorage("cacheSafetyBannerDismissed") private var cacheSafetyBannerDismissed = false
     
@@ -248,7 +249,13 @@ struct MainView: View {
                  ? "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)\n\nClearDisk needs Full Disk Access to move files to the Trash. Grant it in System Settings → Privacy & Security → Full Disk Access, then quit and reopen ClearDisk."
                  : "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)")
         }
+        .environment(\.locale, appLanguage.locale)
         .preferredColorScheme(appearance.colorScheme)
+        .onChange(of: appLanguage) { _, _ in
+            diskMonitor.refreshLocalizedPresentation()
+            diskSpaceStore.reloadLocations()
+            NotificationCenter.default.post(name: .clearDiskLanguageDidChange, object: nil)
+        }
     }
     
     /// The project sheets are drawn INSIDE the popover instead of with `.sheet`.
@@ -1322,7 +1329,7 @@ struct MainView: View {
                 .foregroundColor(categoryColor(cat.name))
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(cat.name)
+                Text(L(cat.name))
                     .font(.system(size: 12))
                 
                 GeometryReader { geo in
@@ -1700,11 +1707,11 @@ struct MainView: View {
 
     private func cacheDisplayName(_ cache: DevCache) -> String {
         guard cache.section == .app else { return cache.name }
-        let lowercasedName = cache.name.lowercased()
+        let lowercasedName = cache.rawName.lowercased()
         if lowercasedName.contains("cache") || lowercasedName.contains("update") {
             return cache.name
         }
-        return "\(cache.name) Cache"
+        return String(format: L("%@ Cache"), cache.name)
     }
 
     private func strongestRiskLevel(in caches: [DevCache]) -> String {
@@ -1743,9 +1750,10 @@ struct MainView: View {
         let isGroupExpanded = expandedGroups.contains(expansionKey)
         let groupRiskLevel = strongestRiskLevel(in: caches)
         let sortedCaches = caches.sorted { $0.size > $1.size }
+        let localizedGroupName = L(groupName)
         let topNames = sortedCaches.prefix(3).map {
             cacheDisplayName($0)
-                .replacingOccurrences(of: "\(groupName) ", with: "")
+                .replacingOccurrences(of: "\(localizedGroupName) ", with: "")
                 .replacingOccurrences(of: "Xcode ", with: "")
         }
         let preview = topNames.joined(separator: ", ")
@@ -1759,7 +1767,7 @@ struct MainView: View {
                         .foregroundColor(accent)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(groupName)
+                            Text(localizedGroupName)
                                 .font(.system(size: 12, weight: .semibold))
                             Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
                                 .font(.system(size: 9, weight: .bold))
@@ -1804,7 +1812,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help(String(format: L("Clean all %@ caches"), groupName))
+                .help(String(format: L("Clean all %@ caches"), localizedGroupName))
                 
                 // Reveal first item in Finder
                 Button(action: {
@@ -2373,9 +2381,9 @@ struct MainView: View {
     
     func permissionLabel(_ state: PermissionState) -> String {
         switch state {
-        case .granted: return "Enabled"
+        case .granted: return L("Enabled")
         case .denied: return L("Not enabled yet")
-        case .unknown: return "Checking..."
+        case .unknown: return L("Checking...")
         }
     }
     
@@ -2507,6 +2515,30 @@ struct MainView: View {
                                 print("Failed to update login item: \(error)")
                             }
                         }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+
+                    // Language section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Language", systemImage: "globe")
+                            .font(.system(size: 13, weight: .semibold))
+
+                        Text("Choose the language used by ClearDisk.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Language", selection: $appLanguage) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(language.title).tag(language)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -3306,7 +3338,11 @@ struct CleanCacheConfirmSheet: View {
             
             if let artifact = artifact {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(String(format: L("Clean **%@** cache from **%@**?"), artifact.artifactName, artifact.projectName))
+                    Text(String(
+                        format: L("Clean %@ cache from %@?"),
+                        artifact.artifactName,
+                        artifact.projectName
+                    ))
                         .font(.system(size: 12))
                     
                     HStack(spacing: 6) {

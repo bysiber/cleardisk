@@ -47,6 +47,8 @@ struct CachePathDefinition {
 
     init(
         name: String,
+        rawName: String? = nil,
+        localizedName: String? = nil,
         icon: String,
         path: String,
         riskLevel: String,
@@ -55,8 +57,8 @@ struct CachePathDefinition {
         description: String,
         safetyDetails: CacheSafetyDetails? = nil
     ) {
-        self.name = L(name)
-        self.rawName = name
+        self.name = localizedName ?? L(name)
+        self.rawName = rawName ?? name
         self.icon = icon
         self.path = path
         self.riskLevel = riskLevel
@@ -178,9 +180,22 @@ enum AppCacheCatalog {
         _ group: String,
         _ description: String,
         _ safetyDetails: CacheSafetyDetails,
-        riskLevel: String = "safe"
+        riskLevel: String = "safe",
+        rawName: String? = nil,
+        localizedName: String? = nil
     ) -> CachePathDefinition {
-        CachePathDefinition(name: name, icon: icon, path: path, riskLevel: riskLevel, group: group, section: .app, description: description, safetyDetails: safetyDetails)
+        CachePathDefinition(
+            name: name,
+            rawName: rawName,
+            localizedName: localizedName,
+            icon: icon,
+            path: path,
+            riskLevel: riskLevel,
+            group: group,
+            section: .app,
+            description: description,
+            safetyDetails: safetyDetails
+        )
     }
 
     /// Sparkle can retain entire downloaded app updates. Recoverable, but potentially expensive.
@@ -192,7 +207,22 @@ enum AppCacheCatalog {
             let path = root.appendingPathComponent("org.sparkle-project.Sparkle", isDirectory: true).path
             guard fm.fileExists(atPath: path), !isCovered(path, by: excludingPaths) else { return nil }
             let appName = appNames[root.lastPathComponent] ?? readableBundleName(root.lastPathComponent)
-            return app(String(format: L("%@ Update Download"), appName), "arrow.down.app.fill", path, "App Updates", "Downloaded Sparkle update payloads and installer staging files.", CacheSafetyDetails(removes: "A downloaded or partially staged app update.", keeps: "The installed app, its settings, accounts, and documents.", note: "Review first: the app may need to download the update again."), riskLevel: "caution")
+            let rawName = "\(appName) Update Download"
+            return app(
+                rawName,
+                "arrow.down.app.fill",
+                path,
+                "App Updates",
+                "Downloaded Sparkle update payloads and installer staging files.",
+                CacheSafetyDetails(
+                    removes: "A downloaded or partially staged app update.",
+                    keeps: "The installed app, its settings, accounts, and documents.",
+                    note: "Review first: the app may need to download the update again."
+                ),
+                riskLevel: "caution",
+                rawName: rawName,
+                localizedName: String(format: L("%@ Update Download"), appName)
+            )
         }
     }
 
@@ -210,8 +240,9 @@ enum AppCacheCatalog {
 
             let bundleID = String(folderName.dropLast(".ShipIt".count))
             let appName = appNames[bundleID] ?? readableBundleName(bundleID)
+            let rawName = "\(appName) Update Staging"
             return app(
-                String(format: L("%@ Update Staging"), appName),
+                rawName,
                 "arrow.down.app.fill",
                 root.path,
                 "App Updates",
@@ -221,7 +252,9 @@ enum AppCacheCatalog {
                     keeps: "The currently installed app, its settings, accounts, and documents.",
                     note: "Quit the app first. Do not clean while an update is installing; the update may need to download again."
                 ),
-                riskLevel: "caution"
+                riskLevel: "caution",
+                rawName: rawName,
+                localizedName: String(format: L("%@ Update Staging"), appName)
             )
         }
     }

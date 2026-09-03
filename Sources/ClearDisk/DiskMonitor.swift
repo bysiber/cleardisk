@@ -876,6 +876,47 @@ class DiskMonitor: ObservableObject {
             self?.devCaches = caches
         }
     }
+
+    /// Refresh strings that were materialized during the last scan without touching the disk
+    /// again. Language changes should be instant and must not trigger another expensive scan.
+    @MainActor
+    func refreshLocalizedPresentation() {
+        let definitionsByPath = Dictionary(
+            allKnownCacheDefinitions().map { ($0.path, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        devCaches = devCaches.map { cache in
+            guard let definition = definitionsByPath[cache.path] else { return cache }
+            return DevCache(
+                id: cache.id,
+                name: definition.name,
+                rawName: definition.rawName,
+                icon: cache.icon,
+                path: cache.path,
+                size: cache.size,
+                lastAccessed: cache.lastAccessed,
+                daysSinceAccess: cache.daysSinceAccess,
+                suggestion: generateSuggestion(
+                    name: definition.name,
+                    size: cache.size,
+                    daysSinceAccess: cache.daysSinceAccess
+                ),
+                riskLevel: cache.riskLevel,
+                cacheDescription: definition.description,
+                group: definition.group,
+                section: definition.section,
+                safetyDetails: definition.safetyDetails,
+                detail: cache.detail
+            )
+        }
+
+        if !isScanning {
+            scanStatusText = hasCompletedFirstScan
+                ? L("Analysis complete")
+                : L("Preparing analysis...")
+        }
+    }
     
     private func lastModifiedDate(path: String) -> Date? {
         let fm = FileManager.default
@@ -1469,7 +1510,7 @@ struct DiskCategory: Identifiable {
 }
 
 struct DevCache: Identifiable {
-    let id = UUID()
+    let id: UUID
     /// Display name, localized for the user's language.
     let name: String
     /// The English name exactly as declared. Logic that recognizes a specific cache must
@@ -1489,6 +1530,7 @@ struct DevCache: Identifiable {
     var detail: String? // optional extra detail (e.g. DerivedData project list)
 
     init(
+        id: UUID = UUID(),
         name: String,
         rawName: String? = nil,
         icon: String,
@@ -1504,6 +1546,7 @@ struct DevCache: Identifiable {
         safetyDetails: CacheSafetyDetails? = nil,
         detail: String? = nil
     ) {
+        self.id = id
         self.name = name
         self.rawName = rawName ?? name
         self.icon = icon

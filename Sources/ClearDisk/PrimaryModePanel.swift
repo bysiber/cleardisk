@@ -44,6 +44,7 @@ private struct PrimaryModePanelView: View {
     @ObservedObject var panelState: PrimaryModePanelState
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(AppLanguage.storageKey) private var appLanguage: AppLanguage = .english
     @State private var hoveredMode: PrimaryMode?
 
     let onHoverChanged: (Bool) -> Void
@@ -184,6 +185,7 @@ private struct PrimaryModePanelView: View {
             height: PrimaryModePanelController.panelHeight,
             alignment: .trailing
         )
+        .environment(\.locale, appLanguage.locale)
         .preferredColorScheme(appearance.colorScheme)
     }
 }

@@ -15,6 +15,11 @@ struct DiskSpaceLocation: Identifiable, Hashable {
     let icon: String
     let kind: Kind
     let subtitle: String
+
+    /// Built-in favorites are product labels; disk and volume names are user/system data.
+    var displayName: String {
+        kind == .favorite ? L(name) : name
+    }
 }
 
 private enum DiskSpaceScanError: LocalizedError {
@@ -201,7 +206,7 @@ final class DiskSpaceStore: ObservableObject {
 
     var navigationLoadingTitle: String {
         let name = activeScanRootURL?.lastPathComponent ?? ""
-        return name.isEmpty ? selectedLocation.name : name
+        return name.isEmpty ? selectedLocation.displayName : name
     }
 
     var navigationLoadingPath: String? {
@@ -250,7 +255,7 @@ final class DiskSpaceStore: ObservableObject {
         values.append(
             DiskSpaceLocation(
                 id: Self.temporaryFilesLocationID,
-                name: L("Temporary Files"),
+                name: "Temporary Files",
                 url: fileManager.temporaryDirectory,
                 icon: "clock.arrow.circlepath",
                 kind: .favorite,
@@ -477,7 +482,7 @@ final class DiskSpaceStore: ObservableObject {
         try ensureScanIsActive(scanID)
         guard let completedSnapshot = DiskScanSnapshot.composite(
             id: Self.temporaryFilesLocationID,
-            name: location.name,
+            name: location.displayName,
             url: location.url,
             groups: completedGroups
         ) else {
@@ -794,7 +799,10 @@ final class DiskSpaceStore: ObservableObject {
                 do {
                     try FileManager.default.trashItem(at: itemURL, resultingItemURL: nil)
                     guard !FileManager.default.fileExists(atPath: itemURL.path) else {
-                        return "\(itemName) could not be verified in Trash."
+                        return String(
+                            format: L("%@ could not be verified in Trash."),
+                            itemName
+                        )
                     }
                     return nil
                 } catch {
@@ -1061,6 +1069,7 @@ final class DiskSpaceStore: ObservableObject {
 final class DiskSpaceWindowController: NSObject, NSWindowDelegate {
     private let store: DiskSpaceStore
     private let window: NSWindow
+    private var languageObserver: NSObjectProtocol?
 
     init(diskMonitor: DiskMonitor, store: DiskSpaceStore) {
         self.store = store
@@ -1084,6 +1093,19 @@ final class DiskSpaceWindowController: NSObject, NSWindowDelegate {
 
         super.init()
         window.delegate = self
+        languageObserver = NotificationCenter.default.addObserver(
+            forName: .clearDiskLanguageDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.window.title = L("ClearDisk — Disk Space")
+        }
+    }
+
+    deinit {
+        if let languageObserver {
+            NotificationCenter.default.removeObserver(languageObserver)
+        }
     }
 
     func show() {
@@ -1097,6 +1119,7 @@ private struct DiskSpaceRootView: View {
     @ObservedObject var store: DiskSpaceStore
     @ObservedObject var diskMonitor: DiskMonitor
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(AppLanguage.storageKey) private var appLanguage: AppLanguage = .english
 
     private var selection: Binding<String?> {
         Binding(
@@ -1130,7 +1153,11 @@ private struct DiskSpaceRootView: View {
                 .navigationTitle("Disk Space")
         }
         .frame(minWidth: 820, minHeight: 560)
+        .environment(\.locale, appLanguage.locale)
         .preferredColorScheme(appearance.colorScheme)
+        .onChange(of: appLanguage) { _, _ in
+            store.reloadLocations()
+        }
     }
 }
 
@@ -1382,7 +1409,7 @@ struct DiskSpaceCompactView: View {
                 .frame(width: 54, height: 54)
 
                 VStack(spacing: 4) {
-                    Text(errorMessage == nil ? store.selectedLocation.name : L("Scan couldn’t finish"))
+                    Text(errorMessage == nil ? store.selectedLocation.displayName : L("Scan couldn’t finish"))
                         .font(.system(size: 14, weight: .semibold))
                     Text(
                         errorMessage
@@ -1402,7 +1429,9 @@ struct DiskSpaceCompactView: View {
                     }
                 } label: {
                     Label(
-                        errorMessage == nil ? "Analyze \(store.selectedLocation.name)" : L("Try Again"),
+                        errorMessage == nil
+                            ? String(format: L("Analyze %@"), store.selectedLocation.displayName)
+                            : L("Try Again"),
                         systemImage: "magnifyingglass"
                     )
                     .font(.system(size: 11, weight: .semibold))
@@ -1496,7 +1525,10 @@ struct DiskSpaceCompactView: View {
             compactWorkspaceNavigation
 
             HStack {
-                Label("Scanning \(store.selectedLocation.name)", systemImage: "internaldrive.fill.badge.magnifyingglass")
+                Label(
+                    String(format: L("Scanning %@"), store.selectedLocation.displayName),
+                    systemImage: "internaldrive.fill.badge.magnifyingglass"
+                )
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button("Stop", role: .cancel) { store.stopScan() }
@@ -1750,7 +1782,7 @@ private struct DiskSpaceMacLocationCard: View {
                     HStack(spacing: 6) {
                         Image(systemName: location.icon)
                             .foregroundStyle(Color.accentColor)
-                        Text(location.name)
+                        Text(location.displayName)
                             .font(.system(size: 13, weight: .semibold))
                             .lineLimit(1)
                     }
@@ -1895,9 +1927,9 @@ private struct DiskSpaceCachesLocationCard: View {
     }
 
     private var statusText: String {
-        if isScanning { return "Scanning…" }
+        if isScanning { return L("Scanning…") }
         if !hasScanned { return L("Not scanned yet") }
-        if totalSize == 0 { return "No caches found" }
+        if totalSize == 0 { return L("No caches found") }
         return formatBytes(totalSize)
     }
 }
@@ -1937,7 +1969,7 @@ private struct DiskSpaceQuickLocationCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(location.name)
+                    Text(location.displayName)
                         .font(.system(size: 11, weight: .semibold))
                         .lineLimit(1)
                     Text(
@@ -1992,7 +2024,7 @@ private struct DiskSpaceExternalLocationRow: View {
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(location.name)
+                    Text(location.displayName)
                         .font(.system(size: 10, weight: .medium))
                     Text(analyzedBytes.map(formatBytes) ?? location.subtitle)
                         .font(.system(size: 8))
@@ -2082,7 +2114,7 @@ private struct DiskSpaceCompactRow: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canTrash)
-                .help(canTrash ? "Move to Trash" : L("Protected location"))
+                .help(canTrash ? L("Move to Trash") : L("Protected location"))
             }
         }
         .padding(.horizontal, 7)
@@ -2114,7 +2146,7 @@ private struct DiskSpaceSidebarRow: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(location.name)
+                Text(location.displayName)
                     .lineLimit(1)
                 Text(location.subtitle)
                     .font(.caption2)
@@ -2167,7 +2199,7 @@ private struct DiskSpaceToolbar: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(store.selectedLocation.name)
+                Text(store.selectedLocation.displayName)
                     .font(.headline)
                 Text(store.selectedLocationDetail)
                     .font(.caption)
@@ -2227,7 +2259,7 @@ private struct DiskSpaceEmptyView: View {
                 VStack(spacing: 7) {
                     Text("See what’s using your storage")
                         .font(.title2.weight(.semibold))
-                    Text(String(format: L("Scan %@ to find the folders and files taking the most space."), store.selectedLocation.name))
+                    Text(String(format: L("Scan %@ to find the folders and files taking the most space."), store.selectedLocation.displayName))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 470)
@@ -2241,7 +2273,9 @@ private struct DiskSpaceEmptyView: View {
                     }
                 } label: {
                     Label(
-                        isStartupDisk ? L("Scan This Mac") : "Scan \(store.selectedLocation.name)",
+                        isStartupDisk
+                            ? L("Scan This Mac")
+                            : String(format: L("Scan %@"), store.selectedLocation.displayName),
                         systemImage: "magnifyingglass"
                     )
                     .frame(minWidth: 150)
@@ -2448,7 +2482,7 @@ private struct DiskSpaceScanningView: View {
                 .frame(maxWidth: 430)
 
             VStack(spacing: 6) {
-                Text(String(format: L("Scanning %@"), store.selectedLocation.name))
+                Text(String(format: L("Scanning %@"), store.selectedLocation.displayName))
                     .font(.title2.weight(.semibold))
                 Text("Larger disks can take a while. You can keep using your Mac.")
                     .foregroundStyle(.secondary)
@@ -2822,7 +2856,7 @@ private struct DiskSpaceFileTable: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(node.isDirectory ? "Open Folder" : L("Select File"))
+                .help(node.isDirectory ? L("Open Folder") : L("Select File"))
             }
             .width(min: 240, ideal: 360)
 
@@ -2955,9 +2989,11 @@ private func diskSpaceTrashAlert(
     case .confirmation(let nodeID, let name, let size, let path):
         return Alert(
             title: Text(String(format: L("Move “%@” to Trash?"), name)),
-            message: Text(
-                "This item will be moved to the macOS Trash.\n\nSize: \(formatBytes(size))\nLocation: \(path)\n\nYou can recover it until Trash is emptied."
-            ),
+            message: Text(String(
+                format: L("This item will be moved to the macOS Trash.\n\nSize: %@\nLocation: %@\n\nYou can recover it until Trash is emptied."),
+                formatBytes(size),
+                path
+            )),
             primaryButton: .cancel(Text("Cancel")),
             secondaryButton: .destructive(Text("Move to Trash")) {
                 store.moveNodeToTrash(nodeID, from: surface)
@@ -2978,11 +3014,13 @@ private func normalizedPath(_ path: String) -> String {
 
 private func scanStageTitle(for progress: DiskScanProgress) -> String {
     switch progress.currentPath {
-    case L("Summarizing results…"):
+    // Scanner events are protocol values emitted in English. Keep matching language-independent
+    // and localize only the text presented to the user.
+    case "Summarizing results…":
         return L("Summarizing files…")
-    case L("Preparing visualization…"):
+    case "Preparing visualization…":
         return L("Preparing disk map…")
-    case L("Building disk map…"):
+    case "Building disk map…":
         return L("Building disk map…")
     default:
         return progress.visitedItemCount == 0 ? L("Starting scan…") : L("Scanning files…")

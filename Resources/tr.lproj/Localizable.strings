@@ -48,7 +48,7 @@
 "Clean %@ cache only — your source code is kept" = "Yalnızca %@ önbelleğini temizle — kaynak kodunuz korunur";
 "Clean %d selected cache(s)?\nThis will move %@ to Trash. Disk space is reclaimed only after Trash is emptied.%@" = "Seçili %d önbellek temizlensin mi?\n%@ Çöp Kutusu'na taşınacak. Disk alanı ancak Çöp Kutusu boşaltıldıktan sonra geri kazanılır.%@";
 "Clean %d verified cache locations?\nThis will move %@ to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.%@" = "%d doğrulanmış önbellek konumu temizlensin mi?\n%@ Çöp Kutusu'na taşınacak.\n\nÖnce ilgili uygulamalardan çıkın. Uygulama profilleri, oturumlar, belgeler ve tüm İncele/Riskli öğeler hariç tutulur.\nDosyalar Çöp Kutusu'na gider — geri alabilirsiniz.%@";
-"Clean **%@** cache from **%@**?" = "**%2$@** projesindeki **%1$@** önbelleği temizlensin mi?";
+"Clean %@ cache from %@?" = "%2$@ projesindeki %1$@ önbelleği temizlensin mi?";
 "Clean Cache" = "Önbelleği Temizle";
 "Clean Cache Only" = "Yalnızca Önbelleği Temizle";
 "Clean Safe Caches" = "Güvenli Önbellekleri Temizle";
@@ -210,6 +210,7 @@
 "Scan this Mac, quick locations, and caches" = "Bu Mac'i, hızlı konumları ve önbellekleri tara";
 "Scanned: Downloads, Documents, Desktop, Movies, Music, Pictures" = "Taranan: İndirilenler, Belgeler, Masaüstü, Filmler, Müzik, Resimler";
 "Scanning" = "Taranıyor";
+"Scanning…" = "Taranıyor…";
 "Scanning %@" = "%@ taranıyor";
 "Scanning All…" = "Tümü Taranıyor…";
 "Scanning all storage locations" = "Tüm depolama konumları taranıyor";
@@ -275,7 +276,40 @@
 "💡 %d days old, large at %@" = "💡 %d günlük, %@ ile büyük";
 "💡 Unused for %d days — consider cleaning" = "💡 %d gündür kullanılmıyor — temizlemeyi düşünün";
 
+/* MARK: Language selection and dynamic interface values */
+"%@ Cache" = "%@ Önbelleği";
+"%@ could not be verified in Trash." = "%@ öğesi Çöp Kutusu'nda doğrulanamadı.";
+"Analyze %@" = "%@ konumunu analiz et";
+"Applications" = "Uygulamalar";
+"Choose the language used by ClearDisk." = "ClearDisk'in kullanacağı dili seçin.";
+"Checking..." = "Denetleniyor...";
+"Dark" = "Koyu";
+"Developer" = "Geliştirici";
+"Desktop" = "Masaüstü";
+"Documents" = "Belgeler";
+"Downloads" = "İndirilenler";
+"Enabled" = "Açık";
+"Home" = "Ana Klasör";
+"Language" = "Dil";
+"Library" = "Kitaplık";
+"Light" = "Açık";
+"Mail" = "Posta";
+"Movies" = "Filmler";
+"Music" = "Müzik";
+"Photos" = "Fotoğraflar";
+"Scan %@" = "%@ konumunu tara";
+"System" = "Sistem";
+"This item will be moved to the macOS Trash.\n\nSize: %@\nLocation: %@\n\nYou can recover it until Trash is emptied." = "Bu öğe macOS Çöp Kutusu'na taşınacak.\n\nBoyut: %@\nKonum: %@\n\nÇöp Kutusu boşaltılana kadar geri alabilirsiniz.";
+
 /* MARK: Cache and group names */
+"AI Tools" = "Yapay Zekâ Araçları";
+"Android" = "Android";
+"Developer Tools" = "Geliştirici Araçları";
+"Game Engines" = "Oyun Motorları";
+"Other Installed Apps" = "Diğer Kurulu Uygulamalar";
+"Version Managers" = "Sürüm Yöneticileri";
+"VS Code" = "VS Code";
+"Xcode" = "Xcode";
 "%@ Update Download" = "%@ Güncelleme İndirmesi";
 "%@ Update Staging" = "%@ Güncelleme Hazırlığı";
 "AWS CLI Cache" = "AWS CLI Önbelleği";
