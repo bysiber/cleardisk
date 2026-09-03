@@ -95,6 +95,20 @@ if [ -f "Resources/AppIcon.icns" ]; then
     echo "App icon copied."
 fi
 
+# Copy localizations. Each Resources/<lang>.lproj/Localizable.strings becomes a language the
+# bundle advertises, so macOS picks the user's preferred one automatically.
+LOCALIZATIONS=()
+for lproj in "$ROOT_DIR"/Resources/*.lproj; do
+    [ -d "$lproj" ] || continue
+    ditto "$lproj" "$APP_BUNDLE/Contents/Resources/$(basename "$lproj")"
+    LOCALIZATIONS+=("$(basename "$lproj" .lproj)")
+done
+if [ "${#LOCALIZATIONS[@]}" -gt 0 ]; then
+    echo "Localizations copied: ${LOCALIZATIONS[*]}"
+else
+    echo "warning: no Resources/*.lproj found; the app ships English only" >&2
+fi
+
 # Keep third-party notices inside the app bundle; no user-facing attribution is required.
 THIRD_PARTY_DIR="$APP_BUNDLE/Contents/Resources/ThirdPartyLicenses"
 mkdir -p "$THIRD_PARTY_DIR"

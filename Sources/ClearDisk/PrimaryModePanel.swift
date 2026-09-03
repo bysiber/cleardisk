@@ -8,9 +8,9 @@ enum PrimaryMode: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .cleaner: return "Cleaner"
-        case .review: return "Review"
-        case .diskSpace: return "Disk Space"
+        case .cleaner: return L("Cleaner")
+        case .review: return L("Review")
+        case .diskSpace: return L("Disk Space")
         }
     }
 
@@ -24,9 +24,9 @@ enum PrimaryMode: String, CaseIterable {
 
     var accessibilityLabel: String {
         switch self {
-        case .cleaner: return "Cleaner"
-        case .review: return "Review suggestions"
-        case .diskSpace: return "Disk space overview"
+        case .cleaner: return L("Cleaner")
+        case .review: return L("Review suggestions")
+        case .diskSpace: return L("Disk space overview")
         }
     }
 }
@@ -44,6 +44,7 @@ private struct PrimaryModePanelView: View {
     @ObservedObject var panelState: PrimaryModePanelState
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(AppLanguage.storageKey) private var appLanguage: AppLanguage = .english
     @State private var hoveredMode: PrimaryMode?
 
     let onHoverChanged: (Bool) -> Void
@@ -184,6 +185,7 @@ private struct PrimaryModePanelView: View {
             height: PrimaryModePanelController.panelHeight,
             alignment: .trailing
         )
+        .environment(\.locale, appLanguage.locale)
         .preferredColorScheme(appearance.colorScheme)
     }
 }

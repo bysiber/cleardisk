@@ -17,7 +17,7 @@ class DiskMonitor: ObservableObject {
     @Published var trashSizeBytes: Int64 = 0
     @Published var isScanning: Bool = false
     @Published var scanProgress: Double = 0
-    @Published var scanStatusText: String = "Preparing analysis..."
+    @Published var scanStatusText: String = L("Preparing analysis...")
     @Published var totalCleanable: Int64 = 0
     @Published var safeCleanable: Int64 = 0 // only explicitly safe caches + trash
     @Published var riskyCleanable: Int64 = 0 // risky caches (e.g. Docker data)
@@ -212,22 +212,22 @@ class DiskMonitor: ObservableObject {
         isScanInProgress = true
         isScanning = true
         scanProgress = 0.03
-        scanStatusText = "Preparing storage analysis..."
+        scanStatusText = L("Preparing storage analysis...")
         DispatchQueue.global(qos: .utility).async { [weak self] in
             // Reset scan status
             var inaccessible: [String] = []
             
-            self?.publishScanProgress(0.08, "Reading disk capacity...")
+            self?.publishScanProgress(0.08, L("Reading disk capacity..."))
             self?.scanDiskCapacity()
-            self?.publishScanProgress(0.18, "Analyzing storage categories...")
+            self?.publishScanProgress(0.18, L("Analyzing storage categories..."))
             self?.scanDiskCategories()
-            self?.publishScanProgress(0.38, "Inspecting app and developer caches...")
+            self?.publishScanProgress(0.38, L("Inspecting app and developer caches..."))
             self?.scanKnownCaches()
-            self?.publishScanProgress(0.60, "Finding large files...")
+            self?.publishScanProgress(0.60, L("Finding large files..."))
             self?.scanLargeFiles()
-            self?.publishScanProgress(0.78, "Reviewing project build caches...")
+            self?.publishScanProgress(0.78, L("Reviewing project build caches..."))
             self?.scanProjectArtifacts()
-            self?.publishScanProgress(0.92, "Measuring Trash and finalizing results...")
+            self?.publishScanProgress(0.92, L("Measuring Trash and finalizing results..."))
             let trashBytes = self?.trashSize() ?? 0
             
             // Check which known cache paths are inaccessible.
@@ -244,7 +244,7 @@ class DiskMonitor: ObservableObject {
                 self?.isScanning = false
                 self?.isScanInProgress = false
                 self?.scanProgress = 1
-                self?.scanStatusText = "Analysis complete"
+                self?.scanStatusText = L("Analysis complete")
                 self?.inaccessiblePaths = inaccessible
                 self?.hasCompletedFirstScan = true
                 self?.hasCompletedCacheScan = true
@@ -423,14 +423,14 @@ class DiskMonitor: ObservableObject {
         let pct = usedPercentage
         if pct >= 90 && lastNotifiedThreshold < 90 {
             sendNotification(
-                title: "⚠️ Disk Almost Full!",
-                body: "Disk \(pct)% full. \(formatBytes(safeCleanable)) can be safely cleaned with ClearDisk."
+                title: L("⚠️ Disk Almost Full!"),
+                body: String(format: L("Disk %d%% full. %@ can be safely cleaned with ClearDisk."), pct, formatBytes(safeCleanable))
             )
             lastNotifiedThreshold = 90
         } else if pct >= 80 && lastNotifiedThreshold < 80 {
             sendNotification(
-                title: "Disk Space Low",
-                body: "Disk \(pct)% full. \(formatBytes(safeCleanable)) of developer caches can be safely cleaned."
+                title: L("Disk Space Low"),
+                body: String(format: L("Disk %d%% full. %@ of developer caches can be safely cleaned."), pct, formatBytes(safeCleanable))
             )
             lastNotifiedThreshold = 80
         }
@@ -847,12 +847,13 @@ class DiskMonitor: ObservableObject {
                 let suggestion = generateSuggestion(name: entry.name, size: size, daysSinceAccess: daysSinceAccess)
                 // Resolve DerivedData subfolders to project names
                 var detail: String? = nil
-                if entry.name == "Xcode DerivedData" {
+                if entry.rawName == "Xcode DerivedData" {
                     detail = derivedDataProjectSummary()
                 }
                 
                 caches.append(DevCache(
                     name: entry.name,
+                    rawName: entry.rawName,
                     icon: entry.icon,
                     path: entry.path,
                     size: size,
@@ -873,6 +874,47 @@ class DiskMonitor: ObservableObject {
         
         DispatchQueue.main.async { [weak self] in
             self?.devCaches = caches
+        }
+    }
+
+    /// Refresh strings that were materialized during the last scan without touching the disk
+    /// again. Language changes should be instant and must not trigger another expensive scan.
+    @MainActor
+    func refreshLocalizedPresentation() {
+        let definitionsByPath = Dictionary(
+            allKnownCacheDefinitions().map { ($0.path, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        devCaches = devCaches.map { cache in
+            guard let definition = definitionsByPath[cache.path] else { return cache }
+            return DevCache(
+                id: cache.id,
+                name: definition.name,
+                rawName: definition.rawName,
+                icon: cache.icon,
+                path: cache.path,
+                size: cache.size,
+                lastAccessed: cache.lastAccessed,
+                daysSinceAccess: cache.daysSinceAccess,
+                suggestion: generateSuggestion(
+                    name: definition.name,
+                    size: cache.size,
+                    daysSinceAccess: cache.daysSinceAccess
+                ),
+                riskLevel: cache.riskLevel,
+                cacheDescription: definition.description,
+                group: definition.group,
+                section: definition.section,
+                safetyDetails: definition.safetyDetails,
+                detail: cache.detail
+            )
+        }
+
+        if !isScanning {
+            scanStatusText = hasCompletedFirstScan
+                ? L("Analysis complete")
+                : L("Preparing analysis...")
         }
     }
     
@@ -896,11 +938,11 @@ class DiskMonitor: ObservableObject {
         let sizeGB = Double(size) / 1_073_741_824
         
         if days > 90 && sizeGB >= 1.0 {
-            return "⚠️ Not used for \(days) days, \(formatBytes(size)) — safe to clean"
+            return String(format: L("⚠️ Not used for %d days, %@ — safe to clean"), days, formatBytes(size))
         } else if days > 60 {
-            return "💡 Unused for \(days) days — consider cleaning"
+            return String(format: L("💡 Unused for %d days — consider cleaning"), days)
         } else if days > 30 && sizeGB >= 5.0 {
-            return "💡 \(days) days old, large at \(formatBytes(size))"
+            return String(format: L("💡 %d days old, large at %@"), days, formatBytes(size))
         }
         return nil
     }
@@ -1053,7 +1095,7 @@ class DiskMonitor: ObservableObject {
     /// Clean a caller-selected snapshot as one operation and perform one rescan when it finishes.
     func cleanSelectedCaches(_ caches: [DevCache]) {
         guard let first = caches.first else { return }
-        cleanCaches(caches, title: caches.count == 1 ? first.name : "Selected caches")
+        cleanCaches(caches, title: caches.count == 1 ? first.name : L("Selected caches"))
     }
 
     /// `caches` is snapshotted by the caller on the main thread — never read the @Published
@@ -1092,7 +1134,7 @@ class DiskMonitor: ObservableObject {
                 self.finishClean(
                     title: "Trash",
                     freed: max(0, sizeBefore - remaining),
-                    failure: remaining > 0 ? "Some items in the Trash could not be removed." : nil,
+                    failure: remaining > 0 ? L("Some items in the Trash could not be removed.") : nil,
                     outcome: .reclaimedSpace
                 )
             }
@@ -1468,8 +1510,12 @@ struct DiskCategory: Identifiable {
 }
 
 struct DevCache: Identifiable {
-    let id = UUID()
+    let id: UUID
+    /// Display name, localized for the user's language.
     let name: String
+    /// The English name exactly as declared. Logic that recognizes a specific cache must
+    /// compare against this, never against `name`, which changes with the language.
+    let rawName: String
     let icon: String
     let path: String
     let size: Int64
@@ -1484,7 +1530,9 @@ struct DevCache: Identifiable {
     var detail: String? // optional extra detail (e.g. DerivedData project list)
 
     init(
+        id: UUID = UUID(),
         name: String,
+        rawName: String? = nil,
         icon: String,
         path: String,
         size: Int64,
@@ -1498,7 +1546,9 @@ struct DevCache: Identifiable {
         safetyDetails: CacheSafetyDetails? = nil,
         detail: String? = nil
     ) {
+        self.id = id
         self.name = name
+        self.rawName = rawName ?? name
         self.icon = icon
         self.path = path
         self.size = size
@@ -1524,11 +1574,11 @@ struct DevCache: Identifiable {
     
     var riskDescription: String {
         switch riskLevel {
-        case "safe" where section == .app: return "Verified cache-only path — profile and user data stay untouched"
-        case "caution" where section == .app: return "Review — may contain app-specific state or require a large re-download"
-        case "safe": return "Safe — can be rebuilt with a command"
-        case "caution": return "Caution — may need large re-download"
-        case "risky": return "Risky — may contain irreplaceable data"
+        case "safe" where section == .app: return L("Verified cache-only path — profile and user data stay untouched")
+        case "caution" where section == .app: return L("Review — may contain app-specific state or require a large re-download")
+        case "safe": return L("Safe — can be rebuilt with a command")
+        case "caution": return L("Caution — may need large re-download")
+        case "risky": return L("Risky — may contain irreplaceable data")
         default: return ""
         }
     }

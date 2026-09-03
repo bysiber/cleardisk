@@ -52,6 +52,7 @@ struct MainView: View {
     @State private var expandedLargeFileFolder: String? = nil
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
+    @AppStorage(AppLanguage.storageKey) private var appLanguage: AppLanguage = .english
     @AppStorage("primaryMode") private var primaryMode: PrimaryMode = .cleaner
     @AppStorage("cacheSafetyBannerDismissed") private var cacheSafetyBannerDismissed = false
     
@@ -165,13 +166,13 @@ struct MainView: View {
             }
         } message: {
             if let cache = cacheToClean {
-                let xcodeWarning = (cache.name.hasPrefix("Xcode") || cache.name == "Swift PM Cache") && diskMonitor.isXcodeRunning()
-                    ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                let xcodeWarning = (cache.rawName.hasPrefix("Xcode") || cache.rawName == "Swift PM Cache") && diskMonitor.isXcodeRunning()
+                    ? L("\n\n⚠️ Xcode is currently running! Close Xcode first for best results.")
                     : ""
                 let impact = cache.safetyDetails.map {
-                    "\n\nRemoves: \($0.removes)\nKeeps: \($0.keeps)\n\($0.note)"
+                    String(format: L("\n\nRemoves: %@\nKeeps: %@\n%@"), $0.removes, $0.keeps, $0.note)
                 } ?? ""
-                Text("Delete all contents of \(cacheDisplayName(cache))?\nThis will move \(formatBytes(cache.size)) to Trash.\n\n\(cache.riskEmoji) \(cache.riskDescription)\(impact)\(xcodeWarning)")
+                Text(String(format: L("Delete all contents of %@?\nThis will move %@ to Trash.\n\n%@ %@%@%@"), cacheDisplayName(cache), formatBytes(cache.size), cache.riskEmoji, cache.riskDescription, impact, xcodeWarning))
             }
         }
         .alert("Clean Safe Caches", isPresented: $showCleanSafeConfirm) {
@@ -188,9 +189,9 @@ struct MainView: View {
             let safeCaches = diskMonitor.devCaches.filter { $0.riskLevel == "safe" }
             let safeTotal = safeCaches.reduce(Int64(0)) { $0 + $1.size }
             let xcodeWarning = diskMonitor.isXcodeRunning()
-                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                ? L("\n\n⚠️ Xcode is currently running! Close Xcode first for best results.")
                 : ""
-            Text("Clean \(safeCaches.count) verified cache locations?\nThis will move \(formatBytes(safeTotal)) to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.\(xcodeWarning)")
+            Text(String(format: L("Clean %d verified cache locations?\nThis will move %@ to Trash.\n\nQuit affected apps first. App profiles, logins, documents, and all Review/Risky items are excluded.\nFiles go to Trash — you can recover them.%@"), safeCaches.count, formatBytes(safeTotal), xcodeWarning))
         }
 
         let cleanupAlerts = cacheAlerts
@@ -202,9 +203,9 @@ struct MainView: View {
         } message: {
             let totalSize = pendingBulkCaches.reduce(Int64(0)) { $0 + $1.size }
             let xcodeWarning = diskMonitor.isXcodeRunning()
-                ? "\n\n⚠️ Xcode is currently running! Close Xcode first for best results."
+                ? L("\n\n⚠️ Xcode is currently running! Close Xcode first for best results.")
                 : ""
-            Text("Clean \(pendingBulkCaches.count) selected cache(s)?\nThis will move \(formatBytes(totalSize)) to Trash. Disk space is reclaimed only after Trash is emptied.\(xcodeWarning)")
+            Text(String(format: L("Clean %d selected cache(s)?\nThis will move %@ to Trash. Disk space is reclaimed only after Trash is emptied.%@"), pendingBulkCaches.count, formatBytes(totalSize), xcodeWarning))
         }
         .alert("Permanently Empty Trash?", isPresented: $showEmptyTrashConfirm) {
             Button("Cancel", role: .cancel) { }
@@ -212,7 +213,7 @@ struct MainView: View {
                 diskMonitor.emptyTrash()
             }
         } message: {
-            Text("This permanently deletes all \(formatBytes(diskMonitor.trashSizeBytes)) in your Mac's Trash — including items not moved there by ClearDisk. This cannot be undone.")
+            Text(String(format: L("This permanently deletes all %@ in your Mac's Trash — including items not moved there by ClearDisk. This cannot be undone."), formatBytes(diskMonitor.trashSizeBytes)))
         }
 
         return cleanupAlerts
@@ -226,7 +227,7 @@ struct MainView: View {
             }
         } message: {
             if let file = fileToDelete {
-                Text("Move \"\(file.name)\" to Trash?\n\nSize: \(formatBytes(file.size))\nPath: \(file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))\n\nYou can recover it from Trash.")
+                Text(String(format: L("Move \"%@\" to Trash?\n\nSize: %@\nPath: %@\n\nYou can recover it from Trash."), file.name, formatBytes(file.size), file.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")))
             }
         }
         // A clean that frees nothing must say so. Previously the failure was only printed to
@@ -248,7 +249,13 @@ struct MainView: View {
                  ? "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)\n\nClearDisk needs Full Disk Access to move files to the Trash. Grant it in System Settings → Privacy & Security → Full Disk Access, then quit and reopen ClearDisk."
                  : "\(failure.title) is still on disk — nothing was deleted.\n\n\(failure.reason)")
         }
+        .environment(\.locale, appLanguage.locale)
         .preferredColorScheme(appearance.colorScheme)
+        .onChange(of: appLanguage) { _, _ in
+            diskMonitor.refreshLocalizedPresentation()
+            diskSpaceStore.reloadLocations()
+            NotificationCenter.default.post(name: .clearDiskLanguageDidChange, object: nil)
+        }
     }
     
     /// The project sheets are drawn INSIDE the popover instead of with `.sheet`.
@@ -344,7 +351,7 @@ struct MainView: View {
                 }
                 .toggleStyle(.checkbox)
 
-                Text("\(pendingBulkCaches.count) items · \(formatBytes(totalSize)) will be moved to Trash. Space is not reclaimed until Trash is emptied.")
+                Text(String(format: L("%d items · %@ will be moved to Trash. Space is not reclaimed until Trash is emptied."), pendingBulkCaches.count, formatBytes(totalSize)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
 
@@ -479,7 +486,7 @@ struct MainView: View {
 
             modeTitleBar(
                 title: "Review",
-                subtitle: "Safe cleanup and items that need your decision."
+                subtitle: L("Safe cleanup and items that need your decision.")
             )
 
             Divider()
@@ -489,19 +496,19 @@ struct MainView: View {
                     if !hasReviewItems {
                         emptyModeState(
                             icon: "checkmark.shield.fill",
-                            title: "Nothing needs attention",
-                            message: "ClearDisk will place new findings here after the next scan."
+                            title: L("Nothing needs attention"),
+                            message: L("ClearDisk will place new findings here after the next scan.")
                         )
                     } else {
                         if safeTotal > 0 || artifactTotal > 0 || diskMonitor.trashSizeBytes > 0 {
-                            reviewSectionHeader(title: "Safe cleanup", detail: "Rebuildable or already in Trash")
+                            reviewSectionHeader(title: L("Safe cleanup"), detail: L("Rebuildable or already in Trash"))
 
                             VStack(spacing: 0) {
                                 if safeTotal > 0 {
                                     reviewNavigationRow(
                                         icon: "checkmark.shield.fill",
                                         color: .green,
-                                        title: "Rebuildable caches",
+                                        title: L("Rebuildable caches"),
                                         subtitle: "\(safeCaches.count) known cache locations",
                                         size: safeTotal,
                                         actionTitle: "Review"
@@ -512,8 +519,8 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "shippingbox.fill",
                                         color: .cyan,
-                                        title: "Project artifacts",
-                                        subtitle: "Build output only — source code is kept",
+                                        title: L("Project artifacts"),
+                                        subtitle: L("Build output only — source code is kept"),
                                         size: artifactTotal,
                                         actionTitle: "Review"
                                     ) { openProjectReview() }
@@ -524,7 +531,7 @@ struct MainView: View {
                                         icon: "trash.fill",
                                         color: .orange,
                                         title: "Trash",
-                                        subtitle: "Permanent deletion is required to reclaim space",
+                                        subtitle: L("Permanent deletion is required to reclaim space"),
                                         size: diskMonitor.trashSizeBytes,
                                         actionTitle: "Empty"
                                     ) { showEmptyTrashConfirm = true }
@@ -535,15 +542,15 @@ struct MainView: View {
                         }
 
                         if safeTotal > 0 || cautionTotal > 0 || riskyTotal > 0 || largeFileTotal > 0 {
-                            reviewSectionHeader(title: "Review by safety", detail: "Nothing is selected automatically")
+                            reviewSectionHeader(title: L("Review by safety"), detail: L("Nothing is selected automatically"))
 
                             VStack(spacing: 0) {
                                 if safeTotal > 0 {
                                     reviewNavigationRow(
                                         icon: "checkmark.circle.fill",
                                         color: .green,
-                                        title: "Safe caches",
-                                        subtitle: "Known locations that apps can rebuild",
+                                        title: L("Safe caches"),
+                                        subtitle: L("Known locations that apps can rebuild"),
                                         size: safeTotal,
                                         actionTitle: "Review"
                                     ) { openCacheReview(mode: .safe) }
@@ -553,8 +560,8 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "exclamationmark.circle.fill",
                                         color: .orange,
-                                        title: "Caution caches",
-                                        subtitle: "May require a large download or setup again",
+                                        title: L("Caution caches"),
+                                        subtitle: L("May require a large download or setup again"),
                                         size: cautionTotal,
                                         actionTitle: "Inspect"
                                     ) { openCacheReview(mode: .moderate) }
@@ -564,8 +571,8 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "exclamationmark.triangle.fill",
                                         color: .red,
-                                        title: "Risky application data",
-                                        subtitle: "May contain containers, sessions or local data",
+                                        title: L("Risky application data"),
+                                        subtitle: L("May contain containers, sessions or local data"),
                                         size: riskyTotal,
                                         actionTitle: "Inspect"
                                     ) { openCacheReview(mode: .everything) }
@@ -575,7 +582,7 @@ struct MainView: View {
                                     reviewNavigationRow(
                                         icon: "doc.on.doc.fill",
                                         color: .blue,
-                                        title: "Large personal files",
+                                        title: L("Large personal files"),
                                         subtitle: "\(diskMonitor.largeFiles.count) files over 100 MB",
                                         size: largeFileTotal,
                                         actionTitle: "View"
@@ -604,7 +611,7 @@ struct MainView: View {
 
             modeTitleBar(
                 title: "Disk Space",
-                subtitle: "Current storage categories and large files."
+                subtitle: L("Current storage categories and large files.")
             )
 
             Divider()
@@ -756,7 +763,7 @@ struct MainView: View {
                 VStack(spacing: 0) {
                     ZStack {
                         // Center title
-                        Text(selectedTab.rawValue)
+                        Text(L(selectedTab.rawValue))
                             .font(.system(size: 13, weight: .semibold))
                         
                         // Left: back button, Right: refresh
@@ -969,7 +976,7 @@ struct MainView: View {
                 if safeTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.green).frame(width: 6, height: 6)
-                        Text("\(formatBytes(safeTotal)) safe")
+                        Text(String(format: L("%@ safe"), formatBytes(safeTotal)))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -977,7 +984,7 @@ struct MainView: View {
                 if moderateTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.orange).frame(width: 6, height: 6)
-                        Text("\(formatBytes(moderateTotal)) moderate")
+                        Text(String(format: L("%@ moderate"), formatBytes(moderateTotal)))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -985,7 +992,7 @@ struct MainView: View {
                 if riskyCacheTotal > 0 {
                     HStack(spacing: 4) {
                         Circle().fill(.red.opacity(0.7)).frame(width: 6, height: 6)
-                        Text("\(formatBytes(riskyCacheTotal)) risky")
+                        Text(String(format: L("%@ risky"), formatBytes(riskyCacheTotal)))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
@@ -999,7 +1006,7 @@ struct MainView: View {
                 let cacheTotal = safeCacheTotal + moderateTotal + riskyCacheTotal
                 if cacheTotal > 0 {
                     summaryReviewButton(
-                        title: "Review Caches",
+                        title: L("Review Caches"),
                         icon: "magnifyingglass",
                         tint: .blue
                     ) {
@@ -1008,7 +1015,7 @@ struct MainView: View {
                 }
                 if artifactTotal > 0 {
                     summaryReviewButton(
-                        title: "Review Projects",
+                        title: L("Review Projects"),
                         icon: "shippingbox.fill",
                         tint: .cyan
                     ) {
@@ -1090,11 +1097,11 @@ struct MainView: View {
             storageBar
 
             HStack {
-                Text("\(formatBytes(diskMonitor.usedSpace)) used")
+                Text(String(format: L("%@ used"), formatBytes(diskMonitor.usedSpace)))
                     .font(.caption)
                     .foregroundColor(.secondary)
                 Spacer()
-                Text("\(formatBytes(diskMonitor.freeSpace)) free")
+                Text(String(format: L("%@ free"), formatBytes(diskMonitor.freeSpace)))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -1110,11 +1117,11 @@ struct MainView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.red)
                     } else if days <= 30 {
-                        Text("Disk full in ~\(days) days at current rate")
+                        Text(String(format: L("Disk full in ~%d days at current rate"), days))
                             .font(.system(size: 11))
                             .foregroundColor(.orange)
                     } else {
-                        Text("~\(days) days until full (\(formatBytes(diskMonitor.dailyGrowthRate))/day)")
+                        Text(String(format: L("~%d days until full (%@/day)"), days, formatBytes(diskMonitor.dailyGrowthRate)))
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
@@ -1125,7 +1132,10 @@ struct MainView: View {
                     Image(systemName: "clock")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
-                    Text("Forecast: collecting data... (\(diskMonitor.historyDataPointCount) snapshot\(diskMonitor.historyDataPointCount == 1 ? "" : "s"))")
+                    Text(String(format: diskMonitor.historyDataPointCount == 1
+                    ? L("Forecast: collecting data... (%d snapshot)")
+                    : L("Forecast: collecting data... (%d snapshots)"),
+                    diskMonitor.historyDataPointCount))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     Spacer()
@@ -1166,7 +1176,7 @@ struct MainView: View {
         HStack(spacing: 5) {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button(action: { selectedTab = tab }) {
-                    Text(tab.rawValue)
+                    Text(L(tab.rawValue))
                         .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .medium))
                         .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
                         .lineLimit(1)
@@ -1319,7 +1329,7 @@ struct MainView: View {
                 .foregroundColor(categoryColor(cat.name))
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(cat.name)
+                Text(L(cat.name))
                     .font(.system(size: 12))
                 
                 GeometryReader { geo in
@@ -1373,7 +1383,7 @@ struct MainView: View {
                 Text("Storage Trend")
                     .font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Text("\(diskMonitor.historySpanDays)d history")
+                Text(String(format: L("%dd history"), diskMonitor.historySpanDays))
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)
             }
@@ -1447,7 +1457,7 @@ struct MainView: View {
                         .foregroundColor(.secondary)
                     if let days = diskMonitor.forecastDaysUntilFull {
                         Spacer()
-                        Text("~\(days)d until full")
+                        Text(String(format: L("~%dd until full"), days))
                             .font(.system(size: 10))
                             .foregroundColor(days <= 30 ? .red : .orange)
                     }
@@ -1630,7 +1640,7 @@ struct MainView: View {
                     Text(formatBytes(total))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(accent)
-                    Text("\(caches.count) locations")
+                    Text(String(format: L("%d locations"), caches.count))
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                 }
@@ -1697,11 +1707,11 @@ struct MainView: View {
 
     private func cacheDisplayName(_ cache: DevCache) -> String {
         guard cache.section == .app else { return cache.name }
-        let lowercasedName = cache.name.lowercased()
+        let lowercasedName = cache.rawName.lowercased()
         if lowercasedName.contains("cache") || lowercasedName.contains("update") {
             return cache.name
         }
-        return "\(cache.name) Cache"
+        return String(format: L("%@ Cache"), cache.name)
     }
 
     private func strongestRiskLevel(in caches: [DevCache]) -> String {
@@ -1740,9 +1750,10 @@ struct MainView: View {
         let isGroupExpanded = expandedGroups.contains(expansionKey)
         let groupRiskLevel = strongestRiskLevel(in: caches)
         let sortedCaches = caches.sorted { $0.size > $1.size }
+        let localizedGroupName = L(groupName)
         let topNames = sortedCaches.prefix(3).map {
             cacheDisplayName($0)
-                .replacingOccurrences(of: "\(groupName) ", with: "")
+                .replacingOccurrences(of: "\(localizedGroupName) ", with: "")
                 .replacingOccurrences(of: "Xcode ", with: "")
         }
         let preview = topNames.joined(separator: ", ")
@@ -1756,7 +1767,7 @@ struct MainView: View {
                         .foregroundColor(accent)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(groupName)
+                            Text(localizedGroupName)
                                 .font(.system(size: 12, weight: .semibold))
                             Image(systemName: isGroupExpanded ? "chevron.down" : "chevron.right")
                                 .font(.system(size: 9, weight: .bold))
@@ -1801,7 +1812,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean all \(groupName) caches")
+                .help(String(format: L("Clean all %@ caches"), localizedGroupName))
                 
                 // Reveal first item in Finder
                 Button(action: {
@@ -1867,7 +1878,7 @@ struct MainView: View {
                         Text(cacheDisplayName(cache))
                             .font(.system(size: 11.5, weight: .medium))
                         if let days = cache.daysSinceAccess {
-                            Text("\(days)d ago")
+                            Text(String(format: L("%dd ago"), days))
                                 .font(.system(size: 9))
                                 .foregroundColor(days > 60 ? .orange : .secondary)
                                 .padding(.horizontal, 4)
@@ -1911,7 +1922,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean \(cacheDisplayName(cache))")
+                .help(String(format: L("Clean %@"), cacheDisplayName(cache)))
                 
                 Button(action: {
                     diskMonitor.revealInFinder(cache.path)
@@ -1940,7 +1951,7 @@ struct MainView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         cacheImpactLine(icon: "minus.circle.fill", color: .orange, title: "Removes", text: impact.removes)
                         cacheImpactLine(icon: "checkmark.shield.fill", color: .green, title: "Keeps", text: impact.keeps)
-                        cacheImpactLine(icon: "info.circle.fill", color: .blue, title: "Before cleaning", text: impact.note)
+                        cacheImpactLine(icon: "info.circle.fill", color: .blue, title: L("Before cleaning"), text: impact.note)
                     }
                     .padding(7)
                     .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
@@ -2026,7 +2037,7 @@ struct MainView: View {
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
                             }
-                            Text("\(diskMonitor.projectArtifacts.count) found · \(staleCount) stale (>30 days)")
+                            Text(String(format: L("%d found · %d stale (>30 days)"), diskMonitor.projectArtifacts.count, staleCount))
                                 .font(.system(size: 9))
                                 .foregroundColor(.secondary)
                         }
@@ -2064,7 +2075,7 @@ struct MainView: View {
                     HStack(spacing: 0) {
                         ForEach(ProjectSortMode.allCases, id: \.self) { mode in
                             Button(action: { projectSortMode = mode }) {
-                                Text(mode.rawValue)
+                                Text(L(mode.rawValue))
                                     .font(.system(size: 10, weight: projectSortMode == mode ? .semibold : .regular))
                                     .foregroundColor(projectSortMode == mode ? .accentColor : .secondary)
                                     .padding(.horizontal, 10)
@@ -2173,7 +2184,7 @@ struct MainView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .disabled(isCleaning)
-                .help("Clean \(artifact.artifactName) cache only — your source code is kept")
+                .help(String(format: L("Clean %@ cache only — your source code is kept"), artifact.artifactName))
                 
                 Button(action: {
                     diskMonitor.revealInFinder(artifact.projectPath)
@@ -2187,7 +2198,7 @@ struct MainView: View {
             }
             
             if artifact.isStale {
-                Text("⚠️ Stale — not modified for \(artifact.daysSinceModified ?? 0) days")
+                Text(String(format: L("⚠️ Stale — not modified for %d days"), artifact.daysSinceModified ?? 0))
                     .font(.system(size: 9))
                     .foregroundColor(.orange)
                     .padding(.leading, 36)
@@ -2263,9 +2274,9 @@ struct MainView: View {
                     .multilineTextAlignment(.center)
                 
                 VStack(alignment: .leading, spacing: 10) {
-                    onboardingFeature(icon: "square.grid.2x2", text: "Maps your disk and finds large files")
-                    onboardingFeature(icon: "hammer", text: "Reviews app, developer, and project caches")
-                    onboardingFeature(icon: "trash", text: "Moves reviewed items to Trash so they remain recoverable")
+                    onboardingFeature(icon: "square.grid.2x2", text: L("Maps your disk and finds large files"))
+                    onboardingFeature(icon: "hammer", text: L("Reviews app, developer, and project caches"))
+                    onboardingFeature(icon: "trash", text: L("Moves reviewed items to Trash so they remain recoverable"))
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -2326,8 +2337,8 @@ struct MainView: View {
                         }
                     }) {
                         Text(diskMonitor.fullDiskAccess == .granted
-                             ? "Start Scanning"
-                             : "Open Full Disk Access")
+                             ? L("Start Scanning")
+                             : L("Open Full Disk Access"))
                             .font(.system(size: 14, weight: .semibold))
                             .frame(width: 200, height: 32)
                     }
@@ -2370,9 +2381,9 @@ struct MainView: View {
     
     func permissionLabel(_ state: PermissionState) -> String {
         switch state {
-        case .granted: return "Enabled"
-        case .denied: return "Not enabled yet"
-        case .unknown: return "Checking..."
+        case .granted: return L("Enabled")
+        case .denied: return L("Not enabled yet")
+        case .unknown: return L("Checking...")
         }
     }
     
@@ -2504,6 +2515,30 @@ struct MainView: View {
                                 print("Failed to update login item: \(error)")
                             }
                         }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.primary.opacity(0.03))
+                    .cornerRadius(8)
+
+                    // Language section
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Language", systemImage: "globe")
+                            .font(.system(size: 13, weight: .semibold))
+
+                        Text("Choose the language used by ClearDisk.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Language", selection: $appLanguage) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(language.title).tag(language)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -2719,7 +2754,7 @@ struct MainView: View {
                         selectedCacheIDs = Set(cachesToShow.map { $0.id })
                     }
                 }) {
-                    Text(selectedCacheIDs.count == cachesToShow.count && !cachesToShow.isEmpty ? "Deselect All" : "Select All")
+                    Text(selectedCacheIDs.count == cachesToShow.count && !cachesToShow.isEmpty ? L("Deselect All") : L("Select All"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.accentColor)
                 }
@@ -2782,7 +2817,7 @@ struct MainView: View {
                                                 HStack(spacing: 3) {
                                                     Image(systemName: "checkmark.shield.fill")
                                                         .foregroundStyle(.green)
-                                                    Text("Keeps: \(impact.keeps)")
+                                                    Text(String(format: L("Keeps: %@"), impact.keeps))
                                                         .lineLimit(1)
                                                 }
                                                 .font(.system(size: 8.5))
@@ -2824,7 +2859,7 @@ struct MainView: View {
                                         Image(systemName: "exclamationmark.triangle.fill")
                                             .font(.system(size: 10))
                                             .foregroundColor(.red)
-                                        Text("\(riskySelected.count) risky cache(s) selected:")
+                                        Text(String(format: L("%d risky cache(s) selected:"), riskySelected.count))
                                             .font(.system(size: 10, weight: .semibold))
                                             .foregroundColor(.red)
                                         Spacer()
@@ -2855,7 +2890,7 @@ struct MainView: View {
             
             // Selection summary + action
             HStack {
-                Text("\(selectedCount) selected · \(formatBytes(selectedSize))")
+                Text(String(format: L("%d selected · %@"), selectedCount, formatBytes(selectedSize)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -2959,7 +2994,7 @@ struct MainView: View {
                         projectFilterMode = mode
                         selectedArtifactIDs = []
                     }) {
-                        Text(mode.rawValue)
+                        Text(L(mode.rawValue))
                             .font(.system(size: 10, weight: projectFilterMode == mode ? .semibold : .regular))
                             .foregroundColor(projectFilterMode == mode ? .accentColor : .secondary)
                             .padding(.horizontal, 8)
@@ -2981,7 +3016,7 @@ struct MainView: View {
                         selectedArtifactIDs = Set(filtered.map { $0.id })
                     }
                 }) {
-                    Text(selectedArtifactIDs.count == filtered.count && !filtered.isEmpty ? "Deselect All" : "Select All")
+                    Text(selectedArtifactIDs.count == filtered.count && !filtered.isEmpty ? L("Deselect All") : L("Select All"))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.accentColor)
                 }
@@ -3069,7 +3104,7 @@ struct MainView: View {
             
             // Selection summary + action
             HStack {
-                Text("\(selectedCount) selected · \(formatBytes(selectedSize))")
+                Text(String(format: L("%d selected · %@"), selectedCount, formatBytes(selectedSize)))
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -3136,7 +3171,7 @@ struct MainView: View {
                     Image(systemName: "trash.fill")
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
-                    Text("Moved via ClearDisk: \(formatBytes(diskMonitor.totalMovedToTrash))")
+                    Text(String(format: L("Moved via ClearDisk: %@"), formatBytes(diskMonitor.totalMovedToTrash)))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -3303,7 +3338,11 @@ struct CleanCacheConfirmSheet: View {
             
             if let artifact = artifact {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Clean **\(artifact.artifactName)** cache from **\(artifact.projectName)**?")
+                    Text(String(
+                        format: L("Clean %@ cache from %@?"),
+                        artifact.artifactName,
+                        artifact.projectName
+                    ))
                         .font(.system(size: 12))
                     
                     HStack(spacing: 6) {
