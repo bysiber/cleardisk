@@ -1,2 +1,6 @@
 /* ClearDisk — English (en) is the development language.
    Keys are the English source strings themselves, so this table is intentionally empty. */
+
+// Scan completeness and resource policy
+"Analysis incomplete: some locations could not be measured." = "Analysis incomplete: some locations could not be measured.";
+"Scan stopped to reduce power or thermal load. Start again to scan with fewer workers." = "Scan stopped to reduce power or thermal load. Start again to scan with fewer workers.";

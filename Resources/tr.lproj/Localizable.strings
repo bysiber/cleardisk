@@ -590,3 +590,7 @@
 "The downloaded update payload, staging copy, updater state, and updater logs." = "İndirilen güncelleme paketi, hazırlık kopyası, güncelleyici durumu ve güncelleyici günlükleri.";
 "The installed app, its settings, accounts, and documents." = "Kurulu uygulama, ayarları, hesapları ve belgeleri.";
 "Your account, playlists, local files, and explicitly downloaded offline library." = "Hesabınız, çalma listeleriniz, yerel dosyalarınız ve bilerek indirdiğiniz çevrimdışı kitaplığınız.";
+
+// Scan completeness and resource policy
+"Analysis incomplete: some locations could not be measured." = "Analiz tamamlanamadı: bazı konumlar ölçülemedi.";
+"Scan stopped to reduce power or thermal load. Start again to scan with fewer workers." = "Güç tüketimini veya ısınmayı azaltmak için tarama durduruldu. Daha az eşzamanlı işlemle taramak için yeniden başlatın.";

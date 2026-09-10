@@ -1,0 +1,39 @@
+name: Scan validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select project toolchain
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+          swift --version
+      - name: Unit and mounted-volume regression tests
+        env:
+          CLEARDISK_TEST_MOUNTS: "1"
+        run: swift test
+      - name: Parallel measurement race checks
+        run: swift test --sanitize=thread --filter DirectoryMeasurementTests.testParallelMeasurementsHaveIndependentState
+      - name: Universal app and final signature
+        run: |
+          bash scripts/build_app.sh
+          codesign --verify --deep --strict ClearDisk.app
+      - name: Staging failure tests
+        run: python3 scripts/test_stage_sign_app.py
+      - name: Benchmark harness smoke test
+        run: |
+          fixture=$(mktemp -d)
+          trap 'rm -rf "$fixture"' EXIT
+          mkdir "$fixture/one" "$fixture/two"
+          dd if=/dev/zero of="$fixture/one/data" bs=4096 count=4
+          dd if=/dev/zero of="$fixture/two/data" bs=4096 count=8
+          BENCH_RUNS=2 bash scripts/benchmark_scan.sh "$fixture/one" "$fixture/two"

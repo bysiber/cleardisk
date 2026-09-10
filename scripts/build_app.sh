@@ -172,7 +172,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 EOF
 
 # Ad-hoc code sign the entire bundle (better Gatekeeper handling than linker-signed)
-codesign --force --deep -s - "$APP_BUNDLE"
+bash "$SCRIPTS_DIR/stage_sign_app.sh" "$APP_BUNDLE"
 echo "Code signed (ad-hoc)."
 
 echo "Done! App bundle created at: $APP_BUNDLE"

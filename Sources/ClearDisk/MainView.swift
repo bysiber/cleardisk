@@ -115,6 +115,15 @@ struct MainView: View {
         .frame(width: Layout.contentWidth, height: Layout.popoverHeight)
 
         let base = content
+        .safeAreaInset(edge: .bottom) {
+            if !diskMonitor.inaccessiblePaths.isEmpty {
+                Label("Analysis incomplete: some locations could not be measured.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(8)
+                    .help(diskMonitor.inaccessiblePaths.joined(separator: "\n"))
+            }
+        }
         .frame(width: Layout.popoverWidth, height: Layout.popoverHeight)
         .overlay {
             ZStack {

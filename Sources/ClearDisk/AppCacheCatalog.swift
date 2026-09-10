@@ -1,6 +1,6 @@
 import Foundation
 
-enum CacheSection: String, CaseIterable {
+enum CacheSection: String, CaseIterable, Sendable {
     case app
     case developer
 
@@ -19,7 +19,7 @@ enum CacheSection: String, CaseIterable {
     }
 }
 
-struct CacheSafetyDetails {
+struct CacheSafetyDetails: Sendable {
     let removes: String
     let keeps: String
     let note: String
