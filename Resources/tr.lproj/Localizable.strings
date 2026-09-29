@@ -590,3 +590,13 @@
 "The downloaded update payload, staging copy, updater state, and updater logs." = "İndirilen güncelleme paketi, hazırlık kopyası, güncelleyici durumu ve güncelleyici günlükleri.";
 "The installed app, its settings, accounts, and documents." = "Kurulu uygulama, ayarları, hesapları ve belgeleri.";
 "Your account, playlists, local files, and explicitly downloaded offline library." = "Hesabınız, çalma listeleriniz, yerel dosyalarınız ve bilerek indirdiğiniz çevrimdışı kitaplığınız.";
+
+/* MARK: Welcome / Onboarding */
+"Welcome to ClearDisk" = "ClearDisk'e Hoş Geldiniz";
+"Developer cache cleaner & disk space monitor" = "Geliştirici önbellek temizleyici ve disk alanı izleyici";
+"ClearDisk lives here in your menu bar!" = "ClearDisk menü çubuğunuzda burada yer alır!";
+"Runs in your Menu Bar" = "Menü Çubuğunuzda Çalışır";
+"ClearDisk sits quietly in your menu bar without filling your Dock. Click its icon anytime to inspect caches and clean disk space." = "ClearDisk, Dock'unuzu doldurmadan menü çubuğunuzda sessizce çalışır. Önbellekleri incelemek ve disk alanını temizlemek için simgesine dilediğiniz zaman tıklayın.";
+"MacBook Notch & Hidden Icons" = "MacBook Çentiği ve Gizli Simgeler";
+"If your menu bar is crowded or hidden behind a camera notch, you can also launch ClearDisk from Finder or Spotlight anytime to open it." = "Menü çubuğunuz kalabalıksa veya kamera çentiğinin arkasında kalıyorsa, ClearDisk'i açmak için Finder veya Spotlight'tan dilediğiniz zaman tekrar başlatabilirsiniz.";
+"Got it! Go to Menu Bar" = "Anladım! Menü Çubuğuna Git";

@@ -22,7 +22,12 @@ struct ClearDiskApp {
     static func main() {
         let app = NSApplication.shared
         app.delegate = delegate
-        app.setActivationPolicy(.accessory) // Menu bar only, no dock icon
+        let isFirstLaunch = !UserDefaults.standard.bool(forKey: AppDelegate.hasSeenWelcomeWindowKey)
+        if isFirstLaunch {
+            app.setActivationPolicy(.regular) // Standalone window with Dock icon during first-launch onboarding
+        } else {
+            app.setActivationPolicy(.accessory) // Menu bar only, no dock icon
+        }
         app.run()
     }
 }
@@ -50,6 +55,8 @@ extension Notification.Name {
 
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+    static let hasSeenWelcomeWindowKey = "ClearDisk.hasSeenWelcomeWindow"
+    var welcomeWindowController: WelcomeWindowController?
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
@@ -156,6 +163,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             } else {
                 self?.diskMonitor.refreshDiskSpaceOnly()
             }
+        }
+
+        // Show welcome window on first launch
+        if !UserDefaults.standard.bool(forKey: Self.hasSeenWelcomeWindowKey) {
+            welcomeWindowController = WelcomeWindowController(
+                diskMonitor: diskMonitor,
+                onDismiss: { [weak self] in
+                    self?.completeWelcome()
+                }
+            )
+            welcomeWindowController?.show()
         }
     }
     
@@ -273,5 +291,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             eventMonitor = nil
         }
         NotificationCenter.default.post(name: .clearDiskPopoverDidClose, object: nil)
+    }
+
+    func completeWelcome() {
+        UserDefaults.standard.set(true, forKey: Self.hasSeenWelcomeWindowKey)
+        NSApp.setActivationPolicy(.accessory)
+        welcomeWindowController?.close()
+        welcomeWindowController = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.togglePopover()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !UserDefaults.standard.bool(forKey: Self.hasSeenWelcomeWindowKey) {
+            welcomeWindowController?.show()
+        } else {
+            togglePopover()
+        }
+        return true
     }
 }

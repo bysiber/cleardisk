@@ -172,7 +172,13 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 EOF
 
 # Ad-hoc code sign the entire bundle (better Gatekeeper handling than linker-signed)
-codesign --force --deep -s - "$APP_BUNDLE"
+STAGE_DIR="$(mktemp -d /tmp/cleardisk-sign.XXXXXX)"
+cp -R "$APP_BUNDLE" "$STAGE_DIR/$APP_NAME.app"
+xattr -cr "$STAGE_DIR/$APP_NAME.app"
+codesign --force --deep -s - "$STAGE_DIR/$APP_NAME.app"
+rm -rf "$APP_BUNDLE"
+ditto "$STAGE_DIR/$APP_NAME.app" "$APP_BUNDLE"
+rm -rf "$STAGE_DIR"
 echo "Code signed (ad-hoc)."
 
 echo "Done! App bundle created at: $APP_BUNDLE"
