@@ -65,7 +65,8 @@ struct WelcomeView: View {
         if freeGB >= 1.0 {
             return " \(String(format: "%.0f", freeGB))GB"
         }
-        return " 158GB"
+        let freeMB = Double(max(0, diskMonitor.freeSpace)) / 1_048_576
+        return " \(String(format: "%.0f", freeMB))MB"
     }
 
     var body: some View {
