@@ -2,9 +2,117 @@
 
 All notable changes to ClearDisk are documented here.
 
-## [1.9.0] - 2026-07-14
+## [Unreleased]
 ### Added
-- **Custom project scan folders** — on the Projects tab, add up to 8 extra roots (including paths on external disks under `/Volumes`). Defaults under home still apply; unmounted volumes show as Unavailable and are skipped until remounted.
+- Configure up to eight additional project scan folders, including mounted external volumes. Built-in scan locations remain enabled, and project artifacts refresh when custom folders change.
+
+## [2.3.2] - 2026-09-06
+### Fixed
+- Full Disk Access detection no longer depends on the user TCC database at `~/Library/Application Support/com.apple.TCC/TCC.db`, which does not exist on macOS 27. The probe now reads the system TCC database when present, then falls back to listing protected locations such as Safari, Mail, and Stocks app data.
+
+## [2.3.1] - 2026-09-03
+### Added
+- Turkish localization across the cleaner, disk scanner, settings, alerts, and runtime status messages.
+- A language dropdown in Settings that defaults to English and remembers the user's selection.
+
+### Fixed
+- Changing the language now updates cache names and interface text immediately without requiring a disk rescan or app restart.
+- Localized display names remain separate from internal scanner identifiers, preserving cache classification and disk-location behavior.
+
+## [2.3.0] - 2026-09-01
+### Changed
+- Full-volume disk scans now use a conservative background worker budget, while focused folder scans remain responsive without monopolizing the CPU.
+- Scan All runs disk mapping and cache classification sequentially instead of launching both filesystem workloads at once.
+
+### Fixed
+- Returning from an on-demand folder restores the previous directory instantly instead of unexpectedly rescanning the startup volume.
+- Disk scans no longer produce sustained 400–500% CPU spikes that can make the Mac and ClearDisk interface unresponsive.
+- Move to Trash confirmation is presented only by the surface where the action was requested, preventing duplicate dialogs and the separate Disk Space window from opening or stealing focus.
+
+## [2.0.26] - 2026-08-30
+### Added
+- Appearance controls let ClearDisk follow the system theme or use Light or Dark across the menu-bar popover, navigation panel, and Disk Space window.
+- Project discovery now includes the common `~/Development` and `~/dev` roots.
+- The global NuGet package cache (`~/.nuget/packages`) is available as a reviewed, rebuildable .NET cache.
+
+### Changed
+- First launch now asks for Full Disk Access through one focused onboarding flow instead of triggering separate Desktop, Documents, Downloads, Photos, Media, and app-data prompts.
+- Notifications are requested only when the user enables disk alerts, and Launch at Login defaults to off for new installations.
+- Protected recursive scans remain blocked until Full Disk Access is confirmed, while the menu-bar free-space indicator continues to use a lightweight capacity check.
+
+### Fixed
+- After Full Disk Access is granted, the onboarding screen remains visible until the initial analysis has actually completed instead of revealing empty cache and disk views.
+- Initial analysis now reports its current phase and progress while storage categories, caches, large files, project artifacts, and Trash are inspected.
+
+## [2.0.25] - 2026-08-28
+### Changed
+- Full-disk results now keep a shallow, memory-bounded tree. Deeper folders retain accurate totals and are scanned on demand when opened.
+- Opening or returning from an on-demand folder uses a lightweight native loading state, while the detailed scanning view remains reserved for explicit Scan and Rescan actions.
+
+### Fixed
+- Full startup-disk scans no longer retain a node for every discovered file or accumulate previous snapshots across rescans, preventing memory usage from growing into multiple gigabytes.
+
+## [2.0.2] - 2026-08-27
+### Added
+- Disk Space rows now provide dedicated **Reveal in Finder** and guarded **Move to Trash** actions, with confirmation and protected-location checks.
+- Project build artifacts are included in the total reclaimable-space estimate while remaining review-only and never automatically selected.
+
+### Changed
+- Folder rows open with one click, and larger button-style navigation controls make moving through scanned folders easier.
+- Opening the menu bar popover reuses fresh results instead of starting another expensive scan.
+- Application cache names use a clearer singular **Cache** suffix where one is needed.
+
+### Fixed
+- Full startup-disk scans now recognize macOS APFS System/Data volume boundaries correctly instead of finishing early with empty results.
+- **Scan All** preserves and publishes indexed totals for Desktop, Documents, Downloads, Applications, Library, Home and Temporary Files cards.
+- Background free-space refreshes no longer make the Disk Space scanner appear to be running.
+
+## [2.0.1] - 2026-08-26
+### Changed
+- App-cache rows now stay compact and omit implementation details intended for developer caches.
+- Cleanup entry points use **Review Caches** and **Review Projects**, with calmer non-destructive styling before the user selects anything to clean.
+- The Review workspace includes an explicit Safe cache category alongside Caution and Risky findings.
+- Main workspace tabs are larger, individually separated, hover-responsive and anchored below the header so switching sections no longer moves the navigation vertically.
+
+### Fixed
+- Large Personal Files now uses a supported system icon instead of rendering with a missing symbol.
+
+## [2.0.0] - 2026-08-26
+### Added
+- **Full disk space scanner** with startup-disk, Home, Desktop, Downloads, Documents, Applications, temporary-files and safe system-area entry points.
+- **Interactive treemap and directory browser** with cancellable background scanning, live progress, folder navigation, tooltips and persistent small-item grouping controls.
+- **Application cache discovery** alongside developer caches, including expanded AI-tool, browser, updater and package-manager coverage.
+- **Signed in-app updates with Sparkle 2.** GitHub releases now publish a Developer ID signed, notarized universal DMG and an EdDSA-signed appcast automatically.
+
+### Changed
+- ClearDisk opens on Disk Space and keeps the existing cache cleaner as a dedicated workspace.
+- Disk scans run outside the UI thread and publish incremental progress, preventing the popover from freezing during large scans.
+- Temporary Files combines the current user's temporary directory, `/private/tmp` and `/private/var/tmp` without exposing the whole `/private` hierarchy or double-counting it.
+- Cache summaries use the simpler Safe, Caution and Risky breakdown while preserving detailed cache groups below.
+- Background full scans run every 30 minutes while lightweight free-space updates continue every 5 minutes.
+
+### Fixed
+- Large scans no longer stall near 99%, lock the interface or retain completed scan state unnecessarily.
+- Disk categories no longer expose unsafe broad system roots or count `/var` and `/private/var` aliases twice.
+- Group disclosure indicators now keep cache names aligned instead of shifting nested rows.
+
+## [1.9.0] - 2026-08-06
+### Added
+- **Go build cache** (`~/Library/Caches/go-build`). This is `GOCACHE`, and it is usually several times larger than the module download cache that was already listed. Cleared by `go clean -cache`; the next build is slower, then it is fast again.
+- **Android System Images and NDK** (`~/Library/Android/sdk/system-images`, `.../ndk`). The existing Android entry covered `~/.android/avd`, which is often empty while the SDK beside it holds several gigabytes. Both are listed per subdirectory and never as the whole SDK: deleting `~/Library/Android/sdk` would take `platform-tools` with it, and there is no `adb` without it. The three Android entries now share a group.
+- **VS Code updater cache** (`~/Library/Caches/com.microsoft.VSCode.ShipIt`), a sibling of the VS Code cache directory that was already listed. Squirrel parks downloaded update payloads there and never prunes them.
+- **pnpm cache** (`~/Library/Caches/pnpm`). Separate from the package store: `pnpm store path` resolves to `~/Library/pnpm/store`, while registry metadata and the dlx cache live under Caches. Neither covers the other.
+- **rustup toolchains** (`~/.rustup/toolchains`), grouped with the other version managers rather than with Rust Cargo — these are the compilers themselves, and removing one uninstalls that toolchain.
+- **node-gyp headers** (`~/Library/Caches/node-gyp`) and **TypeScript type acquisition** (`~/Library/Caches/typescript`), both of which keep one copy per version indefinitely.
+
+### Fixed
+- Repositories kept directly in the home directory were never scanned for project artifacts. Every scan root was a subdirectory of `~`, and none of them reached its siblings, so a project in `~/my-project` was invisible while the identical project in `~/Documents/my-project` was found.
+
+  The home directory is scanned one level down, and deliberately never as a project itself. Handing `~` to the scanner directly would have been worse than the bug: several tools leave a stray `~/package.json` behind, which makes the whole home directory match the Node.js type — and `.cache` and `.expo` are on that type's artifact list. `~/.cache` is the shared cache for uv, Puppeteer, Prisma, Bazel and HuggingFace, not a build directory, and it would have been offered for deletion. Matching at `~` would also have stopped the walk there, so the projects this is meant to find would never have been reached.
+- Artifacts reachable from more than one scan root are listed once. A duplicate row double-counted its size in the totals and made the second clean fail on an already-trashed path.
+
+### Changed
+- Total cache paths: 74.
 
 ## [1.8.4] - 2026-08-01
 ### Changed
@@ -24,6 +132,7 @@ All notable changes to ClearDisk are documented here.
 ### Added
 - Added signed app produced pipeline to avoid `xattr -cr ...` quirk
 - Updated version derivation from scripts
+
 ## [1.8.1] - 2026-07-13
 ### Fixed
 - **No menu bar icon; the app appears to do nothing** (#22, #16). `NSApplication.delegate` is a *weak* reference, and nothing else in the app retained `AppDelegate` — every other reference to it captured `self` weakly. Held only by a local in `main()`, ARC was free to release it after its last use, before or during `app.run()`, taking the status item and the popover with it. The process kept running (some users still saw notification banners) but there was no menu bar icon and clicks went nowhere. Whether it happened at all depended on the optimiser, which is why it reproduced on some Macs and not others. The delegate is now held for the life of the process.

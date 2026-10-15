@@ -79,6 +79,7 @@ cask "cleardisk" do
   desc "Free, open-source macOS app to find and clean developer caches"
   homepage "https://github.com/$REPO"
 
+  auto_updates true
   depends_on macos: :sonoma
 
   app "$APP_NAME.app"

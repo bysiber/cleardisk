@@ -2,6 +2,7 @@ import Cocoa
 import SwiftUI
 import UserNotifications
 import Combine
+import Sparkle
 
 // MARK: - App Entry Point
 @main
@@ -52,13 +53,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var diskMonitor: DiskMonitor!
+    var diskSpaceStore: DiskSpaceStore!
+    var primaryModePanelController: PrimaryModePanelController!
+    var diskSpaceWindowController: DiskSpaceWindowController!
     var eventMonitor: Any?
     var cancellables = Set<AnyCancellable>()
+
+    /// Sparkle owns the complete update UI and installation flow. Keep the controller alive for
+    /// the process lifetime; a local `swift run` build has no app Info.plist, so updater startup is
+    /// intentionally skipped there while packaged ClearDisk.app builds use the configured feed.
+    private lazy var updaterController: SPUStandardUpdaterController? = {
+        guard Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") != nil else { return nil }
+        return SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+    }()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         diskMonitor = DiskMonitor()
-        diskMonitor.setupNotifications()
-        diskMonitor.loadSavedTotal()
+        diskSpaceStore = DiskSpaceStore()
+        primaryModePanelController = PrimaryModePanelController(
+            diskMonitor: diskMonitor,
+            onOpenDiskSpace: { [weak self] in
+                self?.openDiskSpaceWindow()
+            }
+        )
+        diskSpaceWindowController = DiskSpaceWindowController(
+            diskMonitor: diskMonitor,
+            store: diskSpaceStore
+        )
+        diskMonitor.checkNotificationStatus()
+        diskMonitor.loadCleanupTotals()
         
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -67,6 +94,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             updateMenuBarIcon()
             button.action = #selector(togglePopover)
             button.target = self
+            // The default mouse-up action can arrive after a transient popover has already closed,
+            // causing togglePopover() to immediately reopen it. Handle the initial mouse-down so
+            // the second click observes the still-open state and closes it deterministically.
+            button.sendAction(on: [.leftMouseDown])
         }
         
         // Create popover
@@ -75,11 +106,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.behavior = .transient
         popover.delegate = self
         popover.contentViewController = NSHostingController(
-            rootView: MainView(diskMonitor: diskMonitor)
+            rootView: MainView(
+                diskMonitor: diskMonitor,
+                diskSpaceStore: diskSpaceStore,
+                checkForUpdates: { [weak self] in
+                    self?.checkForUpdates()
+                },
+                showDiskSpaceWindow: { [weak self] in
+                    self?.openDiskSpaceWindow()
+                }
+            )
         )
+
+        // Initialize after the app bundle and delegate are fully ready. Sparkle schedules future
+        // checks from SUEnableAutomaticChecks and SUScheduledCheckInterval in Info.plist.
+        _ = updaterController
         
-        // Start monitoring
-        diskMonitor.scan()
+        // Capacity is safe to read without touching protected folders. A recursive scan starts
+        // only after the installed app identity has Full Disk Access, avoiding a cascade of
+        // Desktop, Documents, Downloads, Photos, Media and App Data permission dialogs.
+        diskMonitor.refreshDiskSpaceOnly()
+        diskMonitor.checkFullDiskAccess { [weak self] granted in
+            guard let self, granted else { return }
+            self.diskMonitor.markOnboardingComplete()
+            self.diskMonitor.scan()
+        }
         
         // Auto-update menu bar when disk data changes
         diskMonitor.objectWillChange
@@ -88,10 +139,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 self?.updateMenuBarIcon()
             }
             .store(in: &cancellables)
-        
-        // Refresh periodically (5 min)
-        Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            self?.diskMonitor.scan()
+
+        // One timer avoids a light refresh and a full scan racing each other at the 30-minute mark.
+        // Five ticks perform only a cheap APFS capacity lookup; every sixth tick refreshes all
+        // results. The full scan also refreshes capacity, so no separate lookup is needed then.
+        var refreshTick = 0
+        Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+            refreshTick += 1
+            if refreshTick == 6 {
+                refreshTick = 0
+                if self?.diskMonitor.fullDiskAccess == .granted {
+                    self?.diskMonitor.scan()
+                } else {
+                    self?.diskMonitor.refreshDiskSpaceOnly()
+                }
+            } else {
+                self?.diskMonitor.refreshDiskSpaceOnly()
+            }
         }
     }
     
@@ -130,22 +194,64 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if popover.isShown {
             closePopover()
         } else {
-            if statusItem.button != nil {
-                diskMonitor.scanOnPopoverOpen()
-                showPopover(reinstallClickMonitor: true)
+            if let button = statusItem.button {
+                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+                diskMonitor.checkFullDiskAccess { [weak self] granted in
+                    guard let self else { return }
+                    if granted {
+                        self.diskMonitor.markOnboardingComplete()
+                        self.diskMonitor.scanIfStale()
+                    } else {
+                        self.diskMonitor.refreshDiskSpaceOnly()
+                    }
+                }
+
+                // An .accessory app never becomes active on its own, so the popover opens as an
+                // INACTIVE window — macOS then renders its vibrancy washed out and the text is hard
+                // to read until the first click makes it key. Activate and take key up front so the
+                // popover looks the same the moment it appears as it does after you click it.
+                NSApp.activate(ignoringOtherApps: true)
+                popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+
+                // NSPopover clips everything to its own bounds. The primary modes live in a small
+                // child panel so they can sit outside the left edge without widening or covering
+                // the 380-point cleaner UI.
+                DispatchQueue.main.async { [weak self] in
+                    guard
+                        let self,
+                        self.popover.isShown,
+                        let contentView = self.popover.contentViewController?.view,
+                        let popoverWindow = contentView.window
+                    else { return }
+                    self.primaryModePanelController.show(
+                        attachedTo: popoverWindow,
+                        alignedTo: contentView
+                    )
+                }
+
+
+                // Close popover on outside click
+                eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                    self?.closePopover()
+                }
             }
         }
     }
-    
-    /// Presents a folder picker — popover is hidden while the panel is open so it can't sit on top.
+
     func pickProjectScanFolder(startingAt: URL? = nil, completion: @escaping (URL?) -> Void) {
+        guard statusItem.button != nil else {
+            completion(nil)
+            return
+        }
+
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
-        panel.prompt = "Add"
-        panel.message = "Choose a folder to scan for project caches. Press ⌘⇧G to type a path (e.g. /Volumes/YourDisk)."
+        panel.prompt = L("Add")
+        panel.message = L("Choose a folder to scan for project caches. Press ⌘⇧G to type a path (e.g. /Volumes/YourDisk).")
         if let startingAt {
             panel.directoryURL = startingAt
         } else if !DiskMonitor.mountedExternalVolumes().isEmpty {
@@ -154,44 +260,75 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
         }
 
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
         }
-
         NSApp.activate(ignoringOtherApps: true)
-
         let previousBehavior = popover.behavior
         popover.behavior = .applicationDefined
+        primaryModePanelController.hide()
         popover.contentViewController?.view.window?.orderOut(nil)
 
         let response = panel.runModal()
 
         popover.behavior = previousBehavior
-        showPopover(reinstallClickMonitor: true)
-
+        showPopoverAfterFolderPicker()
         completion(response == .OK ? panel.url : nil)
     }
 
-    private func showPopover(reinstallClickMonitor: Bool) {
+    private func showPopoverAfterFolderPicker() {
         guard let button = statusItem.button else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NSApp.activate(ignoringOtherApps: true)
         popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
 
-        if reinstallClickMonitor, eventMonitor == nil {
+        DispatchQueue.main.async { [weak self] in
+            guard
+                let self,
+                self.popover.isShown,
+                let contentView = self.popover.contentViewController?.view,
+                let popoverWindow = contentView.window
+            else { return }
+            self.primaryModePanelController.show(attachedTo: popoverWindow, alignedTo: contentView)
+        }
+
+        if eventMonitor == nil {
             eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 self?.closePopover()
             }
         }
     }
-
+    
     private func closePopover() {
-        popover.performClose(nil)
+        // A child NSPanel can keep its parent popover alive. Detach it before asking AppKit to
+        // close so a second click on the menu-bar item always toggles the entire UI off.
+        primaryModePanelController.hide()
+        popover.close()
+    }
+
+    @MainActor
+    private func openDiskSpaceWindow() {
+        guard diskMonitor.fullDiskAccess == .granted,
+              diskSpaceStore.trashAlert == nil,
+              diskSpaceStore.deletingNodeIDs.isEmpty else {
+            return
+        }
+        closePopover()
+        DispatchQueue.main.async { [weak self] in
+            self?.diskSpaceWindowController.show()
+        }
+    }
+
+    private func checkForUpdates() {
+        closePopover()
+        NSApp.activate(ignoringOtherApps: true)
+        updaterController?.checkForUpdates(nil)
     }
 
     /// Covers every way the popover can go away, including the transient auto-close on focus loss.
     func popoverDidClose(_ notification: Notification) {
+        primaryModePanelController.hide()
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil

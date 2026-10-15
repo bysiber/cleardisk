@@ -6,23 +6,66 @@ on:
     branches: ["*-pipeline"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Select Swift 6.2 toolchain
+        run: |
+          XCODE_PATH="/Applications/Xcode_26.3.app/Contents/Developer"
+          [ -d "$XCODE_PATH" ] \
+            || { echo "::error::Required Xcode 26.3 toolchain is unavailable"; exit 1; }
+          sudo xcode-select --switch "$XCODE_PATH"
+          xcodebuild -version
+          swift --version
+          swift -e '#if compiler(>=6.2)
+          print("Swift 6.2 toolchain ready")
+          #else
+          fatalError("Swift 6.2 or newer is required")
+          #endif'
+
       - name: Verify tag matches changelog
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           source scripts/_release_lib.sh
           VERSION="$(project_version)"
-          TAG="${GITHUB_REF_NAME#v}"
-          [ "$VERSION" = "$TAG" ] \
-            || { echo "::error::Tag v$TAG does not match CHANGELOG.md version $VERSION"; exit 1; }
+          [ "$GITHUB_REF_NAME" = "v${VERSION}" ] \
+            || { echo "::error::Tag $GITHUB_REF_NAME does not match CHANGELOG.md version $VERSION"; exit 1; }
+
+      - name: Validate release secrets
+        env:
+          MACOS_CERTIFICATE:     ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PWD:          ${{ secrets.KEYCHAIN_PWD }}
+          MACOS_SIGN_IDENTITY:   ${{ secrets.MACOS_SIGN_IDENTITY }}
+          NOTARY_KEY:            ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID:         ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER:         ${{ secrets.NOTARY_ISSUER }}
+          SPARKLE_PRIVATE_KEY:   ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          TAP_TOKEN:             ${{ secrets.TAP_TOKEN }}
+        run: |
+          missing=0
+          for name in MACOS_CERTIFICATE MACOS_CERTIFICATE_PWD KEYCHAIN_PWD \
+            MACOS_SIGN_IDENTITY NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER \
+            SPARKLE_PRIVATE_KEY TAP_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name secret is missing"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
 
       - name: Build
         run: scripts/build_app.sh
@@ -33,21 +76,19 @@ jobs:
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
           KEYCHAIN_PWD:          ${{ secrets.KEYCHAIN_PWD }}
         run: |
-          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          trap 'rm -f cert.p12' EXIT
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
           security create-keychain -p "$KEYCHAIN_PWD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PWD" build.keychain
           security set-keychain-settings -t 3600 -l build.keychain
           security import cert.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" build.keychain
-          rm cert.p12
 
       - name: Codesign
         env:
           IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-        run: |
-          codesign --force --timestamp --options runtime --sign "$IDENTITY" ClearDisk.app
-          codesign -dvvv ClearDisk.app
+        run: scripts/sign_release_app.sh
 
       - name: Notarize & package
         env:
@@ -56,7 +97,8 @@ jobs:
           NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
           IDENTITY:      ${{ secrets.MACOS_SIGN_IDENTITY }}
         run: |
-          echo "$NOTARY_KEY" | base64 --decode > key.p8
+          trap 'rm -f key.p8' EXIT
+          printf '%s' "$NOTARY_KEY" | base64 --decode > key.p8
 
           source scripts/_release_lib.sh
           VERSION="$(project_version)"
@@ -73,17 +115,9 @@ jobs:
             --key key.p8 --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --wait --timeout 20m
           xcrun stapler staple "$DMG"
 
-          rm key.p8
           spctl -a -t open --context context:primary-signature -vvv "$DMG"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ClearDisk-dmg
-          path: ClearDisk-v*.dmg
-
       - name: Extract release notes
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           source scripts/_release_lib.sh
           VERSION="$(project_version)"
@@ -93,6 +127,9 @@ jobs:
             found && /^## \[/        { exit }
             found                    { print }
           ' CHANGELOG.md | sed -e '/./,$!d' > release-notes.md
+
+          [ -s release-notes.md ] \
+            || { echo "::error::CHANGELOG.md has no notes for $VERSION"; exit 1; }
 
           cat >> release-notes.md << 'EOF'
 
@@ -108,11 +145,74 @@ jobs:
           Or download the DMG below and drag ClearDisk to Applications.
           EOF
 
+      - name: Generate signed Sparkle appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          source scripts/_release_lib.sh
+          VERSION="$(project_version)"
+          TAG="v${VERSION}"
+          DMG="ClearDisk-v${VERSION}.dmg"
+          GENERATE_APPCAST=".build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+
+          [ -n "$SPARKLE_PRIVATE_KEY" ] \
+            || { echo "::error::SPARKLE_PRIVATE_KEY secret is missing"; exit 1; }
+          [ -x "$GENERATE_APPCAST" ] \
+            || { echo "::error::Sparkle generate_appcast tool is missing"; exit 1; }
+
+          # Derive the Ed25519 public key from the Actions secret and compare it with the key
+          # embedded in every ClearDisk build. This prevents publishing an update that installed
+          # copies would reject because a wrong or damaged private key was configured.
+          EXPECTED_PUBLIC_KEY="$(plutil -extract SUPublicEDKey raw ClearDisk.app/Contents/Info.plist)"
+          DERIVED_PUBLIC_KEY="$(swift -e 'import Foundation; import CryptoKit
+          let value = ProcessInfo.processInfo.environment["SPARKLE_PRIVATE_KEY"] ?? ""
+          guard let seed = Data(base64Encoded: value.trimmingCharacters(in: .whitespacesAndNewlines)) else { fatalError("Invalid Sparkle private key encoding") }
+          let key = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
+          print(key.publicKey.rawRepresentation.base64EncodedString())')"
+          [ "$DERIVED_PUBLIC_KEY" = "$EXPECTED_PUBLIC_KEY" ] \
+            || { echo "::error::SPARKLE_PRIVATE_KEY does not match ClearDisk's public key"; exit 1; }
+
+          mkdir -p sparkle-release
+          cp "$DMG" "sparkle-release/$DMG"
+          cp release-notes.md "sparkle-release/ClearDisk-v${VERSION}.md"
+
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$GENERATE_APPCAST" \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/bysiber/cleardisk/releases/download/${TAG}/" \
+            --link "https://github.com/bysiber/cleardisk" \
+            --embed-release-notes \
+            --maximum-deltas 0 \
+            sparkle-release
+
+          cp sparkle-release/appcast.xml appcast.xml
+          xmllint --noout appcast.xml
+          grep -q 'sparkle:edSignature=' appcast.xml \
+            || { echo "::error::appcast has no EdDSA signature"; exit 1; }
+          grep -q "releases/download/${TAG}/${DMG}" appcast.xml \
+            || { echo "::error::appcast download URL is incorrect"; exit 1; }
+          grep -q "<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>" appcast.xml \
+            || { echo "::error::appcast version is incorrect"; exit 1; }
+          grep -q '<sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>' appcast.xml \
+            || { echo "::error::appcast minimum macOS version is incorrect"; exit 1; }
+          ! grep -q '<sparkle:hardwareRequirements>' appcast.xml \
+            || { echo "::error::appcast unexpectedly restricts a universal build to one architecture"; exit 1; }
+
+      - name: Upload signed update artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClearDisk-update-${{ github.run_id }}
+          path: |
+            ClearDisk-v*.dmg
+            appcast.xml
+          if-no-files-found: error
+
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ClearDisk-v*.dmg
+          files: |
+            ClearDisk-v*.dmg
+            appcast.xml
           body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,6 +6,7 @@
 xcuserdata/
 DerivedData/
 Package.resolved
+!Package.resolved
 
 # App bundle (built artifact)
 ClearDisk.app/
@@ -15,7 +16,6 @@ ClearDisk.app/
 *.swp
 *.swo
 *~
-# Root-level binary only (must not match Sources/ClearDisk/ on case-insensitive FS)
 /cleardisk
 *.dmg
 dist/

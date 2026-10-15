@@ -6,12 +6,11 @@
 
 **Your Mac is hiding 50–500 GB of developer caches. ClearDisk finds them in seconds.**
 
-A free, open-source macOS menu bar app that monitors and cleans developer caches, Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. ~6 MB universal binary. Zero dependencies. No data collection. No analytics. No network access. Ever.
+A free, open-source macOS menu bar app that monitors and cleans developer caches, Xcode, npm, Homebrew, Docker, pip, Cargo, Go, Gradle, and more. No data collection. No analytics. Network access is limited to signed update checks.
 
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green)
-![Size](https://img.shields.io/badge/Size-~6%20MB-brightgreen)
 [![GitHub stars](https://img.shields.io/github/stars/bysiber/cleardisk?style=social)](https://github.com/bysiber/cleardisk/stargazers)
 [![GitHub release](https://img.shields.io/github/v/release/bysiber/cleardisk)](https://github.com/bysiber/cleardisk/releases/latest)
 [![Homebrew](https://img.shields.io/badge/Homebrew-tap-brown)](https://github.com/bysiber/homebrew-cleardisk)
@@ -32,25 +31,28 @@ Your Mac's SSD is full of developer caches you forgot about. Xcode DerivedData a
 - **CleanMyMac** ($40/yr) — bloated, expensive, trust issues
 - **SquirrelDisk** — dead (3 years, no updates)
 
-ClearDisk scans **63 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
+ClearDisk scans **79 developer cache paths** in one tool. Lives in your menu bar. Alerts you when disk gets full.
 
 ## Features
 
-- **63 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm, Bun, Deno, pip, UV, Conda, Poetry, pipenv, Gradle, Maven, SBT/Ivy, Gradle Wrapper, Docker, Terraform, Composer, Go, Rust Cargo, Bazel, Flutter/Pub, JetBrains, Ruby (Gems, rbenv, mise, RVM, Bundler), Android Emulators, Testing (Playwright, Puppeteer, Prisma), AI Tools (Claude Desktop, Claude Code, Ollama, HuggingFace, ChatGPT, Cursor, Windsurf), VS Code (Cache, CachedData, Extensions, Chromium Cache, Logs), Game Engines (Unity, Unity Hub, Godot), Version Managers (nvm, pyenv, mise), Cloud (AWS CLI)
-- **Project Artifact Scanner** — Finds stale per-project caches in your project folders (and any custom folders you add — including external disks). Detects **23 project types**: Node.js / JS (incl. `.next`, `.nuxt`, `.svelte-kit`, `.angular`, `.turbo`, `.vite`, `.parcel-cache`, `.yarn/cache`, `dist`, `build`), **Python (`.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `*.egg-info`)**, Rust, Swift PM, **CocoaPods (`Pods/`)**, **Carthage**, **Xcode (in-project `build/`, `DerivedData/`)**, Go, Gradle (Java + Kotlin), Maven, PHP/Composer, Ruby, Flutter/Dart, CMake, Terraform, **.NET / C# (`bin/`, `obj/`)**, **Godot (`.godot/`, `.import/`)**, **Unity (`Library/`, `Temp/`, `Logs/`)**, **Unreal (`Binaries/`, `Intermediate/`, `DerivedDataCache/`)**, Haskell, Elixir, Zig, Crystal. Each project can expose multiple artifacts (e.g. a Next.js project shows `node_modules` *and* `.next` *and* `dist` separately).
+- **79 Developer Caches** — Xcode (DerivedData, Archives, Simulators, Caches, Device Support, Logs, Previews), Swift PM, CocoaPods, Carthage, Homebrew, npm, Yarn, pnpm (store *and* cache), Bun, Deno, node-gyp, TypeScript, pip, UV, Conda, Poetry, pipenv, Gradle, Maven, SBT/Ivy, Gradle Wrapper, Docker, Terraform, Composer, .NET NuGet, Go (modules *and* build cache), Rust Cargo, Bazel, Flutter/Pub, JetBrains, Ruby (Gems, rbenv, mise, RVM, Bundler), Android (Emulators, System Images, NDK), Testing (Playwright, Puppeteer, Prisma), AI Tools (Claude Desktop, Claude Code, Ollama, HuggingFace, ChatGPT, Cursor, Windsurf), VS Code (Cache, CachedData, Extensions, Chromium Cache, Logs, Updater), Game Engines (Unity, Unity Hub, Godot), Version Managers (nvm, pyenv, mise, rustup), Cloud (AWS CLI)
+- **Project Artifact Scanner** — Finds stale per-project caches in your project folders, including repositories kept directly in your home directory. Detects **23 project types**: Node.js / JS (incl. `.next`, `.nuxt`, `.svelte-kit`, `.angular`, `.turbo`, `.vite`, `.parcel-cache`, `.yarn/cache`, `dist`, `build`), **Python (`.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.tox`, `*.egg-info`)**, Rust, Swift PM, **CocoaPods (`Pods/`)**, **Carthage**, **Xcode (in-project `build/`, `DerivedData/`)**, Go, Gradle (Java + Kotlin), Maven, PHP/Composer, Ruby, Flutter/Dart, CMake, Terraform, **.NET / C# (`bin/`, `obj/`)**, **Godot (`.godot/`, `.import/`)**, **Unity (`Library/`, `Temp/`, `Logs/`)**, **Unreal (`Binaries/`, `Intermediate/`, `DerivedDataCache/`)**, Haskell, Elixir, Zig, Crystal. Each project can expose multiple artifacts (e.g. a Next.js project shows `node_modules` *and* `.next` *and* `dist` separately).
+- **Custom Project Scan Folders** — Add up to eight additional roots, including external volumes, while the built-in project folders continue to be scanned.
 - **Cache Descriptions** — Every cache shows a human-readable explanation ("Downloaded Swift packages. Re-downloads on next build.") so you know exactly what you're deleting
 - **DerivedData Project Breakdown** — Shows which projects live inside DerivedData (e.g. "MyApp: 2.3 GB, OtherApp: 1.1 GB") by reading `info.plist`
 - **Hero Dashboard** — Big, clear display of total cleanable space with breakdown by dev caches and trash
 - **Menu Bar Monitor** — Always-on disk usage display. Changes color at 80%/90% thresholds. Shows cleanable amount when disk is stressed
 - **Risk Levels** — 🟢 Safe (rebuilds with a command), 🟡 Caution (large re-download needed), 🔴 Risky (may contain irreplaceable data)
 - **Xcode Running Check** — Warns you if Xcode is running when you try to clean Xcode-related caches
-- **Safe Delete** — Files go to Trash, not permanent delete. You can always recover
+- **Safe Delete** — Files go to Trash first and remain recoverable until Trash is emptied
 - **Visual Category Bars** — Color-coded proportional bars showing what's eating your disk
-- **Recovery Tracking** — "Recovered 12.4 GB!" banner after cleanup + cumulative "Total saved: 123 GB" counter
+- **Appearance** — Follow the system theme or use Light or Dark across ClearDisk's windows and panels
+- **Cleanup Tracking** — distinguishes bytes moved to Trash from space actually reclaimed after Trash is emptied
 - **Storage Forecast** — Predicts when your disk will be full based on usage trends (linear regression, 90-day history)
 - **Smart Suggestions** — Age-based recommendations ("Not used for 90 days — safe to clean")
 - **Smart Notifications** — Alerts at 80% and 90% disk usage, no spam
-- **100% Private** — No data collection. No analytics. No network access. Source code is open — verify yourself
+- **Signed Automatic Updates** — Checks GitHub Releases and installs Developer ID, notarized, EdDSA-verified updates through Sparkle
+- **100% Private** — No data collection or analytics. Network access is limited to signed update checks, and the source is open to inspection
 
 ## Comparison
 
@@ -65,7 +67,7 @@ ClearDisk scans **63 developer cache paths** in one tool. Lives in your menu bar
 | Cache descriptions | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Storage forecast | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Safe delete (Trash) | ✅ | ❌ `removeItem` | ❌ `rm -rf` | ❌ `rm -rf` | ❌ `rm -rf` | N/A | ❌ |
-| Total cache paths | 63 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
+| Total cache paths | 79 | 6 | 50+ | 24 types | 42 modules | 0 | Unknown |
 | Price | Free | Free | Free | Free | Free | $10 | $40/yr |
 | Open source | ✅ MIT | ✅ GPL-3 | ✅ MIT | ✅ MIT | ✅ Apache-2 | ❌ | ❌ |
 
@@ -89,10 +91,10 @@ That's it. Homebrew handles everything, including the quarantine flag.
 
 1. Download the latest DMG from [**Releases**](https://github.com/bysiber/cleardisk/releases/latest)
 2. Open the DMG and drag ClearDisk to Applications
-3. **First launch:** macOS will block it because it's not notarized. Choose one:
-   - **GUI:** Open the app once (it will be blocked), then go to **System Settings > Privacy & Security**, scroll down and click **"Open Anyway"**
-   - **Terminal (if GUI doesn't work):** `xattr -cr /Applications/ClearDisk.app`
-4. Open ClearDisk from Applications
+3. Open ClearDisk from Applications. Release builds are Developer ID signed and notarized by Apple.
+
+Once installed, ClearDisk checks for signed updates automatically and can install them directly
+from **Settings → Check for Updates**. Homebrew is not required for subsequent updates.
 
 ### Build from Source
 
@@ -107,13 +109,14 @@ open /Applications/ClearDisk.app
 
 That's it. Click the disk icon in your menu bar.
 
-> **Why the Gatekeeper warning?** ClearDisk is not notarized with Apple ($99/yr Developer fee). The app is fully open-source -- you can verify every line of code yourself.
+Source builds are ad-hoc signed, while downloadable releases are Developer ID signed and notarized.
+The app is fully open-source, so every part of the update and cleanup flow can be inspected.
 
 Requires macOS 14+ (Apple Silicon and Intel). Release builds are universal (`arm64` + `x86_64`). Xcode Command Line Tools needed for building from source (`xcode-select --install`).
 
 ## How It Works
 
-ClearDisk scans **known developer cache directories** on a 5-minute interval:
+ClearDisk refreshes free disk capacity every 5 minutes and scans **known developer cache directories** every 30 minutes:
 
 ```
 ~/Library/Developer/Xcode/DerivedData           → 🟢 Safe
@@ -152,9 +155,9 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 
 ## Privacy & Trust
 
-- **Zero network access** — the app never connects to the internet
+- **Update-only network access** — ClearDisk contacts its public GitHub Releases feed only to check for signed updates
 - **Zero telemetry** — no analytics, no crash reports, no usage data
-- **Zero background processes** — only scans when the popover is open or on a 5-min timer
+- **No persistent helper processes** — Sparkle helpers run only while installing an update
 - **Open source** — read every line of code yourself
 - **Safe delete** — everything goes to Trash first
 
@@ -163,7 +166,7 @@ When you clean, files are **moved to Trash** (not permanently deleted). You can 
 - Swift + SwiftUI
 - macOS
 - SPM (Swift Package Manager)
-- No external dependencies
+- Sparkle 2 for signed, native macOS updates
 - ~1,500 lines of code total
 
 ## Contributing

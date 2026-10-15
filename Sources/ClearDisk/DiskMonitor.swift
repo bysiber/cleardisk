@@ -10,30 +10,36 @@ class DiskMonitor: ObservableObject {
     @Published var usedPercentage: Int = 0
     @Published var categories: [DiskCategory] = []
     @Published var devCaches: [DevCache] = []
+    @Published var isScanningCaches: Bool = false
+    @Published var hasCompletedCacheScan: Bool = false
     @Published var largeFiles: [LargeFile] = []
     @Published var projectArtifacts: [ProjectArtifact] = [] // stale node_modules, target/, build/ etc.
+    @Published var trashSizeBytes: Int64 = 0
     @Published var isScanning: Bool = false
-    @Published var scanStatus: String = "" // current scan phase, shown in UI
+    @Published var scanProgress: Double = 0
+    @Published var scanStatusText: String = L("Preparing analysis...")
     @Published var totalCleanable: Int64 = 0
-    @Published var safeCleanable: Int64 = 0 // only safe + caution caches + trash
+    @Published var safeCleanable: Int64 = 0 // only explicitly safe caches + trash
     @Published var riskyCleanable: Int64 = 0 // risky caches (e.g. Docker data)
     @Published var forecastDaysUntilFull: Int? = nil // nil = not enough data
     @Published var dailyGrowthRate: Int64 = 0 // bytes per day
     @Published var usageHistory: [UsageSnapshot] = [] // for chart display
     
-    // Savings tracking
-    @Published var totalSavedAllTime: Int64 = 0 // cumulative bytes cleaned
-    @Published var lastCleanedAmount: Int64 = 0 // last cleanup size (for "Recovered X!" banner)
-    @Published var showRecoveredBanner: Bool = false // transient banner after cleanup
-    private let savedKey = "ClearDisk.totalSaved"
+    // Cleanup tracking. Moving an item to Trash does not reclaim disk space yet, so keep that
+    // distinct from permanently emptying Trash in both the model and the UI.
+    @Published var totalMovedToTrash: Int64 = 0
+    @Published var lastCleanedAmount: Int64 = 0
+    @Published var lastCleanOutcome: CleanOutcome = .movedToTrash
+    @Published var showCleanResultBanner: Bool = false
+    private let movedToTrashKey = "ClearDisk.totalMovedToTrash"
+    private let legacySavedKey = "ClearDisk.totalSaved"
     
     // Per-project cache cleanup history (persisted)
     @Published var projectCleanHistory: [ProjectCleanHistoryEntry] = []
     private let projectHistoryKey = "ClearDisk.projectCleanHistory"
     private let historyMaxEntries = 200
-    
-    // Extra roots for the Projects artifact scanner (persisted). Default home folders still apply.
-    @Published var customProjectRoots: [String] = []
+
+    @Published private(set) var customProjectRoots: [String] = []
     private let customProjectRootsKey = "ClearDisk.customProjectRoots"
     static let maxCustomProjectRoots = 8
 
@@ -43,25 +49,6 @@ class DiskMonitor: ObservableObject {
         var id: String { path }
     }
 
-    /// Removable / external volumes under `/Volumes` (excludes the boot volume).
-    static func mountedExternalVolumes() -> [MountedVolume] {
-        let fm = FileManager.default
-        let volumesRoot = "/Volumes"
-        guard let names = try? fm.contentsOfDirectory(atPath: volumesRoot) else { return [] }
-
-        var volumes: [MountedVolume] = []
-        for name in names {
-            if name.hasPrefix(".") { continue }
-            let path = (volumesRoot as NSString).appendingPathComponent(name)
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else { continue }
-            let resolved = (path as NSString).resolvingSymlinksInPath
-            if resolved == "/" || name == "Macintosh HD" { continue }
-            volumes.append(MountedVolume(name: name, path: path))
-        }
-        return volumes.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-    
     enum CustomProjectRootError: Equatable {
         case atCapacity
         case invalid
@@ -71,17 +58,19 @@ class DiskMonitor: ObservableObject {
     }
     
     // Permission & access status
+    @Published var fullDiskAccess: PermissionState = .unknown
     @Published var notificationPermission: PermissionState = .unknown
     @Published var inaccessiblePaths: [String] = [] // paths that couldn't be read
     @Published var hasCompletedFirstScan: Bool = false
-    @Published private(set) var completedScanPhases: Set<ScanPhase> = []
 
-    /// Set when a clean could not free the space it promised, so the UI can say so.
-    /// Swallowing a failed trash is what let the app report "Recovered X!" while nothing moved.
+    /// Set when a clean could not move the bytes it promised, so the UI can say so.
+    /// Swallowing a failed trash is what previously let the app report success while nothing moved.
     @Published var cleanFailure: CleanFailure?
     
     // Track notification state to avoid spam
     private var lastNotifiedThreshold: Int = 0
+    private var isCapacityRefreshInProgress = false
+    private(set) var lastFullScanAt: Date?
     
     // Storage history key
     private let historyKey = "ClearDisk.usageHistory"
@@ -93,25 +82,31 @@ class DiskMonitor: ObservableObject {
     }
     func markOnboardingComplete() {
         UserDefaults.standard.set(true, forKey: onboardingKey)
-        objectWillChange.send()
     }
     
-    func loadSavedTotal() {
-        totalSavedAllTime = Int64(UserDefaults.standard.integer(forKey: savedKey))
+    func loadCleanupTotals() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: movedToTrashKey) != nil {
+            totalMovedToTrash = Int64(defaults.integer(forKey: movedToTrashKey))
+        } else {
+            // Versions before 1.9 called this value "saved", although those bytes had only been
+            // moved to Trash. Preserve the history while migrating it to the truthful label.
+            totalMovedToTrash = Int64(defaults.integer(forKey: legacySavedKey))
+            defaults.set(Int(totalMovedToTrash), forKey: movedToTrashKey)
+        }
         loadProjectCleanHistory()
         loadCustomProjectRoots()
     }
-    
+
     // MARK: - Custom Project Scan Roots
     func loadCustomProjectRoots() {
         customProjectRoots = UserDefaults.standard.stringArray(forKey: customProjectRootsKey) ?? []
     }
-    
+
     private func saveCustomProjectRoots() {
         UserDefaults.standard.set(customProjectRoots, forKey: customProjectRootsKey)
     }
-    
-    /// Built-in directories under the home folder always scanned for project artifacts.
+
     var defaultProjectScanRoots: [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
@@ -123,9 +118,26 @@ class DiskMonitor: ObservableObject {
             "\(home)/src",
             "\(home)/workspace",
             "\(home)/Desktop",
+            "\(home)/Development",
+            "\(home)/dev",
         ]
     }
-    
+
+    static func mountedExternalVolumes() -> [MountedVolume] {
+        let fileManager = FileManager.default
+        guard let names = try? fileManager.contentsOfDirectory(atPath: "/Volumes") else { return [] }
+
+        return names.compactMap { name in
+            guard !name.hasPrefix("."), name != "Macintosh HD" else { return nil }
+            let path = ("/Volumes" as NSString).appendingPathComponent(name)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue,
+                  (path as NSString).resolvingSymlinksInPath != "/" else { return nil }
+            return MountedVolume(name: name, path: path)
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     static func normalizeProjectRootPath(_ path: String) -> String {
         var normalized = (path as NSString).standardizingPath
         while normalized.hasSuffix("/") && normalized.count > 1 {
@@ -133,52 +145,43 @@ class DiskMonitor: ObservableObject {
         }
         return normalized
     }
-    
-    /// Whether a custom root's path currently exists (e.g. external volume still mounted).
+
     func isCustomProjectRootAvailable(_ path: String) -> Bool {
         FileManager.default.fileExists(atPath: Self.normalizeProjectRootPath(path))
     }
-    
+
     @discardableResult
     func addCustomProjectRoot(_ path: String) -> CustomProjectRootError? {
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .invalid }
         let normalized = Self.normalizeProjectRootPath(path)
-        if normalized.isEmpty || normalized == "/" {
-            return .filesystemRoot
+        guard normalized != "/" else { return .filesystemRoot }
+
+        let existingCustom = customProjectRoots.map(Self.normalizeProjectRootPath)
+        let defaults = defaultProjectScanRoots.map(Self.normalizeProjectRootPath)
+        let knownRoots = existingCustom + defaults
+        if knownRoots.contains(normalized) { return .duplicate }
+        if knownRoots.contains(where: { Self.isPath(normalized, nestedUnder: $0) || Self.isPath($0, nestedUnder: normalized) }) {
+            return .nested
         }
-        if customProjectRoots.count >= Self.maxCustomProjectRoots {
-            return .atCapacity
-        }
-        // Reject files / non-directories when the path is currently reachable.
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: normalized, isDirectory: &isDir), !isDir.boolValue {
+        guard customProjectRoots.count < Self.maxCustomProjectRoots else { return .atCapacity }
+
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: normalized, isDirectory: &isDirectory), !isDirectory.boolValue {
             return .invalid
         }
-        
-        let existingCustom = customProjectRoots.map { Self.normalizeProjectRootPath($0) }
-        let defaults = defaultProjectScanRoots.map { Self.normalizeProjectRootPath($0) }
-        let allKnown = existingCustom + defaults
-        
-        if allKnown.contains(normalized) {
-            return .duplicate
-        }
-        for known in allKnown {
-            if isPath(normalized, nestedUnder: known) || isPath(known, nestedUnder: normalized) {
-                return .nested
-            }
-        }
-        
+
         customProjectRoots.append(normalized)
         saveCustomProjectRoots()
         return nil
     }
-    
+
     func removeCustomProjectRoot(_ path: String) {
         let normalized = Self.normalizeProjectRootPath(path)
         customProjectRoots.removeAll { Self.normalizeProjectRootPath($0) == normalized }
         saveCustomProjectRoots()
     }
-    
-    private func isPath(_ path: String, nestedUnder ancestor: String) -> Bool {
+
+    private static func isPath(_ path: String, nestedUnder ancestor: String) -> Bool {
         path.hasPrefix(ancestor + "/")
     }
     
@@ -209,15 +212,18 @@ class DiskMonitor: ObservableObject {
         UserDefaults.standard.removeObject(forKey: projectHistoryKey)
     }
     
-    private func addToSavings(_ bytes: Int64) {
-        totalSavedAllTime += bytes
+    private func recordCleanResult(_ bytes: Int64, outcome: CleanOutcome) {
+        if outcome == .movedToTrash {
+            totalMovedToTrash += bytes
+            UserDefaults.standard.set(Int(totalMovedToTrash), forKey: movedToTrashKey)
+        }
         lastCleanedAmount = bytes
-        showRecoveredBanner = true
-        UserDefaults.standard.set(Int(totalSavedAllTime), forKey: savedKey)
+        lastCleanOutcome = outcome
+        showCleanResultBanner = true
         
         // Auto-hide banner after 5 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            self?.showRecoveredBanner = false
+            self?.showCleanResultBanner = false
         }
     }
     
@@ -262,6 +268,21 @@ class DiskMonitor: ObservableObject {
             }
         }
     }
+
+    /// macOS has no public API that reports Full Disk Access. See `FullDiskAccessProbe`.
+    private static func canReadFullDiskAccessProbe() -> Bool {
+        FullDiskAccessProbe.isGranted()
+    }
+
+    func checkFullDiskAccess(completion: ((Bool) -> Void)? = nil) {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let granted = Self.canReadFullDiskAccessProbe()
+            DispatchQueue.main.async {
+                self?.fullDiskAccess = granted ? .granted : .denied
+                completion?(granted)
+            }
+        }
+    }
     
     /// Check if a path is readable before scanning
     private func canAccess(path: String) -> Bool {
@@ -269,184 +290,179 @@ class DiskMonitor: ObservableObject {
     }
     
     private var isScanInProgress = false
-    @Published private(set) var scanIsActive = false
-    private var scanGeneration = 0
-    private var lastScanCompletedAt: Date?
+    private var isCacheScanInProgress = false
     private var pendingProjectRescan = false
 
-    func hasCompletedScanPhase(_ phase: ScanPhase) -> Bool {
-        completedScanPhases.contains(phase)
-    }
-
-    private func beginScan(resetting phases: Set<ScanPhase>? = nil) {
-        if let phases {
-            completedScanPhases.subtract(phases)
-        } else {
-            completedScanPhases = []
-        }
-        scanIsActive = true
-        isScanning = true
-        scanStatus = "Starting…"
-    }
-
-    private func completeScanPhase(_ phase: ScanPhase, generation: Int) {
+    private func publishScanProgress(_ value: Double, _ status: String) {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.scanGeneration == generation else { return }
-            self.completedScanPhases.insert(phase)
-        }
-    }
-
-    private func runOnMain(_ block: @escaping () -> Void) {
-        if Thread.isMainThread {
-            block()
-        } else {
-            DispatchQueue.main.async(execute: block)
-        }
-    }
-    
-    /// Opens the popover without re-running a scan that just finished (e.g. during onboarding).
-    func scanIfStale(minInterval: TimeInterval = 300) {
-        guard !isScanInProgress else { return }
-        guard hasCompletedFirstScan else {
-            scan()
-            return
-        }
-        if let lastScanCompletedAt, Date().timeIntervalSince(lastScanCompletedAt) < minInterval { return }
-        scan()
-    }
-    
-    func scanOnPopoverOpen() {
-        scanIfStale()
-    }
-
-    /// Re-scan only project artifact roots (after custom folder add/remove).
-    func rescanProjectArtifacts() {
-        guard !isScanInProgress else {
-            pendingProjectRescan = true
-            return
-        }
-        isScanInProgress = true
-        scanGeneration += 1
-        let generation = scanGeneration
-
-        runOnMain { [weak self] in
-            self?.beginScan(resetting: [.projects])
-            self?.scanStatus = "Project caches"
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            defer {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.scanGeneration == generation else { return }
-                    self.isScanning = false
-                    self.isScanInProgress = false
-                    self.scanIsActive = false
-                    self.scanStatus = ""
-                    self.calculateCleanable()
-                }
-            }
-            guard let self else { return }
-            self.runScanPhase("Project caches", generation: generation) {
-                self.scanProjectArtifacts(generation: generation)
-            }
-            self.completeScanPhase(.projects, generation: generation)
+            self?.scanProgress = value
+            self?.scanStatusText = status
         }
     }
     
     func scan() {
-        guard !isScanInProgress else { return }
-        isScanInProgress = true
-        scanGeneration += 1
-        let generation = scanGeneration
-        
-        runOnMain { [weak self] in
-            self?.beginScan()
+        guard fullDiskAccess == .granted else {
+            refreshDiskSpaceOnly()
+            return
         }
-        
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            defer {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.scanGeneration == generation else { return }
-                    self.isScanning = false
-                    self.isScanInProgress = false
-                    self.scanIsActive = false
-                    self.scanStatus = ""
-                    if self.pendingProjectRescan {
-                        self.pendingProjectRescan = false
-                        self.rescanProjectArtifacts()
-                    }
-                }
-            }
-            
-            guard let self else { return }
+        guard !isScanInProgress, !isCacheScanInProgress else { return } // Prevent concurrent scans
+        let projectRoots = projectScanRoots()
+        isScanInProgress = true
+        isScanning = true
+        scanProgress = 0.03
+        scanStatusText = L("Preparing storage analysis...")
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            // Reset scan status
             var inaccessible: [String] = []
             
-            self.runScanPhase("Disk usage", generation: generation) { self.scanDiskSpace(generation: generation) }
-            guard self.scanGeneration == generation else { return }
-            self.completeScanPhase(.disk, generation: generation)
+            self?.publishScanProgress(0.08, L("Reading disk capacity..."))
+            self?.scanDiskCapacity()
+            self?.publishScanProgress(0.18, L("Analyzing storage categories..."))
+            self?.scanDiskCategories()
+            self?.publishScanProgress(0.38, L("Inspecting app and developer caches..."))
+            self?.scanKnownCaches()
+            self?.publishScanProgress(0.60, L("Finding large files..."))
+            self?.scanLargeFiles()
+            self?.publishScanProgress(0.78, L("Reviewing project build caches..."))
+            self?.scanProjectArtifacts(roots: projectRoots)
+            self?.publishScanProgress(0.92, L("Measuring Trash and finalizing results..."))
+            let trashBytes = self?.trashSize() ?? 0
             
-            self.runScanPhase("Developer caches", generation: generation) { self.scanDevCaches(generation: generation) }
-            guard self.scanGeneration == generation else { return }
-            self.completeScanPhase(.devCaches, generation: generation)
-            
-            self.runScanPhase("Large files", generation: generation) { self.scanLargeFiles() }
-            guard self.scanGeneration == generation else { return }
-            self.completeScanPhase(.largeFiles, generation: generation)
-            
-            self.runScanPhase("Project caches", generation: generation) { self.scanProjectArtifacts(generation: generation) }
-            guard self.scanGeneration == generation else { return }
-            self.completeScanPhase(.projects, generation: generation)
-            
-            let devPaths = self.devCachePaths()
-            for (name, path) in devPaths {
+            // Check which known cache paths are inaccessible.
+            let cachePaths = self?.knownCachePaths() ?? []
+            for (name, path) in cachePaths {
                 let expanded = (path as NSString).expandingTildeInPath
                 let parent = (expanded as NSString).deletingLastPathComponent
-                if FileManager.default.fileExists(atPath: parent) && !self.canAccess(path: expanded) {
+                if FileManager.default.fileExists(atPath: parent) && !(self?.canAccess(path: expanded) ?? true) {
                     inaccessible.append(name)
                 }
             }
             
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.scanGeneration == generation else { return }
-                self.inaccessiblePaths = inaccessible
-                self.hasCompletedFirstScan = true
-                self.lastScanCompletedAt = Date()
-                self.calculateCleanable()
-                self.recordUsageSnapshot()
-                self.calculateForecast()
-                self.checkThresholdNotification()
-                self.checkNotificationStatus()
+            DispatchQueue.main.async {
+                self?.isScanning = false
+                self?.isScanInProgress = false
+                self?.scanProgress = 1
+                self?.scanStatusText = L("Analysis complete")
+                self?.inaccessiblePaths = inaccessible
+                self?.hasCompletedFirstScan = true
+                self?.hasCompletedCacheScan = true
+                self?.lastFullScanAt = Date()
+                self?.trashSizeBytes = trashBytes
+                self?.calculateCleanable()
+                self?.recordUsageSnapshot()
+                self?.calculateForecast()
+                self?.checkThresholdNotification()
+                self?.checkNotificationStatus()
+                self?.startPendingProjectRescan()
             }
         }
     }
-    
-    private func runScanPhase(_ name: String, generation: Int, _ block: () -> Void) {
-        let started = CFAbsoluteTimeGetCurrent()
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.scanGeneration == generation else { return }
-            self.scanStatus = name
+
+    func rescanProjectArtifacts() {
+        guard !isScanInProgress, !isCacheScanInProgress else {
+            pendingProjectRescan = true
+            return
         }
-        print("🔍 Scan: \(name)…")
-        block()
-        let elapsed = CFAbsoluteTimeGetCurrent() - started
-        print(String(format: "✓ Scan: %@ (%.1fs)", name, elapsed))
+
+        let roots = projectScanRoots()
+        isScanInProgress = true
+        isScanning = true
+        scanProgress = 0.78
+        scanStatusText = L("Reviewing project build caches...")
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            self.scanProjectArtifacts(roots: roots)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isScanInProgress = false
+                self.isScanning = false
+                self.scanProgress = 1
+                self.scanStatusText = L("Analysis complete")
+                self.calculateCleanable()
+                self.startPendingProjectRescan()
+            }
+        }
     }
-    
-    private func setScanDetail(_ detail: String, generation: Int) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.scanGeneration == generation else { return }
-            self.scanStatus = detail
+
+    private func startPendingProjectRescan() {
+        guard pendingProjectRescan else { return }
+        pendingProjectRescan = false
+        rescanProjectArtifacts()
+    }
+
+    /// Refresh only the known cache locations shown in the Caches tab. This avoids making the
+    /// cache screen's "Scan All" button crawl projects and unrelated large-file locations.
+    func scanCaches() {
+        guard fullDiskAccess == .granted else {
+            refreshDiskSpaceOnly()
+            return
+        }
+        guard !isScanInProgress, !isCacheScanInProgress else { return }
+        isCacheScanInProgress = true
+        isScanningCaches = true
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            self?.scanKnownCaches()
+
+            // scanKnownCaches enqueues its published result on the main queue. This completion is
+            // enqueued immediately after it, preserving the result-before-status ordering.
+            DispatchQueue.main.async { [weak self] in
+                self?.isCacheScanInProgress = false
+                self?.isScanningCaches = false
+                self?.hasCompletedCacheScan = true
+                self?.calculateCleanable()
+                self?.startPendingProjectRescan()
+            }
+        }
+    }
+
+    /// Refreshes only APFS capacity values used by the menu-bar indicator. Unlike `scan()`, this
+    /// does not recursively enumerate the user's home folders, projects, caches, or large files.
+    func refreshDiskSpaceOnly() {
+        guard !isScanInProgress, !isCapacityRefreshInProgress else { return }
+        isCapacityRefreshInProgress = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            self?.scanDiskCapacity {
+                guard let self else { return }
+                self.isCapacityRefreshInProgress = false
+                self.recordUsageSnapshot()
+                self.calculateForecast()
+                self.checkThresholdNotification()
+            }
+        }
+    }
+
+    /// Opening the popover should feel fresh without turning every open/close into a recursive
+    /// filesystem crawl. A manual refresh still always calls `scan()` directly.
+    func scanIfStale(maxAge: TimeInterval = 30 * 60) {
+        guard fullDiskAccess == .granted else {
+            refreshDiskSpaceOnly()
+            return
+        }
+        guard let lastFullScanAt else {
+            scan()
+            return
+        }
+        if Date().timeIntervalSince(lastFullScanAt) >= maxAge {
+            scan()
+        } else {
+            refreshDiskSpaceOnly()
         }
     }
     
     private func calculateCleanable() {
-        let devTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
-        let safeDevTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
-        let riskyDevTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
-        let trashTotal = trashSize()
-        totalCleanable = devTotal + trashTotal
-        safeCleanable = safeDevTotal + trashTotal
-        riskyCleanable = riskyDevTotal
+        // `devCaches` is the legacy published name; it now contains both app and developer caches.
+        let cacheTotal = devCaches.reduce(Int64(0)) { $0 + $1.size }
+        let safeCacheTotal = devCaches.filter { $0.riskLevel == "safe" }.reduce(Int64(0)) { $0 + $1.size }
+        let riskyCacheTotal = devCaches.filter { $0.riskLevel == "risky" }.reduce(Int64(0)) { $0 + $1.size }
+        let projectArtifactTotal = projectArtifacts.reduce(Int64(0)) { $0 + $1.size }
+        let trashTotal = trashSizeBytes
+        // Project artifacts are reclaimable candidates, but remain review-only:
+        // including them in the total must never make them an automatic safe selection.
+        totalCleanable = cacheTotal + projectArtifactTotal + trashTotal
+        safeCleanable = safeCacheTotal + trashTotal
+        riskyCleanable = riskyCacheTotal
     }
     
     // MARK: - Storage Forecast
@@ -540,14 +556,14 @@ class DiskMonitor: ObservableObject {
         let pct = usedPercentage
         if pct >= 90 && lastNotifiedThreshold < 90 {
             sendNotification(
-                title: "⚠️ Disk Almost Full!",
-                body: "Disk \(pct)% full. \(formatBytes(safeCleanable)) can be safely cleaned with ClearDisk."
+                title: L("⚠️ Disk Almost Full!"),
+                body: String(format: L("Disk %d%% full. %@ can be safely cleaned with ClearDisk."), pct, formatBytes(safeCleanable))
             )
             lastNotifiedThreshold = 90
         } else if pct >= 80 && lastNotifiedThreshold < 80 {
             sendNotification(
-                title: "Disk Space Low",
-                body: "Disk \(pct)% full. \(formatBytes(safeCleanable)) of developer caches can be safely cleaned."
+                title: L("Disk Space Low"),
+                body: String(format: L("Disk %d%% full. %@ of developer caches can be safely cleaned."), pct, formatBytes(safeCleanable))
             )
             lastNotifiedThreshold = 80
         }
@@ -558,7 +574,7 @@ class DiskMonitor: ObservableObject {
     }
     
     private func sendNotification(title: String, body: String) {
-        guard isInAppBundle else { return }
+        guard isInAppBundle, notificationPermission == .granted else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -568,9 +584,7 @@ class DiskMonitor: ObservableObject {
     }
     
     // MARK: - Disk Space
-    private func scanDiskSpace(generation: Int) {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        
+    private func scanDiskCapacity(completion: (() -> Void)? = nil) {
         do {
             let values = try URL(fileURLWithPath: "/").resourceValues(forKeys: [
                 .volumeTotalCapacityKey,
@@ -586,11 +600,17 @@ class DiskMonitor: ObservableObject {
                 self?.freeSpace = free
                 self?.usedSpace = used
                 self?.usedPercentage = total > 0 ? Int((Double(used) / Double(total)) * 100) : 0
+                completion?()
             }
         } catch {
             print("Error getting disk space: \(error)")
+            DispatchQueue.main.async { completion?() }
         }
-        
+    }
+
+    private func scanDiskCategories() {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+
         // Scan categories
         let home = homeDir.path
         let categoryPaths: [(String, String, [String])] = [
@@ -616,8 +636,7 @@ class DiskMonitor: ObservableObject {
         for (name, icon, paths) in categoryPaths {
             var totalSize: Int64 = 0
             for path in paths {
-                setScanDetail("Disk: \((path as NSString).lastPathComponent)", generation: generation)
-                totalSize += directorySize(path: path, hardlinkAware: false)
+                totalSize += directorySize(path: path)
             }
             if totalSize > 0 {
                 cats.append(DiskCategory(name: name, icon: icon, size: totalSize))
@@ -650,6 +669,9 @@ class DiskMonitor: ObservableObject {
         "npm Cache": "Cached package tarballs from npmjs.org. Re-downloads on npm install.",
         "Yarn Cache": "Cached Yarn packages. Re-downloads on yarn install.",
         "pnpm Store": "Content-addressable package store. Re-downloads on pnpm install.",
+        "pnpm Cache": "Registry metadata and dlx cache, kept separately from the package store. Re-downloads on next pnpm install.",
+        "node-gyp Headers": "Node.js headers and libraries, one set per Node version, used to compile native addons. Re-downloads on the next native build.",
+        "TypeScript Types": "Type definitions fetched automatically for JavaScript files (VS Code automatic type acquisition). Re-downloads when needed.",
         "Bun Cache": "Cached Bun packages. Re-downloads on bun install.",
         "Deno Cache": "Cached Deno modules and compiled scripts. Re-downloads on deno run.",
         "pip Cache": "Downloaded Python wheels and sdists. Re-downloads on pip install.",
@@ -660,12 +682,20 @@ class DiskMonitor: ObservableObject {
         "Gradle Cache": "Downloaded JARs, build outputs, and wrapper dists. Re-downloads on gradle build.",
         "Maven Cache": "Local Maven repository (.m2). Re-downloads on mvn build.",
         "Android Emulators": "Android Virtual Devices and disk images. Must re-create in AVD Manager.",
+        "Android System Images": "Emulator system images, one per API level and ABI. Re-download from Android Studio → SDK Manager. Often the largest part of the SDK.",
+        "Android NDK": "Native Development Kit toolchains — a full compiler per installed version. Re-download from SDK Manager. Only needed for native (C/C++) Android builds.",
         "Docker (Data)": "Docker images, containers, and volumes. May lose running containers and uncommitted data!",
         "Terraform Plugins": "Terraform/OpenTofu CLI plugins and provider cache. Re-downloads on terraform init.",
         "Composer Cache": "Cached PHP packages. Re-downloads on composer install.",
+        ".NET NuGet": "Restored NuGet packages for .NET projects, one copy per package version. Re-downloads on dotnet restore.",
         "Go Modules": "Go module download cache. Re-downloads on go mod download.",
+        "Go Build Cache": "Compiled package objects that make rebuilds fast (GOCACHE). Rebuilds itself — the first build after clearing is slower. Equivalent to go clean -cache.",
         "Rust Cargo": "Cached crate sources and registries. Re-downloads on cargo build.",
+        "rustup Toolchains": "Installed Rust toolchains (stable, beta, nightly) — a full compiler and standard library each. Reinstall with rustup toolchain install.",
         "Playwright Browsers": "Downloaded browser binaries for Playwright testing. Re-downloads on npx playwright install.",
+        "Playwright Go Browsers": "Browser packages downloaded by Playwright for Go. Re-downloads when the matching Playwright Go version installs its driver.",
+        "DotSlash Artifacts": "Verified executables and archives downloaded by DotSlash. They are fetched again the next time a matching DotSlash launcher runs.",
+        "Puccinialin Rust Environment": "A self-contained Rust compiler, Cargo registry, and tools. Removing it does not delete source code, but the full toolchain must be installed again.",
         "Puppeteer Browsers": "Downloaded Chromium binaries for Puppeteer. Re-downloads on npx puppeteer install.",
         "Prisma Engines": "Prisma ORM query engine binaries. Re-downloads on npx prisma generate.",
         "Flutter/Pub Cache": "Cached Dart/Flutter packages. Re-downloads on flutter pub get.",
@@ -681,6 +711,8 @@ class DiskMonitor: ObservableObject {
         "HuggingFace Cache": "Downloaded AI/ML models, tokenizers, and datasets. Re-downloads on next use. Large models may take time.",
         "Ollama Models": "Downloaded LLM model files. Re-downloads with ollama pull — large models take a while.",
         "ChatGPT Desktop": "ChatGPT Desktop app data. Conversations sync to cloud.",
+        "GitHub Copilot CLI Runtime": "Downloaded Copilot CLI runtime versions and bundled dependencies. Local sessions, settings, plugins, and logs under ~/.copilot are not targeted.",
+        "GitHub Copilot CLI Locked Runtime": "A separate downloaded Copilot CLI runtime channel. Local sessions and configuration under ~/.copilot are not targeted.",
         "Cursor": "Cursor's whole application-support directory: workspace state, chat history, extensions and settings. Not a cache — deleting it is permanent.",
         "Windsurf": "Windsurf's whole application-support directory: workspace state, chat history and settings. Not a cache — deleting it is permanent.",
         // Game Engines
@@ -760,7 +792,7 @@ class DiskMonitor: ObservableObject {
     /// Single source of truth for all developer cache paths
     /// (name, icon, path, riskLevel, group)
     /// Risk levels: safe = rebuild with command, caution = may need re-download, risky = data loss possible
-    private func allCachePaths() -> [(name: String, icon: String, path: String, riskLevel: String, group: String?)] {
+    func allCachePaths() -> [(name: String, icon: String, path: String, riskLevel: String, group: String?)] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return [
             // Xcode & Apple
@@ -782,6 +814,12 @@ class DiskMonitor: ObservableObject {
             ("npm Cache", "shippingbox", "\(home)/.npm/_cacache", "safe", nil),
             ("Yarn Cache", "figure.walk", "\(home)/Library/Caches/Yarn", "safe", nil),
             ("pnpm Store", "shippingbox.and.arrow.backward.fill", "\(home)/Library/pnpm/store", "safe", nil),
+            // Separate from the store above: `pnpm store path` resolves to ~/Library/pnpm/store, while
+            // registry metadata and the dlx cache live under ~/Library/Caches/pnpm. Both are real, and
+            // neither covers the other.
+            ("pnpm Cache", "shippingbox.and.arrow.backward", "\(home)/Library/Caches/pnpm", "safe", nil),
+            ("node-gyp Headers", "hammer", "\(home)/Library/Caches/node-gyp", "safe", nil),
+            ("TypeScript Types", "chevron.left.forwardslash.chevron.right", "\(home)/Library/Caches/typescript", "safe", nil),
             ("Bun Cache", "hare.fill", "\(home)/.bun/install/cache", "safe", nil),
             ("Deno Cache", "bolt.fill", "\(home)/Library/Caches/deno", "safe", nil),
             // Python
@@ -793,20 +831,41 @@ class DiskMonitor: ObservableObject {
             // Java/Android
             ("Gradle Cache", "gearshape.fill", "\(home)/.gradle/caches", "safe", nil),
             ("Maven Cache", "building.columns.fill", "\(home)/.m2/repository", "safe", nil),
-            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution", nil),
+            ("Android Emulators", "apps.iphone", "\(home)/.android/avd", "caution", "Android"),
+            // The SDK is listed per subdirectory, never as a whole: deleting ~/Library/Android/sdk takes
+            // platform-tools with it, and without platform-tools there is no adb. system-images and ndk
+            // are the two that actually carry the weight, and both come back from the SDK Manager.
+            ("Android System Images", "square.stack.3d.down.right.fill", "\(home)/Library/Android/sdk/system-images", "caution", "Android"),
+            ("Android NDK", "cpu.fill", "\(home)/Library/Android/sdk/ndk", "caution", "Android"),
             // Containers
             ("Docker (Data)", "cube.transparent", "\(home)/Library/Containers/com.docker.docker/Data", "risky", nil),
             // Infrastructure
             ("Terraform Plugins", "server.rack", "\(home)/.terraform.d", "caution", nil),
             // PHP
             ("Composer Cache", "music.note.list", "\(home)/.composer/cache", "safe", nil),
+            // .NET
+            // ~/.nuget/packages is the global-packages folder, not ~/.nuget itself (which also holds
+            // NuGet.Config). Unlike Go's module cache, NuGet does not check the extracted packages out
+            // read-only, so there is no Trash-move restriction here.
+            (".NET NuGet", "square.grid.2x2.fill", "\(home)/.nuget/packages", "safe", nil),
             // Go/Rust
+            // Deliberately the download cache and not all of ~/go/pkg/mod. The extracted modules beside it
+            // are checked out read-only (0555 dirs), and macOS refuses to move a directory it cannot write
+            // to the Trash — the entry would fail to clean, and anything that did reach the Trash could not
+            // be emptied afterwards. `go clean -modcache` exists precisely because it handles that; a
+            // Trash-based cleaner cannot. ~/go/pkg/mod/cache is fully writable and safe to move.
             ("Go Modules", "leaf.fill", "\(home)/go/pkg/mod/cache", "safe", nil),
+            ("Go Build Cache", "leaf.circle.fill", "\(home)/Library/Caches/go-build", "safe", nil),
             ("Rust Cargo", "wrench.fill", "\(home)/.cargo/registry", "safe", nil),
             // Testing
             ("Playwright Browsers", "theatermasks.fill", "\(home)/Library/Caches/ms-playwright", "safe", nil),
+            ("Playwright Go Browsers", "theatermasks.circle.fill", "\(home)/Library/Caches/ms-playwright-go", "safe", nil),
             ("Puppeteer Browsers", "theatermasks", "\(home)/.cache/puppeteer", "safe", nil),
             ("Prisma Engines", "cylinder.fill", "\(home)/.cache/prisma", "safe", nil),
+            // Downloaded developer-tool artifacts. These are recoverable, but can be expensive to
+            // fetch again; Puccinialin contains a complete Rust toolchain rather than ordinary cache.
+            ("DotSlash Artifacts", "arrow.down.circle.fill", "\(home)/Library/Caches/dotslash", "caution", "Developer Tools"),
+            ("Puccinialin Rust Environment", "wrench.and.screwdriver.fill", "\(home)/Library/Caches/puccinialin", "caution", "Developer Tools"),
             // Mobile
             ("Flutter/Pub Cache", "bird.fill", "\(home)/.pub-cache", "safe", nil),
             // IDEs
@@ -824,6 +883,10 @@ class DiskMonitor: ObservableObject {
             ("VS Code Chromium Cache", "laptopcomputer", "\(home)/Library/Application Support/Code/Cache", "safe", "VS Code"),
             ("VS Code Logs", "laptopcomputer", "\(home)/Library/Application Support/Code/logs", "safe", "VS Code"),
             // AI Tools
+            // Only downloaded CLI runtimes are targeted. ~/.copilot contains sessions, settings,
+            // plugins, and logs and is deliberately outside every cleanup definition.
+            ("GitHub Copilot CLI Runtime", "sparkles", "\(home)/Library/Caches/copilot/pkg", "caution", "AI Tools"),
+            ("GitHub Copilot CLI Locked Runtime", "lock.fill", "\(home)/Library/Caches/copilot-locked-25/pkg", "caution", "AI Tools"),
             // Both Claude entries are "risky", not "caution". They were "caution" until #27, where a
             // user lost every Claude CoWork session with no way back. These are not caches: on a
             // normal machine over 99% of ~/.claude is session transcripts, job state, file history,
@@ -856,6 +919,9 @@ class DiskMonitor: ObservableObject {
             ("nvm Node Versions", "number.circle.fill", "\(home)/.nvm/versions", "caution", "Version Managers"),
             ("pyenv Versions", "number.square.fill", "\(home)/.pyenv/versions", "caution", "Version Managers"),
             ("mise Installs", "square.stack.3d.up.fill", "\(home)/.local/share/mise/installs", "caution", "Version Managers"),
+            // Grouped with the other version managers rather than with Rust Cargo: this is not a package
+            // cache, it is the compilers themselves, and removing one uninstalls that toolchain.
+            ("rustup Toolchains", "wrench.and.screwdriver.fill", "\(home)/.rustup/toolchains", "caution", "Version Managers"),
             // Extra JVM / Build
             ("SBT/Ivy Cache", "s.circle.fill", "\(home)/.ivy2/cache", "safe", nil),
             ("Gradle Wrapper", "gearshape.2.fill", "\(home)/.gradle/wrapper/dists", "safe", nil),
@@ -865,32 +931,62 @@ class DiskMonitor: ObservableObject {
         ]
     }
 
-    /// Returns list of (name, path) tuples for all known dev cache paths
-    func devCachePaths() -> [(String, String)] {
-        return allCachePaths().map { ($0.name, $0.path) }
+    func appCacheDefinitions() -> [CachePathDefinition] {
+        AppCacheCatalog.definitions(excludingPaths: Set(allCachePaths().map(\.path)))
+    }
+
+    func developerCacheDefinitions() -> [CachePathDefinition] {
+        allCachePaths().map { entry in
+            CachePathDefinition(
+                name: entry.name,
+                icon: entry.icon,
+                path: entry.path,
+                riskLevel: entry.riskLevel,
+                group: entry.group,
+                section: .developer,
+                description: DiskMonitor.cacheDescriptions[entry.name] ?? "",
+                safetyDetails: nil
+            )
+        }
+    }
+
+    func allKnownCacheDefinitions() -> [CachePathDefinition] {
+        let developerDefinitions = developerCacheDefinitions()
+        let appDefinitions = AppCacheCatalog.definitions(excludingPaths: Set(developerDefinitions.map(\.path)))
+        return appDefinitions + developerDefinitions
+    }
+
+    func knownCachePaths() -> [(String, String)] {
+        allKnownCacheDefinitions().map { ($0.name, $0.path) }
+    }
+
+    static func isEligibleForSafeBulkClean(_ cache: DevCache) -> Bool {
+        cache.riskLevel == "safe"
+    }
+
+    static func requiresDataLossAcknowledgement(for caches: [DevCache]) -> Bool {
+        caches.contains { $0.riskLevel == "risky" }
     }
     
-    private func scanDevCaches(generation: Int) {
-        let devPaths = allCachePaths()
+    private func scanKnownCaches() {
+        let definitions = allKnownCacheDefinitions()
         
         var caches: [DevCache] = []
-        for entry in devPaths {
-            setScanDetail("Cache: \(entry.name)", generation: generation)
-            let size = directorySize(path: entry.path, hardlinkAware: true, generation: generation)
+        for entry in definitions {
+            let size = directorySize(path: entry.path)
             if size > 1_048_576 { // Only show if > 1MB
                 let lastAccessed = lastModifiedDate(path: entry.path)
                 let daysSinceAccess = daysSince(lastAccessed)
                 let suggestion = generateSuggestion(name: entry.name, size: size, daysSinceAccess: daysSinceAccess)
-                let desc = DiskMonitor.cacheDescriptions[entry.name] ?? ""
-                
                 // Resolve DerivedData subfolders to project names
                 var detail: String? = nil
-                if entry.name == "Xcode DerivedData" {
+                if entry.rawName == "Xcode DerivedData" {
                     detail = derivedDataProjectSummary()
                 }
                 
                 caches.append(DevCache(
                     name: entry.name,
+                    rawName: entry.rawName,
                     icon: entry.icon,
                     path: entry.path,
                     size: size,
@@ -898,8 +994,10 @@ class DiskMonitor: ObservableObject {
                     daysSinceAccess: daysSinceAccess,
                     suggestion: suggestion,
                     riskLevel: entry.riskLevel,
-                    cacheDescription: desc,
+                    cacheDescription: entry.description,
                     group: entry.group,
+                    section: entry.section,
+                    safetyDetails: entry.safetyDetails,
                     detail: detail
                 ))
             }
@@ -909,6 +1007,47 @@ class DiskMonitor: ObservableObject {
         
         DispatchQueue.main.async { [weak self] in
             self?.devCaches = caches
+        }
+    }
+
+    /// Refresh strings that were materialized during the last scan without touching the disk
+    /// again. Language changes should be instant and must not trigger another expensive scan.
+    @MainActor
+    func refreshLocalizedPresentation() {
+        let definitionsByPath = Dictionary(
+            allKnownCacheDefinitions().map { ($0.path, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        devCaches = devCaches.map { cache in
+            guard let definition = definitionsByPath[cache.path] else { return cache }
+            return DevCache(
+                id: cache.id,
+                name: definition.name,
+                rawName: definition.rawName,
+                icon: cache.icon,
+                path: cache.path,
+                size: cache.size,
+                lastAccessed: cache.lastAccessed,
+                daysSinceAccess: cache.daysSinceAccess,
+                suggestion: generateSuggestion(
+                    name: definition.name,
+                    size: cache.size,
+                    daysSinceAccess: cache.daysSinceAccess
+                ),
+                riskLevel: cache.riskLevel,
+                cacheDescription: definition.description,
+                group: definition.group,
+                section: definition.section,
+                safetyDetails: definition.safetyDetails,
+                detail: cache.detail
+            )
+        }
+
+        if !isScanning {
+            scanStatusText = hasCompletedFirstScan
+                ? L("Analysis complete")
+                : L("Preparing analysis...")
         }
     }
     
@@ -932,11 +1071,11 @@ class DiskMonitor: ObservableObject {
         let sizeGB = Double(size) / 1_073_741_824
         
         if days > 90 && sizeGB >= 1.0 {
-            return "⚠️ Not used for \(days) days, \(formatBytes(size)) — safe to clean"
+            return String(format: L("⚠️ Not used for %d days, %@ — safe to clean"), days, formatBytes(size))
         } else if days > 60 {
-            return "💡 Unused for \(days) days — consider cleaning"
+            return String(format: L("💡 Unused for %d days — consider cleaning"), days)
         } else if days > 30 && sizeGB >= 5.0 {
-            return "💡 \(days) days old, large at \(formatBytes(size))"
+            return String(format: L("💡 %d days old, large at %@"), days, formatBytes(size))
         }
         return nil
     }
@@ -1021,10 +1160,15 @@ class DiskMonitor: ObservableObject {
     }
 
     /// Records the outcome of a clean. Credits ONLY the bytes that actually reached the Trash and
-    /// surfaces the first failure, so a refused delete can never show up as "Recovered X!".
+    /// surfaces the first failure, so a refused delete can never show up as a successful move.
     /// Always re-scans: on failure the item is still on disk and must reappear in the list.
-    private func finishClean(title: String, freed: Int64, failure: String?) {
-        if freed > 0 { addToSavings(freed) }
+    private func finishClean(
+        title: String,
+        freed: Int64,
+        failure: String?,
+        outcome: CleanOutcome = .movedToTrash
+    ) {
+        if freed > 0 { recordCleanResult(freed, outcome: outcome) }
         if let failure {
             cleanFailure = CleanFailure(title: title, reason: failure, isPermission: Self.isPermissionError(failure))
         }
@@ -1036,7 +1180,7 @@ class DiskMonitor: ObservableObject {
         return r.contains("permission") || r.contains("not permitted") || r.contains("privileges")
     }
 
-    /// Move items to Trash instead of permanent delete — user can recover for 30 days.
+    /// Move items to Trash instead of permanent delete — user can recover until Trash is emptied.
     /// NEVER falls back to permanent delete. If trash fails, it fails safely.
     /// Returns `nil` on success, or a human-readable reason on failure.
     private func moveToTrash(path: String) -> String? {
@@ -1081,20 +1225,10 @@ class DiskMonitor: ObservableObject {
         }
     }
 
-    /// Clean only the caches marked 🟢 safe — never 🟡 caution, never 🔴 risky.
-    ///
-    /// This used to sweep everything that was not "risky", which put caution entries behind a
-    /// button labelled "Clean Safe Caches": Xcode Archives (the dSYMs you need to symbolicate
-    /// released crash reports), Android AVDs, Cursor and Windsurf workspace state, and the
-    /// language-version managers. One click, and none of it comes back on its own. Caution
-    /// entries now require the user to pick them deliberately, one at a time.
-    func cleanSafeCaches() {
-        cleanCaches(devCaches.filter { $0.riskLevel == "safe" }, title: "Safe caches")
-    }
-
-    /// Clean ALL caches including risky ones (requires explicit user confirmation)
-    func cleanAllDevCaches() {
-        cleanCaches(devCaches, title: "All developer caches")
+    /// Clean a caller-selected snapshot as one operation and perform one rescan when it finishes.
+    func cleanSelectedCaches(_ caches: [DevCache]) {
+        guard let first = caches.first else { return }
+        cleanCaches(caches, title: caches.count == 1 ? first.name : L("Selected caches"))
     }
 
     /// `caches` is snapshotted by the caller on the main thread — never read the @Published
@@ -1133,7 +1267,8 @@ class DiskMonitor: ObservableObject {
                 self.finishClean(
                     title: "Trash",
                     freed: max(0, sizeBefore - remaining),
-                    failure: remaining > 0 ? "Some items in the Trash could not be removed." : nil
+                    failure: remaining > 0 ? L("Some items in the Trash could not be removed.") : nil,
+                    outcome: .reclaimedSpace
                 )
             }
         }
@@ -1234,28 +1369,62 @@ class DiskMonitor: ObservableObject {
         }
     }
     
-    /// Directories to scan for projects: defaults under home plus any custom roots.
+    /// Directories to scan for projects
     private func projectScanRoots() -> [String] {
+        let configuredRoots = Thread.isMainThread
+            ? customProjectRoots
+            : DispatchQueue.main.sync { customProjectRoots }
         var seen = Set<String>()
-        var roots: [String] = []
-        for path in defaultProjectScanRoots + customProjectRoots {
+        return (defaultProjectScanRoots + configuredRoots).compactMap { path in
             let normalized = Self.normalizeProjectRootPath(path)
-            guard !normalized.isEmpty, seen.insert(normalized).inserted else { continue }
-            roots.append(normalized)
+            guard !normalized.isEmpty, normalized != "/", seen.insert(normalized).inserted else { return nil }
+            return normalized
         }
-        return roots
     }
-    
-    private func scanProjectArtifacts(generation: Int) {
+
+    /// Entries in `~` that are never project directories: the standard macOS home folders, plus the
+    /// roots that are already scanned in full above. Without this they would be walked twice.
+    private static let homeScanExclusions: Set<String> = [
+        "Library", "Documents", "Desktop", "Downloads", "Movies", "Music", "Pictures",
+        "Public", "Applications", "Developer", "Projects", "Code", "repos", "src", "workspace", "Development", "dev",
+    ]
+
+    /// `roots` is captured before dispatching to the scan queue so UI changes cannot race this walk.
+    private func scanProjectArtifacts(roots: [String]) {
         var artifacts: [ProjectArtifact] = []
         let fm = FileManager.default
-        
-        for root in projectScanRoots() {
+
+        for root in roots {
             guard fm.fileExists(atPath: root) else { continue }
-            setScanDetail("Projects: \((root as NSString).lastPathComponent)", generation: generation)
-            findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0, generation: generation)
+            findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0)
         }
-        
+
+        // Repositories kept directly in `~` were invisible: every root above is a subdirectory of the
+        // home directory, and none of them reaches its siblings.
+        //
+        // The home directory is scanned one level down, and never as a project itself. Passing `~` to
+        // findProjectArtifacts would be actively harmful: a stray `~/package.json` — which several tools
+        // leave behind — makes the whole home directory match the Node.js type, and `.cache` and `.expo`
+        // are on that type's artifact list. `~/.cache` is the shared cache for uv, Puppeteer, Prisma,
+        // Bazel and HuggingFace, not a build directory, and it would have been offered for deletion.
+        // Worse, matching at `~` sets anyArtifactFound and stops the walk right there, so the projects
+        // this is meant to find would never be reached. Each subdirectory is judged on its own markers.
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if let entries = try? fm.contentsOfDirectory(atPath: home) {
+            for entry in entries where !entry.hasPrefix(".") {
+                guard !DiskMonitor.homeScanExclusions.contains(entry) else { continue }
+                let full = (home as NSString).appendingPathComponent(entry)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: full, isDirectory: &isDir), isDir.boolValue else { continue }
+                findProjectArtifacts(in: full, results: &artifacts, maxDepth: 1, currentDepth: 0)
+            }
+        }
+
+        // Defensive: the scan roots are disjoint today, but a duplicate row double-counts its size in
+        // the totals and makes the second clean fail on an already-trashed path. Keep the first sighting.
+        var seen = Set<String>()
+        artifacts = artifacts.filter { seen.insert($0.artifactPath).inserted }
+
         // Sort by size: biggest first (user can change sort in UI)
         artifacts.sort { $0.size > $1.size }
         
@@ -1264,9 +1433,8 @@ class DiskMonitor: ObservableObject {
         }
     }
     
-    private func findProjectArtifacts(in path: String, results: inout [ProjectArtifact], maxDepth: Int, currentDepth: Int, generation: Int) {
+    private func findProjectArtifacts(in path: String, results: inout [ProjectArtifact], maxDepth: Int, currentDepth: Int) {
         guard currentDepth < maxDepth else { return }
-        guard scanGeneration == generation else { return }
         let fm = FileManager.default
         
         guard let contents = try? fm.contentsOfDirectory(atPath: path) else { return }
@@ -1303,7 +1471,7 @@ class DiskMonitor: ObservableObject {
                         continue
                     }
 
-                    let size = directorySize(path: artifactPath, hardlinkAware: false, generation: generation)
+                    let size = directorySize(path: artifactPath)
                     guard size > 10_485_760 else { continue } // > 10 MB
                     let projectName = (path as NSString).lastPathComponent
                     let lastModified = lastModifiedDate(path: artifactPath)
@@ -1345,7 +1513,7 @@ class DiskMonitor: ObservableObject {
             let fullPath = (path as NSString).appendingPathComponent(item)
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
-                findProjectArtifacts(in: fullPath, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1, generation: generation)
+                findProjectArtifacts(in: fullPath, results: &results, maxDepth: maxDepth, currentDepth: currentDepth + 1)
             }
         }
     }
@@ -1423,82 +1591,26 @@ class DiskMonitor: ObservableObject {
     }
     
     // MARK: - Helpers
-    
-    /// Fast path uses `du -sk` (seconds). Hardlink-aware path walks every file (minutes on large trees).
-    func directorySize(path: String, hardlinkAware: Bool = false, generation: Int? = nil) -> Int64 {
-        guard FileManager.default.fileExists(atPath: path) else { return 0 }
-        if hardlinkAware {
-            return directorySizeEnumerating(path: path, generation: generation)
-        }
-        if let duSize = directorySizeViaDu(path: path) {
-            return duSize
-        }
-        return directorySizeEnumerating(path: path, generation: generation)
-    }
-    
-    /// macOS `du` — much faster than Swift enumeration for large folders (node_modules, Library/Caches).
-    private func directorySizeViaDu(path: String, timeoutSeconds: TimeInterval = 60) -> Int64? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/du")
-        process.arguments = ["-sk", path]
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = Pipe()
-        
-        do {
-            try process.run()
-        } catch {
-            print("⚠️ du failed to start for \(path): \(error)")
-            return nil
-        }
-        
-        let group = DispatchGroup()
-        group.enter()
-        DispatchQueue.global(qos: .utility).async {
-            process.waitUntilExit()
-            group.leave()
-        }
-        
-        if group.wait(timeout: .now() + timeoutSeconds) == .timedOut {
-            process.terminate()
-            print("⚠️ du timeout (\(Int(timeoutSeconds))s): \(path)")
-            return nil
-        }
-        
-        guard process.terminationStatus == 0 else {
-            print("⚠️ du exit \(process.terminationStatus): \(path)")
-            return nil
-        }
-        
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        guard let line = String(data: data, encoding: .utf8)?
-            .split(separator: "\n", maxSplits: 1).first,
-              let tab = line.firstIndex(of: "\t") else { return nil }
-        guard let kb = Int64(line[..<tab]) else { return nil }
-        return kb * 1024
-    }
-    
-    private func directorySizeEnumerating(path: String, generation: Int?) -> Int64 {
+    func directorySize(path: String) -> Int64 {
         let fm = FileManager.default
         var totalSize: Int64 = 0
-        var fileCount = 0
         
         guard let enumerator = fm.enumerator(
             at: URL(fileURLWithPath: path),
             includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey, .linkCountKey],
-            options: [],
+            options: [],  // Don't skip hidden files — caches often contain them
             errorHandler: nil
         ) else { return 0 }
         
         for case let fileURL as URL in enumerator {
-            if let generation, scanGeneration != generation { break }
-            fileCount += 1
-            if fileCount % 50_000 == 0 {
-                print("  … still sizing \((path as NSString).lastPathComponent) (\(fileCount) entries)")
-            }
             guard let values = try? fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey, .linkCountKey]),
                   values.isRegularFile == true else { continue }
+            // Use totalFileAllocatedSize (accounts for sparse files like Docker.raw)
+            // Falls back to fileAllocatedSize if total isn't available
             let size = values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0
+            // Hardlink-aware: a file with N hard links only frees `size / N` bytes when one link is removed.
+            // This is critical for pnpm / Bun / Yarn Berry / Cargo registry stores that hardlink into project caches —
+            // otherwise we wildly overestimate how much disk space cleaning would actually free.
             let links = max(values.linkCount ?? 1, 1)
             totalSize += Int64(size / links)
         }
@@ -1507,19 +1619,16 @@ class DiskMonitor: ObservableObject {
     }
 }
 
-// MARK: - Scan Phases
-enum ScanPhase: String, Hashable {
-    case disk
-    case devCaches
-    case largeFiles
-    case projects
-}
-
 // MARK: - Permission State
 enum PermissionState: String {
     case unknown = "Unknown"
     case granted = "Granted"
     case denied = "Denied"
+}
+
+enum CleanOutcome {
+    case movedToTrash
+    case reclaimedSpace
 }
 
 // MARK: - Models
@@ -1531,8 +1640,12 @@ struct DiskCategory: Identifiable {
 }
 
 struct DevCache: Identifiable {
-    let id = UUID()
+    let id: UUID
+    /// Display name, localized for the user's language.
     let name: String
+    /// The English name exactly as declared. Logic that recognizes a specific cache must
+    /// compare against this, never against `name`, which changes with the language.
+    let rawName: String
     let icon: String
     let path: String
     let size: Int64
@@ -1542,7 +1655,43 @@ struct DevCache: Identifiable {
     let riskLevel: String // "safe" = 🟢, "caution" = 🟡, "risky" = 🔴
     let cacheDescription: String // human-readable "what is this?"
     let group: String? // grouping key: "Xcode", "VS Code", "AI Tools", "Ruby", or nil
-    var detail: String? = nil // optional extra detail (e.g. DerivedData project list)
+    let section: CacheSection
+    let safetyDetails: CacheSafetyDetails?
+    var detail: String? // optional extra detail (e.g. DerivedData project list)
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        rawName: String? = nil,
+        icon: String,
+        path: String,
+        size: Int64,
+        lastAccessed: Date?,
+        daysSinceAccess: Int?,
+        suggestion: String?,
+        riskLevel: String,
+        cacheDescription: String,
+        group: String?,
+        section: CacheSection = .developer,
+        safetyDetails: CacheSafetyDetails? = nil,
+        detail: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.rawName = rawName ?? name
+        self.icon = icon
+        self.path = path
+        self.size = size
+        self.lastAccessed = lastAccessed
+        self.daysSinceAccess = daysSinceAccess
+        self.suggestion = suggestion
+        self.riskLevel = riskLevel
+        self.cacheDescription = cacheDescription
+        self.group = group
+        self.section = section
+        self.safetyDetails = safetyDetails
+        self.detail = detail
+    }
     
     var riskEmoji: String {
         switch riskLevel {
@@ -1555,9 +1704,11 @@ struct DevCache: Identifiable {
     
     var riskDescription: String {
         switch riskLevel {
-        case "safe": return "Safe — can be rebuilt with a command"
-        case "caution": return "Caution — may need large re-download"
-        case "risky": return "Risky — may contain irreplaceable data"
+        case "safe" where section == .app: return L("Verified cache-only path — profile and user data stay untouched")
+        case "caution" where section == .app: return L("Review — may contain app-specific state or require a large re-download")
+        case "safe": return L("Safe — can be rebuilt with a command")
+        case "caution": return L("Caution — may need large re-download")
+        case "risky": return L("Risky — may contain irreplaceable data")
         default: return ""
         }
     }
@@ -1572,7 +1723,7 @@ struct LargeFile: Identifiable {
 }
 
 /// A clean that did not free what it promised — the item is still on disk.
-/// Surfaced to the user instead of being swallowed, so "Recovered X!" always means it really went.
+/// Surfaced to the user instead of being swallowed, so a success banner always means it really moved.
 struct CleanFailure: Identifiable {
     let id = UUID()
     let title: String      // what we tried to clean
