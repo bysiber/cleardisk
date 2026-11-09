@@ -2007,6 +2007,9 @@ struct MainView: View {
     // MARK: - Projects Tab (kondo-style artifact scanner)
     var projectsContent: some View {
         VStack(spacing: 2) {
+            ProjectScanRootsSection(diskMonitor: diskMonitor)
+                .padding(.horizontal, 12)
+
             if diskMonitor.projectArtifacts.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "folder.badge.questionmark")
@@ -2015,7 +2018,7 @@ struct MainView: View {
                     Text("No project caches found")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
-                    Text("Scans ~/Documents, ~/Developer, ~/Projects, ~/Code, ~/Desktop")
+                    Text(L("Add custom folders above to include external disks or other project locations."))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

@@ -2,6 +2,10 @@
 
 All notable changes to ClearDisk are documented here.
 
+## [Unreleased]
+### Added
+- Configure up to eight additional project scan folders, including mounted external volumes. Built-in scan locations remain enabled, and project artifacts refresh when custom folders change.
+
 ## [2.3.2] - 2026-09-06
 ### Fixed
 - Full Disk Access detection no longer depends on the user TCC database at `~/Library/Application Support/com.apple.TCC/TCC.db`, which does not exist on macOS 27. The probe now reads the system TCC database when present, then falls back to listing protected locations such as Safari, Mail, and Stocks app data.

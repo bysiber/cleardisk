@@ -36,7 +36,7 @@ require_cmd() {
 # ever disagreeing with each other.
 project_version() {
     local v
-    v=$(awk '/^## \[/{gsub(/[\[\]]/, "", $2); print $2; exit}' "$ROOT_DIR/CHANGELOG.md")
+    v=$(awk '/^## \[[0-9]+\.[0-9]+\.[0-9]+\]/{gsub(/[\[\]]/, "", $2); print $2; exit}' "$ROOT_DIR/CHANGELOG.md")
     [ -n "$v" ] || die "Could not read version from CHANGELOG.md"
     [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
         || die "Invalid release version '$v' in CHANGELOG.md (expected X.Y.Z)."

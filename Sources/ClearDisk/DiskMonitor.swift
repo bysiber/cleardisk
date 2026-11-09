@@ -38,6 +38,24 @@ class DiskMonitor: ObservableObject {
     @Published var projectCleanHistory: [ProjectCleanHistoryEntry] = []
     private let projectHistoryKey = "ClearDisk.projectCleanHistory"
     private let historyMaxEntries = 200
+
+    @Published private(set) var customProjectRoots: [String] = []
+    private let customProjectRootsKey = "ClearDisk.customProjectRoots"
+    static let maxCustomProjectRoots = 8
+
+    struct MountedVolume: Identifiable, Equatable {
+        let name: String
+        let path: String
+        var id: String { path }
+    }
+
+    enum CustomProjectRootError: Equatable {
+        case atCapacity
+        case invalid
+        case duplicate
+        case nested
+        case filesystemRoot
+    }
     
     // Permission & access status
     @Published var fullDiskAccess: PermissionState = .unknown
@@ -77,6 +95,94 @@ class DiskMonitor: ObservableObject {
             defaults.set(Int(totalMovedToTrash), forKey: movedToTrashKey)
         }
         loadProjectCleanHistory()
+        loadCustomProjectRoots()
+    }
+
+    // MARK: - Custom Project Scan Roots
+    func loadCustomProjectRoots() {
+        customProjectRoots = UserDefaults.standard.stringArray(forKey: customProjectRootsKey) ?? []
+    }
+
+    private func saveCustomProjectRoots() {
+        UserDefaults.standard.set(customProjectRoots, forKey: customProjectRootsKey)
+    }
+
+    var defaultProjectScanRoots: [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return [
+            "\(home)/Documents",
+            "\(home)/Developer",
+            "\(home)/Projects",
+            "\(home)/Code",
+            "\(home)/repos",
+            "\(home)/src",
+            "\(home)/workspace",
+            "\(home)/Desktop",
+            "\(home)/Development",
+            "\(home)/dev",
+        ]
+    }
+
+    static func mountedExternalVolumes() -> [MountedVolume] {
+        let fileManager = FileManager.default
+        guard let names = try? fileManager.contentsOfDirectory(atPath: "/Volumes") else { return [] }
+
+        return names.compactMap { name in
+            guard !name.hasPrefix("."), name != "Macintosh HD" else { return nil }
+            let path = ("/Volumes" as NSString).appendingPathComponent(name)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue,
+                  (path as NSString).resolvingSymlinksInPath != "/" else { return nil }
+            return MountedVolume(name: name, path: path)
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    static func normalizeProjectRootPath(_ path: String) -> String {
+        var normalized = (path as NSString).standardizingPath
+        while normalized.hasSuffix("/") && normalized.count > 1 {
+            normalized.removeLast()
+        }
+        return normalized
+    }
+
+    func isCustomProjectRootAvailable(_ path: String) -> Bool {
+        FileManager.default.fileExists(atPath: Self.normalizeProjectRootPath(path))
+    }
+
+    @discardableResult
+    func addCustomProjectRoot(_ path: String) -> CustomProjectRootError? {
+        guard !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .invalid }
+        let normalized = Self.normalizeProjectRootPath(path)
+        guard normalized != "/" else { return .filesystemRoot }
+
+        let existingCustom = customProjectRoots.map(Self.normalizeProjectRootPath)
+        let defaults = defaultProjectScanRoots.map(Self.normalizeProjectRootPath)
+        let knownRoots = existingCustom + defaults
+        if knownRoots.contains(normalized) { return .duplicate }
+        if knownRoots.contains(where: { Self.isPath(normalized, nestedUnder: $0) || Self.isPath($0, nestedUnder: normalized) }) {
+            return .nested
+        }
+        guard customProjectRoots.count < Self.maxCustomProjectRoots else { return .atCapacity }
+
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: normalized, isDirectory: &isDirectory), !isDirectory.boolValue {
+            return .invalid
+        }
+
+        customProjectRoots.append(normalized)
+        saveCustomProjectRoots()
+        return nil
+    }
+
+    func removeCustomProjectRoot(_ path: String) {
+        let normalized = Self.normalizeProjectRootPath(path)
+        customProjectRoots.removeAll { Self.normalizeProjectRootPath($0) == normalized }
+        saveCustomProjectRoots()
+    }
+
+    private static func isPath(_ path: String, nestedUnder ancestor: String) -> Bool {
+        path.hasPrefix(ancestor + "/")
     }
     
     // MARK: - Project Clean History
@@ -185,6 +291,7 @@ class DiskMonitor: ObservableObject {
     
     private var isScanInProgress = false
     private var isCacheScanInProgress = false
+    private var pendingProjectRescan = false
 
     private func publishScanProgress(_ value: Double, _ status: String) {
         DispatchQueue.main.async { [weak self] in
@@ -199,6 +306,7 @@ class DiskMonitor: ObservableObject {
             return
         }
         guard !isScanInProgress, !isCacheScanInProgress else { return } // Prevent concurrent scans
+        let projectRoots = projectScanRoots()
         isScanInProgress = true
         isScanning = true
         scanProgress = 0.03
@@ -216,7 +324,7 @@ class DiskMonitor: ObservableObject {
             self?.publishScanProgress(0.60, L("Finding large files..."))
             self?.scanLargeFiles()
             self?.publishScanProgress(0.78, L("Reviewing project build caches..."))
-            self?.scanProjectArtifacts()
+            self?.scanProjectArtifacts(roots: projectRoots)
             self?.publishScanProgress(0.92, L("Measuring Trash and finalizing results..."))
             let trashBytes = self?.trashSize() ?? 0
             
@@ -245,8 +353,42 @@ class DiskMonitor: ObservableObject {
                 self?.calculateForecast()
                 self?.checkThresholdNotification()
                 self?.checkNotificationStatus()
+                self?.startPendingProjectRescan()
             }
         }
+    }
+
+    func rescanProjectArtifacts() {
+        guard !isScanInProgress, !isCacheScanInProgress else {
+            pendingProjectRescan = true
+            return
+        }
+
+        let roots = projectScanRoots()
+        isScanInProgress = true
+        isScanning = true
+        scanProgress = 0.78
+        scanStatusText = L("Reviewing project build caches...")
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            self.scanProjectArtifacts(roots: roots)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isScanInProgress = false
+                self.isScanning = false
+                self.scanProgress = 1
+                self.scanStatusText = L("Analysis complete")
+                self.calculateCleanable()
+                self.startPendingProjectRescan()
+            }
+        }
+    }
+
+    private func startPendingProjectRescan() {
+        guard pendingProjectRescan else { return }
+        pendingProjectRescan = false
+        rescanProjectArtifacts()
     }
 
     /// Refresh only the known cache locations shown in the Caches tab. This avoids making the
@@ -270,6 +412,7 @@ class DiskMonitor: ObservableObject {
                 self?.isScanningCaches = false
                 self?.hasCompletedCacheScan = true
                 self?.calculateCleanable()
+                self?.startPendingProjectRescan()
             }
         }
     }
@@ -1228,19 +1371,15 @@ class DiskMonitor: ObservableObject {
     
     /// Directories to scan for projects
     private func projectScanRoots() -> [String] {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return [
-            "\(home)/Documents",
-            "\(home)/Developer",
-            "\(home)/Projects",
-            "\(home)/Code",
-            "\(home)/repos",
-            "\(home)/src",
-            "\(home)/workspace",
-            "\(home)/Desktop",
-            "\(home)/Development",
-            "\(home)/dev",
-        ]
+        let configuredRoots = Thread.isMainThread
+            ? customProjectRoots
+            : DispatchQueue.main.sync { customProjectRoots }
+        var seen = Set<String>()
+        return (defaultProjectScanRoots + configuredRoots).compactMap { path in
+            let normalized = Self.normalizeProjectRootPath(path)
+            guard !normalized.isEmpty, normalized != "/", seen.insert(normalized).inserted else { return nil }
+            return normalized
+        }
     }
 
     /// Entries in `~` that are never project directories: the standard macOS home folders, plus the
@@ -1250,11 +1389,12 @@ class DiskMonitor: ObservableObject {
         "Public", "Applications", "Developer", "Projects", "Code", "repos", "src", "workspace", "Development", "dev",
     ]
 
-    private func scanProjectArtifacts() {
+    /// `roots` is captured before dispatching to the scan queue so UI changes cannot race this walk.
+    private func scanProjectArtifacts(roots: [String]) {
         var artifacts: [ProjectArtifact] = []
         let fm = FileManager.default
 
-        for root in projectScanRoots() {
+        for root in roots {
             guard fm.fileExists(atPath: root) else { continue }
             findProjectArtifacts(in: root, results: &artifacts, maxDepth: 5, currentDepth: 0)
         }

@@ -238,6 +238,67 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
     }
+
+    func pickProjectScanFolder(startingAt: URL? = nil, completion: @escaping (URL?) -> Void) {
+        guard statusItem.button != nil else {
+            completion(nil)
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.prompt = L("Add")
+        panel.message = L("Choose a folder to scan for project caches. Press ⌘⇧G to type a path (e.g. /Volumes/YourDisk).")
+        if let startingAt {
+            panel.directoryURL = startingAt
+        } else if !DiskMonitor.mountedExternalVolumes().isEmpty {
+            panel.directoryURL = URL(fileURLWithPath: "/Volumes")
+        } else {
+            panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+        }
+
+        if let eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+            self.eventMonitor = nil
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let previousBehavior = popover.behavior
+        popover.behavior = .applicationDefined
+        primaryModePanelController.hide()
+        popover.contentViewController?.view.window?.orderOut(nil)
+
+        let response = panel.runModal()
+
+        popover.behavior = previousBehavior
+        showPopoverAfterFolderPicker()
+        completion(response == .OK ? panel.url : nil)
+    }
+
+    private func showPopoverAfterFolderPicker() {
+        guard let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+        popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+
+        DispatchQueue.main.async { [weak self] in
+            guard
+                let self,
+                self.popover.isShown,
+                let contentView = self.popover.contentViewController?.view,
+                let popoverWindow = contentView.window
+            else { return }
+            self.primaryModePanelController.show(attachedTo: popoverWindow, alignedTo: contentView)
+        }
+
+        if eventMonitor == nil {
+            eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                self?.closePopover()
+            }
+        }
+    }
     
     private func closePopover() {
         // A child NSPanel can keep its parent popover alive. Detach it before asking AppKit to
